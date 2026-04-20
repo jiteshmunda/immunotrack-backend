@@ -1,0 +1,128 @@
+paths:
+  /clinicians:
+    post:
+      summary: Create new clinician (Admin only)
+      description: Allows an administrator to create a clinician account.
+      tags: [Clinician]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fullName, email, licenseNumber]
+              properties:
+                fullName: { type: string, example: "Dr. Willson" }
+                email: { type: string, format: email, example: "wilson@gmail.com" }
+                specialty: { type: string, example: "Pediatrician" }
+                licenseNumber: { type: string, example: "WL123456" }
+                organizationName: { type: string, example: "City Allergy Clinic" }
+      responses:
+        200:
+          description: Clinician created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Clinician created successfully" }
+                  data:
+                    type: object
+                    properties:
+                      clinicianId: { type: string, format: uuid, example: "be39e48c-2b41-40a9-ab47-1d2aafb8b0a8" }
+                      temporaryPassword: { type: string, example: "64eb1e9c8e1162ca" }
+        400: { description: Bad Request }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
+
+  /clinician/invite:
+    post:
+      summary: Clinician invites a patient to join (HIPAA-Compliant)
+      tags: [Clinician]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [patient_first_name, patient_last_name, patient_email, patient_dob, patient_diagnosis, icd10_code, rpm_enrolled]
+              properties:
+                patient_first_name: { type: string, example: "Jane" }
+                patient_last_name: { type: string, example: "Doe" }
+                patient_email: { type: string, format: email, example: "jane.doe@example.com" }
+                patient_dob: { type: string, format: date, example: "1990-05-15" }
+                patient_diagnosis: { type: string, example: "Persistent Asthma" }
+                icd10_code: { type: string, example: "J45.20" }
+                rpm_enrolled: { type: boolean, example: true }
+                personal_message: { type: string, maxLength: 500, example: "Welcome to our monitoring program." }
+      responses:
+        201:
+          description: Patient invited successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  invite_id: { type: string, format: uuid, example: "a5c9e7c9-c094-496c-a288-0ae21c32312f" }
+                  invite_code_display: { type: string, example: "IMMU-NNT6-RKSN" }
+                  expires_at: { type: string, format: date-time, example: "2026-04-19T11:18:37Z" }
+        401: { description: Unauthorized }
+
+  /clinician/invite/{invite_id}/resend:
+    post:
+      summary: Resend a patient invitation
+      tags: [Clinician]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: invite_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Invitation resent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  invite_id: { type: string, format: uuid, example: "b6d8f1e2-c34a-4d9b-a123-e456f7890abc" }
+                  invite_code_display: { type: string, example: "IMMU-NNT6-RKSN" }
+                  expires_at: { type: string, format: date-time, example: "2026-04-19T12:00:00Z" }
+        401: { description: Unauthorized }
+        404: { description: Invite not found }
+
+  /clinician/invite/{invite_id}:
+    delete:
+      summary: Cancel/Invalidate a pending invitation
+      tags: [Clinician]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: invite_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Invitation cancelled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+        401: { description: Unauthorized }
+        404: { description: Invite not found }

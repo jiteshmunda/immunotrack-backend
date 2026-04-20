@@ -4,6 +4,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { patients } from "./profile.schema";
 import { users } from "./user.schema";
+import { invitations } from "./invitation.schema";
 
 // ── Patient Export Requests ───────────────────────────────────
 // HIPAA-mandated audit table — 45 CFR § 164.524
@@ -15,7 +16,6 @@ export const patientExportRequests = pgTable("patient_export_requests", {
   id:        uuid("id").primaryKey().defaultRandom(),
   patientId: uuid("patient_id").notNull().references(() => patients.id),
 
-  // IMMUTABLE — exact timestamp of export initiation
   requestedAt: timestamp("requested_at").notNull(),
 
   // full_record | symptom_logs | lab_results | medications | rpm_record
@@ -126,4 +126,55 @@ export const auditLogs = pgTable("audit_logs", {
   metadata: jsonb("metadata"),
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── Patient Consents ─────────────────────────────────────────
+// HIPAA-required documentation of patient consent
+// IMMUTABLE — no UPDATE or DELETE permitted
+// Retained minimum 6 years per HIPAA requirements
+export const patientConsents = pgTable("patient_consents", {
+  id:             uuid("id").primaryKey().defaultRandom(),
+  patientId:      uuid("patient_id").notNull().references(() => patients.id),
+  
+  // platform | hipaa_npp | rpm
+  consentType:    varchar("consent_type", { length: 20 }).notNull(),
+  consentVersion: varchar("consent_version", { length: 10 }).notNull(),
+  
+  consentedAt:    timestamp("consented_at").notNull(),
+  
+  devicePlatform: varchar("device_platform", { length: 10 }).notNull(),
+  deviceId:       varchar("device_id", { length: 255 }).notNull(),
+  
+  scrollCompleted: boolean("scroll_completed").notNull().default(false),
+  
+  // For RPM consent
+  typedSignature: varchar("typed_signature", { length: 200 }),
+  icd10Code:      varchar("icd10_code", { length: 10 }),
+  
+  consentFormVersion: varchar("consent_form_version", { length: 10 }).notNull(),
+  ipAddress:          varchar("ip_address", { length: 45 }),
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── Onboarding Sessions ──────────────────────────────────────
+// Tracks patient progress through the registration wizard
+// for resume support within the 72-hour window
+export const onboardingSessions = pgTable("onboarding_sessions", {
+  id:                uuid("id").primaryKey().defaultRandom(),
+  inviteId:          uuid("invite_id").notNull().references(() => invitations.id),
+  patientId:         uuid("patient_id").references(() => patients.id),
+  
+  // identity_verify | account_create | consent_platform | 
+  // consent_hipaa_npp | consent_rpm | profile_setup | complete
+  currentStep:       varchar("current_step", { length: 30 }).notNull(),
+  
+  // Short-lived JWT from invite verification
+  verificationToken: text("verification_token"),
+  
+  deviceId:          varchar("device_id", { length: 255 }).notNull(),
+  
+  startedAt:         timestamp("started_at").defaultNow().notNull(),
+  lastActiveAt:      timestamp("last_active_at").defaultNow().notNull(),
+  completedAt:       timestamp("completed_at"),
 });

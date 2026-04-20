@@ -5,8 +5,6 @@ import {
 import { patients } from "./profile.schema";
 
 // ── Daily Logs ───────────────────────────────────────────────
-// ★ v2.2 — 19 validated sub-items + 3 composite scores
-// Replaces old 3-slider (respiratory/nasal/skin 0–10) design
 export const dailyLogs = pgTable("daily_logs", {
   id:        uuid("id").primaryKey().defaultRandom(),
   patientId: uuid("patient_id").notNull().references(() => patients.id),
@@ -65,14 +63,14 @@ export const dailyLogContexts = pgTable("daily_log_contexts", {
 
   // Indoor triggers
   smokeExposure:  boolean("smoke_exposure"),
-  petExposure:    varchar("pet_exposure", { length: 50 }),  // none | cat | dog | both
+  petExposure:    varchar("pet_exposure", { length: 50 }), 
   dustExposure:   boolean("dust_exposure"),
 
   // Activity & lifestyle
-  exerciseIntensity: varchar("exercise_intensity", { length: 20 }), // none | light | moderate | intense
-  sleepQuality:      varchar("sleep_quality", { length: 20 }),      // poor | fair | good
+  exerciseIntensity: varchar("exercise_intensity", { length: 20 }),
+  sleepQuality:      varchar("sleep_quality", { length: 20 }),     
   sleepHours:        numeric("sleep_hours", { precision: 4, scale: 1 }),
-  stressLevel:       varchar("stress_level", { length: 20 }),       // low | medium | high
+  stressLevel:       varchar("stress_level", { length: 20 }),   
 
   // Illness
   illness: boolean("illness"),

@@ -2,6 +2,8 @@ import {
   pgTable, uuid, varchar, text, timestamp, boolean, date
 } from "drizzle-orm/pg-core";
 import { users } from "./user.schema";
+import { clinics } from "./clinic.schema";
+
 
 // ── Patients ─────────────────────────────────────────────────
 export const patients = pgTable("patients", {
@@ -9,8 +11,8 @@ export const patients = pgTable("patients", {
   userId:             uuid("user_id").notNull().references(() => users.id),
 
   // PHI — AES-256 encrypted
-  dateOfBirth:        text("date_of_birth").notNull(),
-  sex:                varchar("sex", { length: 20 }).notNull(), // male | female | other | unknown
+  dateOfBirth:        text("date_of_birth"),
+  sex:                varchar("sex", { length: 20 }), // male | female | other | unknown
 
   // PHI — AES-256 encrypted
   phone:              text("phone"),
@@ -24,7 +26,15 @@ export const patients = pgTable("patients", {
   icd10QualifyingCode: varchar("icd10_qualifying_code", { length: 20 }), // e.g. J45.20
   rpmEnrollmentDate:  date("rpm_enrollment_date"),
 
+  medicationRemindersEnabled: boolean("medication_reminders_enabled").default(true).notNull(),
+  reminderTimeUtc: varchar("reminder_time_utc", { length: 5 }), // HH:MM
+  fcmToken: text("fcm_token"),
+
+  onboardingCompleted: boolean("onboarding_completed").default(false).notNull(),
+  monitoringActive: boolean("monitoring_active").default(false).notNull(),
+
   createdAt:          timestamp("created_at").defaultNow().notNull(),
+
   updatedAt:          timestamp("updated_at").defaultNow().notNull(),
 });
 
@@ -32,8 +42,10 @@ export const patients = pgTable("patients", {
 export const clinicians = pgTable("clinicians", {
   id:               uuid("id").primaryKey().defaultRandom(),
   userId:           uuid("user_id").notNull().references(() => users.id),
+  clinicId:         uuid("clinic_id").references(() => clinics.id),
 
   // PHI — AES-256 encrypted
+
   licenseNumber:    text("license_number"),
 
   specialty:        varchar("specialty", { length: 100 }),

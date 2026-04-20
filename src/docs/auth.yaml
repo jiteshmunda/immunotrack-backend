@@ -1,0 +1,157 @@
+paths:
+  /auth/login:
+    post:
+      summary: Authenticate user and issue tokens
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email, example: "jane.doe@example.com" }
+                password: { type: string, example: "Password123!" }
+      responses:
+        200:
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  accessToken: { type: string, example: "eyJhbGciOiJIUzI1Ni..." }
+                  user:
+                    type: object
+                    properties:
+                      user_id: { type: string, format: uuid, example: "a8cffc86-f212-489b-bbf4-7f109570ea39" }
+                      role: { type: string, example: "patient" }
+                      isTemporaryPassword: { type: boolean, example: true }
+                  resetRequired: { type: boolean, example: false }
+        401:
+          description: Authentication failed
+
+  /auth/refresh:
+    post:
+      summary: Refresh access token using http-only cookie
+      tags: [Auth]
+      responses:
+        200:
+          description: New access token issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  accessToken: { type: string, example: "eyJhbGciOiJIUzI1Ni..." }
+                  resetRequired: { type: boolean, example: false }
+        401:
+          description: Session expired
+
+  /auth/logout:
+    post:
+      summary: Terminate session and clear cookies
+      tags: [Auth]
+      responses:
+        200:
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Logged out successfully" }
+
+  /auth/change-password:
+    post:
+      summary: Update password and clear temporary flags
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string, example: "64eb1e9c8e1162ca" }
+                newPassword: { type: string, minLength: 8, example: "StrongPass@2026" }
+      responses:
+        200:
+          description: Password updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Password updated successfully" }
+
+  /auth/invite/verify:
+    post:
+      summary: Verify invite code and DOB (Step 1 of Onboarding)
+      tags: [Patient Onboarding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [invite_code, patient_dob, device_id]
+              properties:
+                invite_code: { type: string, example: "IMMU-NNT6-RKSN" }
+                patient_dob: { type: string, format: date, example: "1990-05-15" }
+                device_id: { type: string, example: "iphone-14-pro-abc" }
+      responses:
+        200:
+          description: Verification successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  verification_token: { type: string, example: "short_lived_jwt_here" }
+                  patient_first_name: { type: string, example: "Jane" }
+                  clinic_name: { type: string, example: "City Allergy Clinic" }
+                  clinician_name: { type: string, example: "Dr. Smith" }
+                  rpm_required: { type: boolean, example: true }
+        401:
+          description: Invalid code or DOB mismatched
+        429:
+          description: Rate limited (too many failed attempts)
+
+  /auth/register:
+    post:
+      summary: Create patient account using verified invite (Step 2 of Onboarding)
+      tags: [Patient Onboarding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [verification_token, password, consent]
+              properties:
+                verification_token: { type: string, example: "token_from_verify_step" }
+                password: { type: string, minLength: 8, example: "SecurePass!99" }
+      responses:
+        201:
+          description: Account created safely alongside consent records and instantly activated.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  accessToken: { type: string, example: "patient_jwt" }
+                  patient_id: { type: string, format: uuid, example: "07e5af79-ded2-467f-8d3a-13617e1ab077" }
+                  onboarding_step: { type: string, example: "consent_platform" }
+        400:
+          description: Registration failed (token expired or user already exists)

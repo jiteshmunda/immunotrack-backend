@@ -9,9 +9,19 @@ export const ENV = {
   JWT_SECRET: process.env.JWT_SECRET!,
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "7d",
   BCRYPT_ROUNDS: parseInt(process.env.BCRYPT_ROUNDS || "12"),
+  ADMIN_EMAIL: process.env.ADMIN_EMAIL!,
+  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD!,
+  ADMIN_NAME: process.env.ADMIN_NAME!,
 };
 
-const required = ["DATABASE_URL", "ENCRYPTION_KEY", "JWT_SECRET"] as const;
+const required = [
+  "DATABASE_URL", 
+  "ENCRYPTION_KEY", 
+  "JWT_SECRET", 
+  "ADMIN_EMAIL", 
+  "ADMIN_PASSWORD", 
+  "ADMIN_NAME"
+] as const;
 for (const key of required) {
   if (!process.env[key]) throw new Error("Missing required env var: " + key);
 }

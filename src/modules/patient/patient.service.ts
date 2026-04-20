@@ -1,0 +1,135 @@
+import { db } from "../../db";
+import { patients, clinicians, patientClinicianAssignments } from "../../db/schema/profile.schema";
+import { users } from "../../db/schema/user.schema";
+import { patientConsents, onboardingSessions, notifications } from "../../db/schema/compliance.schema";
+import { eq, and } from "drizzle-orm";
+import { UpdatePatientProfileInput, PatientConsentInput } from "./patient.schema";
+import { decrypt, encrypt } from "../../utils/encryption";
+
+export class PatientService {
+
+  //  ---------------------------PUT /patient/profile--------------------------------------
+
+  async updateProfile(userId: string, input: UpdatePatientProfileInput) {
+    const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
+    if (!patient) throw new Error("PATIENT_NOT_FOUND");
+
+    return await db.transaction(async (tx) => {
+      if (input.first_name || input.last_name) {
+        const [user] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
+        if (user && user.fullName) {
+            const currentFullName = decrypt(user.fullName);
+            const parts = currentFullName.split(" ");
+            const first = input.first_name || parts[0];
+            const last = input.last_name || parts.slice(1).join(" ");
+            await tx.update(users).set({ fullName: encrypt(`${first} ${last}`), updatedAt: new Date() }).where(eq(users.id, userId));
+        }
+      }
+
+      const updates: any = { updatedAt: new Date() };
+      
+      if (input.zip_code !== undefined) updates.locationZip = input.zip_code;
+      if (input.sex !== undefined) updates.sex = input.sex;
+      if (input.phone !== undefined) updates.phone = encrypt(input.phone);
+      if (input.medication_reminders_enabled !== undefined) updates.medicationRemindersEnabled = input.medication_reminders_enabled;
+      if (input.reminder_time_utc !== undefined) updates.reminderTimeUtc = input.reminder_time_utc;
+      if (input.fcm_token !== undefined) updates.fcmToken = input.fcm_token;
+
+      updates.onboardingCompleted = true;
+      updates.monitoringActive = true;
+
+      await tx.update(patients)
+        .set(updates)
+        .where(eq(patients.id, patient.id));
+
+      if (input.first_name || input.last_name || input.zip_code) { // Notify if completing onboarding
+        const [assignment] = await tx.select().from(patientClinicianAssignments).where(eq(patientClinicianAssignments.patientId, patient.id)).limit(1);
+        if (assignment) {
+          const [clinician] = await tx.select().from(clinicians).where(eq(clinicians.id, assignment.clinicianId)).limit(1);
+          if (clinician) {
+            const [user] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
+            const fullName = user && user.fullName ? decrypt(user.fullName) : "Patient";
+            await tx.insert(notifications).values({
+              userId: clinician.userId,
+              type: "patient_deterioration",
+              title: encrypt("Patient Enrolled"),
+              body: encrypt(`${fullName} has securely registered their account and activated remote monitoring.`),
+            });
+          }
+        }
+      }
+        
+      return { success: true, updated_fields: Object.keys(input), onboarding_complete: true };
+    });
+  }
+
+  // -----------------------GET /patient/profile----------------------------------
+
+  async getProfile(userId: string) {
+    const [result] = await db
+      .select({
+        user: users,
+        patient: patients,
+      })
+      .from(users)
+      .innerJoin(patients, eq(users.id, patients.userId))
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!result) throw new Error("PATIENT_NOT_FOUND");
+
+    const { user, patient } = result;
+
+    return {
+      user_id: user.id,
+      email: decrypt(user.email),
+      full_name: decrypt(user.fullName),
+      patient_id: patient.id,
+      date_of_birth: patient.dateOfBirth ? decrypt(patient.dateOfBirth) : null,
+      sex: patient.sex,
+      phone: patient.phone ? decrypt(patient.phone) : null,
+      mrn: patient.mrn ? decrypt(patient.mrn) : null,
+      primary_diagnosis: patient.primaryDiagnosis ? decrypt(patient.primaryDiagnosis) : null,
+      location_zip: patient.locationZip,
+      icd10_qualifying_code: patient.icd10QualifyingCode,
+      medication_reminders_enabled: patient.medicationRemindersEnabled,
+      reminder_time_utc: patient.reminderTimeUtc,
+      onboarding_completed: patient.onboardingCompleted,
+      monitoring_active: patient.monitoringActive,
+      created_at: patient.createdAt,
+      updated_at: patient.updatedAt,
+    };
+  }
+
+  // -----------------------POST /patient/consent---------------------------------
+
+  async recordConsent(userId: string, input: PatientConsentInput, ip?: string) {
+    const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
+    if (!patient) throw new Error("PATIENT_NOT_FOUND");
+
+    await db.insert(patientConsents).values({
+      patientId: patient.id,
+      consentType: input.consent_type,
+      consentVersion: input.consent_version,
+      consentedAt: new Date(),
+      devicePlatform: input.device_platform,
+      deviceId: input.device_id,
+      scrollCompleted: input.scroll_completed,
+      typedSignature: input.typed_signature,
+      icd10Code: input.icd10_code,
+      consentFormVersion: input.consent_version,
+      ipAddress: ip,
+    });
+
+    let next_step = "complete";
+    if (input.consent_type === "platform") next_step = "consent_hipaa_npp";
+    else if (input.consent_type === "hipaa_npp") {
+      if (patient.icd10QualifyingCode) next_step = "consent_rpm";
+      else next_step = "profile_setup";
+    } else if (input.consent_type === "rpm") {
+      next_step = "profile_setup";
+    }
+
+    return { success: true, next_step };
+  }
+}

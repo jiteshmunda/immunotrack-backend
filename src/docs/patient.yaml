@@ -1,0 +1,106 @@
+paths:
+  /patients/profile:
+    get:
+      summary: Retrieve full patient profile (includes decrypted PHI)
+      tags: [Patient Onboarding]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Patient profile retrieved and decrypted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  profile:
+                    type: object
+                    properties:
+                      user_id: { type: string, format: uuid }
+                      email: { type: string, format: email }
+                      full_name: { type: string }
+                      patient_id: { type: string, format: uuid }
+                      date_of_birth: { type: string, format: date }
+                      sex: { type: string }
+                      phone: { type: string }
+                      mrn: { type: string }
+                      primary_diagnosis: { type: string }
+                      location_zip: { type: string }
+                      icd10_qualifying_code: { type: string }
+                      medication_reminders_enabled: { type: boolean }
+                      reminder_time_utc: { type: string }
+                      onboarding_completed: { type: boolean }
+                      monitoring_active: { type: boolean }
+                      created_at: { type: string, format: date-time }
+                      updated_at: { type: string, format: date-time }
+        401: { description: Unauthorized }
+        404: { description: Patient not found }
+
+    put:
+      summary: Update optional patient profile fields (Onboarding Step)
+      tags: [Patient Onboarding]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                first_name: { type: string, example: "Jane" }
+                last_name: { type: string, example: "Doe" }
+                zip_code: { type: string, example: "90210" }
+                sex: { type: string, enum: [male, female, other, unknown], example: "female" }
+                phone: { type: string, example: "+15551234567" }
+                medication_reminders_enabled: { type: boolean, example: true }
+                reminder_time_utc: { type: string, example: "08:00" }
+                fcm_token: { type: string, example: "firebase-token-xyz" }
+      responses:
+        200:
+          description: Profile fields updated successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  updated_fields: { type: array, items: { type: string }, example: ["zip_code", "sex"] }
+                  onboarding_complete: { type: boolean, example: true }
+        401: { description: Unauthorized }
+        400: { description: Validation error }
+
+  /patients/consent:
+    post:
+      summary: Record patient consent (Onboarding Step)
+      tags: [Patient Onboarding]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [consent_type, consent_version, scroll_completed, device_platform, device_id]
+              properties:
+                consent_type: { type: string, enum: [platform, hipaa_npp, rpm], example: "platform" }
+                consent_version: { type: string, example: "v1.1" }
+                scroll_completed: { type: boolean, example: true }
+                typed_signature: { type: string, example: "Jane Doe" }
+                icd10_code: { type: string, example: "J45.20" }
+                device_platform: { type: string, enum: [ios, android], example: "ios" }
+                device_id: { type: string, example: "iphone-14-pro" }
+      responses:
+        200:
+          description: Consent recorded. Returns the next step in onboarding.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  next_step: { type: string, example: "consent_hipaa_npp" }
+        401: { description: Unauthorized }
+        400: { description: Validation error }

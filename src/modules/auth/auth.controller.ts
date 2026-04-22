@@ -50,7 +50,7 @@ export class AuthController {
         status: "failure",
       });
 
-      return sendError(res, error.message || "Authentication failed", 401);
+      return sendError(res, error, 401);
     }
   }
 
@@ -78,7 +78,7 @@ export class AuthController {
         });
         return sendError(res, "Too many attempts. Please wait 1 hour and try again or contact your clinician.", 429);
       }
-      return sendError(res, error.message || "Verification failed", 401);
+      return sendError(res, error, 401);
     }
   }
 
@@ -116,7 +116,7 @@ export class AuthController {
         onboarding_step: (result as any).onboarding_step 
       }, 201);
     } catch (error: any) {
-      return sendError(res, error.message || "Registration failed", 400);
+      return sendError(res, error, 400);
     }
   }
 
@@ -148,7 +148,7 @@ export class AuthController {
 
       return sendSuccess(res, { accessToken, resetRequired });
     } catch (error: any) {
-      return sendError(res, error.message || "Session expired", 401);
+      return sendError(res, error, 401);
     }
   }
 
@@ -169,7 +169,7 @@ export class AuthController {
 
       return sendSuccess(res, { message: "Password updated successfully" });
     } catch (error: any) {
-      return sendError(res, error.message || "Failed to update password", 400);
+      return sendError(res, error, 400);
     }
   }
 
@@ -191,7 +191,7 @@ export class AuthController {
 
       return sendSuccess(res, { message: "Logged out successfully" });
     } catch (error: any) {
-      return sendError(res, "Logout failed", 500);
+      return sendError(res, error || "Logout failed", 500);
     }
   }
 }

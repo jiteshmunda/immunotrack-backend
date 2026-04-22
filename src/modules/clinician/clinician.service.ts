@@ -67,11 +67,17 @@ export class ClinicianService {
 
       // 5. Create Clinician Profile
       const encryptedLicense = input.licenseNumber ? encrypt(input.licenseNumber) : null;
+      const encryptedNpi = encrypt(input.npiNumber);
+      const encryptedPhone = input.phone ? encrypt(input.phone) : null;
 
       await tx.insert(clinicians).values({
         userId: newUser.id,
         clinicId: clinicId,
         licenseNumber: encryptedLicense,
+        npiNumber: encryptedNpi,
+        phone: encryptedPhone,
+        stateOfLicensure: input.stateOfLicensure,
+        clinicalRole: input.role,
         specialty: input.specialty,
         organizationName: input.organizationName,
       });

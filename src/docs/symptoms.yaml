@@ -1,0 +1,167 @@
+paths:
+  /symptoms/log:
+    post:
+      summary: Log daily symptoms (19 sub-items + core metrics)
+      tags: [Symptom Management]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: 
+                - log_date
+                - acq1_night_waking
+                - acq2_morning_symptoms
+                - acq3_activity_limitation
+                - acq4_shortness_of_breath
+                - acq5_wheeze
+                - acq6_reliever_use
+                - sn1_nasal_blockage
+                - sn2_runny_nose
+                - sn3_sneezing
+                - sn4_smell_taste
+                - sn5_post_nasal_drip
+                - sn6_facial_pain
+                - sk1_itch
+                - sk2_sleep_disturbance
+                - sk3_bleeding
+                - sk4_weeping
+                - sk5_cracked
+                - sk6_flaking
+                - sk7_dryness
+              properties:
+                log_date: { type: string, format: date, example: "2026-04-21" }
+                acq1_night_waking: { type: integer, minimum: 0, maximum: 6 }
+                acq2_morning_symptoms: { type: integer, minimum: 0, maximum: 6 }
+                acq3_activity_limitation: { type: integer, minimum: 0, maximum: 6 }
+                acq4_shortness_of_breath: { type: integer, minimum: 0, maximum: 6 }
+                acq5_wheeze: { type: integer, minimum: 0, maximum: 6 }
+                acq6_reliever_use: { type: integer, minimum: 0, maximum: 6 }
+                sn1_nasal_blockage: { type: integer, minimum: 0, maximum: 5 }
+                sn2_runny_nose: { type: integer, minimum: 0, maximum: 5 }
+                sn3_sneezing: { type: integer, minimum: 0, maximum: 5 }
+                sn4_smell_taste: { type: integer, minimum: 0, maximum: 5 }
+                sn5_post_nasal_drip: { type: integer, minimum: 0, maximum: 5 }
+                sn6_facial_pain: { type: integer, minimum: 0, maximum: 5 }
+                sk1_itch: { type: integer, minimum: 0, maximum: 4 }
+                sk2_sleep_disturbance: { type: integer, minimum: 0, maximum: 4 }
+                sk3_bleeding: { type: integer, minimum: 0, maximum: 4 }
+                sk4_weeping: { type: integer, minimum: 0, maximum: 4 }
+                sk5_cracked: { type: integer, minimum: 0, maximum: 4 }
+                sk6_flaking: { type: integer, minimum: 0, maximum: 4 }
+                sk7_dryness: { type: integer, minimum: 0, maximum: 4 }
+                peak_flow: { type: integer }
+                rescue_inhaler_puffs: { type: integer, minimum: 0, maximum: 20 }
+                nighttime_symptoms: { type: boolean }
+                notes: { type: string }
+      responses:
+        201:
+          description: Symptom log created and RPM transmission days incremented (if first log of day).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  log_id: { type: string, format: uuid }
+                  composites:
+                    type: object
+                    properties:
+                      respiratory: { type: number, format: float }
+                      nasal: { type: integer }
+                      skin: { type: integer }
+                  rpm_incremented: { type: boolean }
+        400: { description: Validation error }
+        401: { description: Unauthorized }
+
+  /symptoms/history:
+    get:
+      summary: Retrieve flat list of symptom history
+      tags: [Symptom Management]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: period
+          schema:
+            type: string
+            enum: [today, 7days, month, custom]
+            default: 7days
+          description: Filter period (today, last 7 days, last 30 days, or custom range)
+        - in: query
+          name: startDate
+          schema: { type: string, format: date }
+          description: Required if period is 'custom' (YYYY-MM-DD)
+        - in: query
+          name: endDate
+          schema: { type: string, format: date }
+          description: Required if period is 'custom' (YYYY-MM-DD)
+      responses:
+        200:
+          description: List of symptom logs retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, format: uuid }
+                    logDate: { type: string, format: date }
+                    loggedAt: { type: string, format: date-time }
+                    respiratoryScore: { type: number }
+                    nasalScore: { type: number }
+                    skinScore: { type: number }
+                    averageScore: { type: number }
+                    severityLevel: { type: string, enum: [Low, Moderate, High] }
+                    notes: { type: string }
+        401: { description: Unauthorized }
+
+  /symptoms/history/grouped:
+    get:
+      summary: Retrieve symptom history grouped by date
+      tags: [Symptom Management]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: period
+          schema:
+            type: string
+            enum: [today, 7days, month, custom]
+            default: 7days
+        - in: query
+          name: startDate
+          schema: { type: string, format: date }
+        - in: query
+          name: endDate
+          schema: { type: string, format: date }
+      responses:
+        200:
+          description: Grouped list of symptom logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    date: { type: string, format: date }
+                    logs:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          id: { type: string, format: uuid }
+                          logDate: { type: string, format: date }
+                          loggedAt: { type: string, format: date-time }
+                          respiratoryScore: { type: number }
+                          nasalScore: { type: number }
+                          skinScore: { type: number }
+                          averageScore: { type: number }
+                          severityLevel: { type: string, enum: [Low, Moderate, High] }
+                          notes: { type: string }
+        401: { description: Unauthorized }

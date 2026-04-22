@@ -5,6 +5,9 @@ import { patientConsents, onboardingSessions, notifications } from "../../db/sch
 import { eq, and } from "drizzle-orm";
 import { UpdatePatientProfileInput, PatientConsentInput } from "./patient.schema";
 import { decrypt, encrypt } from "../../utils/encryption";
+import { RpmService } from "../rpm/rpm.service";
+
+const rpmService = new RpmService();
 
 export class PatientService {
 
@@ -49,12 +52,12 @@ export class PatientService {
           if (clinician) {
             const [user] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
             const fullName = user && user.fullName ? decrypt(user.fullName) : "Patient";
-            await tx.insert(notifications).values({
+            await tx.insert(notifications).values([{
               userId: clinician.userId,
               type: "patient_deterioration",
               title: encrypt("Patient Enrolled"),
               body: encrypt(`${fullName} has securely registered their account and activated remote monitoring.`),
-            });
+            }]);
           }
         }
       }
@@ -107,7 +110,7 @@ export class PatientService {
     const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
 
-    await db.insert(patientConsents).values({
+    await db.insert(patientConsents).values([{
       patientId: patient.id,
       consentType: input.consent_type,
       consentVersion: input.consent_version,
@@ -119,7 +122,7 @@ export class PatientService {
       icd10Code: input.icd10_code,
       consentFormVersion: input.consent_version,
       ipAddress: ip,
-    });
+    }]);
 
     let next_step = "complete";
     if (input.consent_type === "platform") next_step = "consent_hipaa_npp";
@@ -128,6 +131,10 @@ export class PatientService {
       else next_step = "profile_setup";
     } else if (input.consent_type === "rpm") {
       next_step = "profile_setup";
+    }
+
+    if (input.consent_type === "rpm") {
+      await rpmService.initializeEnrollment(patient.id, new Date(), input.icd10_code || "J45.20");
     }
 
     return { success: true, next_step };

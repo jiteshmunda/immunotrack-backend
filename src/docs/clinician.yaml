@@ -12,13 +12,20 @@ paths:
           application/json:
             schema:
               type: object
-              required: [fullName, email, licenseNumber]
+              required: [fullName, email, licenseNumber, npiNumber]
               properties:
                 fullName: { type: string, example: "Dr. Willson" }
                 email: { type: string, format: email, example: "wilson@gmail.com" }
                 specialty: { type: string, example: "Pediatrician" }
                 licenseNumber: { type: string, example: "WL123456" }
+                npiNumber: { type: string, example: "1234567890", description: "10-digit National Provider Identifier" }
+                phone: { type: string, example: "+1-555-0123" }
+                stateOfLicensure: { type: string, example: "California" }
                 organizationName: { type: string, example: "City Allergy Clinic" }
+                role: 
+                  type: string
+                  enum: [Allergist, Immunologist, Primary Care, Nurse Practitioner, Other]
+                  example: "Allergist"
       responses:
         200:
           description: Clinician created successfully

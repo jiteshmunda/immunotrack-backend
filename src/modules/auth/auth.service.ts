@@ -58,13 +58,13 @@ export class AuthService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
-    const [session] = await db.insert(userSessions).values({
+    const [session] = await db.insert(userSessions).values([{
       userId: user.id,
       tokenHash,
       ipAddress: ip,
       userAgent: userAgent,
       expiresAt,
-    }).returning();
+    }]).returning();
 
     const accessToken = generateAccessToken({ 
       userId: user.id, 
@@ -72,7 +72,9 @@ export class AuthService {
       sid: session.id 
     });
 
-    const isExpired = (new Date().getTime() - user.passwordChangedAt.getTime()) > 60 * 24 * 60 * 60 * 1000;
+    const isExpired = user.passwordChangedAt
+      ? (new Date().getTime() - user.passwordChangedAt.getTime()) > 60 * 24 * 60 * 60 * 1000
+      : false;
 
     return {
       accessToken,
@@ -122,31 +124,31 @@ export class AuthService {
 
     return await db.transaction(async (tx) => {
       // 4. Create User
-      const [user] = await tx.insert(users).values({
+      const [user] = await tx.insert(users).values([{
         fullName: encrypt(fullName),
         email: encrypt(email),
         emailHash: emailHash,
         passwordHash: passwordHash,
         roleId: patientRole.id,
         status: "active",
-      }).returning();
+      }]).returning();
 
       // 5. Create Patient Profile
-      const [patient] = await tx.insert(patients).values({
+      const [patient] = await tx.insert(patients).values([{
         userId: user.id,
         dateOfBirth: invite.patientDob, // Already encrypted
         primaryDiagnosis: invite.patientDiagnosis,
         icd10QualifyingCode: invite.icd10Code,
         onboardingCompleted: false,
         monitoringActive: false,
-      }).returning();
+      }]).returning();
 
       // 6. Assignment
-      await tx.insert(patientClinicianAssignments).values({
+      await tx.insert(patientClinicianAssignments).values([{
         patientId: patient.id,
         clinicianId: invite.clinicianId,
         isPrimary: true,
-      });
+      }]);
 
       // 7. Update Invite
       await tx.update(invitations)
@@ -164,13 +166,13 @@ export class AuthService {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
 
-      const [session] = await tx.insert(userSessions).values({
+      const [session] = await tx.insert(userSessions).values([{
         userId: user.id,
         tokenHash,
         ipAddress: ip,
         userAgent: userAgent,
         expiresAt,
-      }).returning();
+      }]).returning();
 
       const accessToken = generateAccessToken({ 
         userId: user.id, 
@@ -226,13 +228,13 @@ export class AuthService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
-    const [newSession] = await db.insert(userSessions).values({
+    const [newSession] = await db.insert(userSessions).values([{
       userId: user.id,
       tokenHash: newTokenHash,
       ipAddress: ip,
       userAgent,
       expiresAt,
-    }).returning();
+    }]).returning();
 
     const accessToken = generateAccessToken({ 
       userId: user.id, 
@@ -240,7 +242,9 @@ export class AuthService {
       sid: newSession.id 
     });
 
-    const isExpired = (new Date().getTime() - user.passwordChangedAt.getTime()) > 60 * 24 * 60 * 60 * 1000;
+    const isExpired = user.passwordChangedAt
+      ? (new Date().getTime() - user.passwordChangedAt.getTime()) > 60 * 24 * 60 * 60 * 1000
+      : false;
 
     return {
       accessToken,

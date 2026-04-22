@@ -4,7 +4,7 @@ import { Request } from "express";
 import { db } from "../db";
 import { auditLogs } from "../db/schema/compliance.schema";
 
-const auditLogger = winston.createLogger({
+export const auditLogger = winston.createLogger({
   level: "info",
   format: winston.format.combine(
     winston.format.timestamp(),

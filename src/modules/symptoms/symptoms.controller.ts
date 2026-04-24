@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { SymptomService } from "./symptoms.service";
 import { LogSymptomsSchema, HistoryFiltersSchema } from "./symptoms.schema";
+import { sendSuccess, sendError } from "../../utils/response";
 
 const symptomService = new SymptomService();
 
@@ -14,12 +15,9 @@ export class SymptomController {
 
       const result = await symptomService.logSymptoms(userId, parsed);
 
-      res.status(201).json(result);
+      return sendSuccess(res, result, 201);
     } catch (error: any) {
-      if (error.name === "ZodError") {
-        return res.status(400).json({ error: "VALIDATION_FAILED", details: error.errors });
-      }
-      res.status(500).json({ error: error.message || "INTERNAL_SERVER_ERROR" });
+      return sendError(res, error, 500);
     }
   }
 
@@ -32,12 +30,9 @@ export class SymptomController {
 
       const result = await symptomService.getSymptomHistory(userId, filters);
 
-      res.status(200).json(result);
+      return sendSuccess(res, result);
     } catch (error: any) {
-      if (error.name === "ZodError") {
-        return res.status(400).json({ error: "VALIDATION_FAILED", details: error.errors });
-      }
-      res.status(500).json({ error: error.message || "INTERNAL_SERVER_ERROR" });
+      return sendError(res, error, 500);
     }
   }
 
@@ -50,12 +45,9 @@ export class SymptomController {
 
       const result = await symptomService.getGroupedSymptomHistory(userId, filters);
 
-      res.status(200).json(result);
+      return sendSuccess(res, result);
     } catch (error: any) {
-      if (error.name === "ZodError") {
-        return res.status(400).json({ error: "VALIDATION_FAILED", details: error.errors });
-      }
-      res.status(500).json({ error: error.message || "INTERNAL_SERVER_ERROR" });
+      return sendError(res, error, 500);
     }
   }
 }

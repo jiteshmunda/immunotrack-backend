@@ -22,6 +22,34 @@
       "when": 1776326507980,
       "tag": "0002_awesome_sunfire",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777024378417,
+      "tag": "0003_mature_tigra",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777024872780,
+      "tag": "0004_tense_cerise",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777026022287,
+      "tag": "0005_square_wiccan",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777033252663,
+      "tag": "0006_salty_roxanne_simpson",
+      "breakpoints": true
     }
   ]
 }

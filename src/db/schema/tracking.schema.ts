@@ -1,8 +1,10 @@
 import {
   pgTable, uuid, varchar, text, timestamp,
-  boolean, date, integer, smallint, numeric
+  boolean, date, integer, smallint, numeric,
+  uniqueIndex
 } from "drizzle-orm/pg-core";
 import { patients } from "./profile.schema";
+import { medicationCatalog } from "./medication.schema";
 
 // ── Daily Logs ───────────────────────────────────────────────
 export const dailyLogs = pgTable("daily_logs", {
@@ -54,7 +56,9 @@ export const dailyLogs = pgTable("daily_logs", {
   notes: text("notes"),
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  patientDateIdx: uniqueIndex("daily_logs_patient_date_idx").on(table.patientId, table.logDate),
+}));
 
 // ── Daily Log Contexts (optional trigger/env inputs) ─────────
 export const dailyLogContexts = pgTable("daily_log_contexts", {
@@ -82,10 +86,12 @@ export const dailyLogContexts = pgTable("daily_log_contexts", {
 export const patientMedications = pgTable("patient_medications", {
   id:        uuid("id").primaryKey().defaultRandom(),
   patientId: uuid("patient_id").notNull().references(() => patients.id),
+  medicationId: uuid("medication_id").references(() => medicationCatalog.id),
 
   // PHI — AES-256 encrypted
   name: text("name").notNull(),
   dose: text("dose").notNull(),
+  category: varchar("category", { length: 100 }), 
 
   route:     varchar("route", { length: 50 }),       // oral | inhaled | topical | injection
   frequency: varchar("frequency", { length: 100 }).notNull(), // Daily | BID | PRN etc.

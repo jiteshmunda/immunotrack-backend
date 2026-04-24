@@ -53,10 +53,10 @@ export class SymptomService {
         )
         .limit(1);
 
-      // 3. Insert Daily Log
+      // 3. Upsert Daily Log
       const [log] = await tx
         .insert(dailyLogs)
-        .values([{
+        .values({
           patientId: patient.id,
           logDate: input.log_date,
           acq1NightWaking: input.acq1_night_waking,
@@ -85,7 +85,39 @@ export class SymptomService {
           rescueInhalerPuffs: input.rescue_inhaler_puffs,
           nighttimeSymptoms: input.nighttime_symptoms,
           notes: input.notes,
-        }])
+        })
+        .onConflictDoUpdate({
+          target: [dailyLogs.patientId, dailyLogs.logDate],
+          set: {
+            acq1NightWaking: input.acq1_night_waking,
+            acq2MorningSymptoms: input.acq2_morning_symptoms,
+            acq3ActivityLimitation: input.acq3_activity_limitation,
+            acq4ShortnessOfBreath: input.acq4_shortness_of_breath,
+            acq5Wheeze: input.acq5_wheeze,
+            acq6RelieverUse: input.acq6_reliever_use,
+            respiratoryComposite: respiratoryComposite.toString(),
+            sn1NasalBlockage: input.sn1_nasal_blockage,
+            sn2RunnyNose: input.sn2_runny_nose,
+            sn3Sneezing: input.sn3_sneezing,
+            sn4SmellTaste: input.sn4_smell_taste,
+            sn5PostNasalDrip: input.sn5_post_nasal_drip,
+            sn6FacialPain: input.sn6_facial_pain,
+            nasalComposite: nasalComposite,
+            sk1Itch: input.sk1_itch,
+            sk2SleepDisturbance: input.sk2_sleep_disturbance,
+            sk3Bleeding: input.sk3_bleeding,
+            sk4Weeping: input.sk4_weeping,
+            sk5Cracked: input.sk5_cracked,
+            sk6Flaking: input.sk6_flaking,
+            sk7Dryness: input.sk7_dryness,
+            skinComposite: skinComposite,
+            peakFlow: input.peak_flow,
+            rescueInhalerPuffs: input.rescue_inhaler_puffs,
+            nighttimeSymptoms: input.nighttime_symptoms,
+            notes: input.notes,
+            loggedAt: new Date(), // Update the timestamp
+          }
+        })
         .returning();
 
       // 4. Trigger RPM Counter (only if it's the first log of the day)

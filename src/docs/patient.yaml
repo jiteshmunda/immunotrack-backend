@@ -104,3 +104,50 @@ paths:
                   next_step: { type: string, example: "consent_hipaa_npp" }
         401: { description: Unauthorized }
         400: { description: Validation error }
+
+  /patients/dashboard:
+    get:
+      summary: Retrieve aggregated patient dashboard data
+      tags: [Patient Dashboard]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Dashboard data retrieved successfully. Returns the latest symptom status, active medications, and latest AI insight.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  today_status:
+                    type: object
+                    nullable: true
+                    properties:
+                      respiratory: { type: number, example: 3 }
+                      nasal: { type: number, example: 4 }
+                      skin: { type: number, example: 2 }
+                      last_updated: { type: string, format: date-time }
+                      log_date: { type: string, format: date, example: "2026-04-27" }
+                  medications:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string, example: "Fluticasone Nasal Spray" }
+                        dose: { type: string, example: "50mcg" }
+                        frequency: { type: string, example: "Twice daily" }
+                        category: { type: string, example: "Nasal" }
+                  ai_insight:
+                    type: object
+                    nullable: true
+                    properties:
+                      id: { type: string, format: uuid }
+                      type: { type: string, example: "trend" }
+                      title: { type: string, example: "Symptoms Improved" }
+                      description: { type: string, example: "Your symptoms have improved by 25% over the past week." }
+                      recommendation: { type: string, example: "Keep up with your medication plan." }
+                      risk_level: { type: string, example: "low" }
+                      generated_at: { type: string, format: date-time }
+        401: { description: Unauthorized }
+        404: { description: Patient not found }

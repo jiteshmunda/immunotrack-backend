@@ -20,6 +20,13 @@ router.put(
   (req, res) => controller.updateProfile(req, res)
 );
 
+router.get(
+  "/dashboard",
+  authenticateJWT,
+  requireRole(["patient"]),
+  (req, res) => controller.getDashboard(req, res)
+);
+
 
 router.post(
   "/consent",

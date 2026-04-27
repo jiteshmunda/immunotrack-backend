@@ -76,4 +76,24 @@ export class PatientController {
       return sendError(res, error, 400);
     }
   }
+
+// --------------------------GET /api/v1/patient/dashboard------------------------------
+
+  async getDashboard(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user.userId;
+      const result = await patientService.getDashboardData(userId);
+
+      await writeAudit(req, {
+        action: "READ_PHI",
+        status: "success",
+        userId: userId,
+        resourceType: "patient_dashboard",
+      });
+
+      return sendSuccess(res, result);
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
 }

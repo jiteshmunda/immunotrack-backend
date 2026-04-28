@@ -93,6 +93,62 @@ paths:
                   success: { type: boolean, example: true }
                   message: { type: string, example: "Password updated successfully" }
 
+  /auth/forgot-password:
+    post:
+      summary: Request an OTP for password reset
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email, example: "user@example.com" }
+      responses:
+        200:
+          description: Generic success response for privacy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "If an account with that email exists, a verification code has been sent." }
+        429:
+          description: Request cooldown (wait 2 minutes)
+
+  /auth/reset-password:
+    post:
+      summary: Reset password using the 6-digit OTP
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, otp, newPassword]
+              properties:
+                email: { type: string, format: email, example: "user@example.com" }
+                otp: { type: string, minLength: 6, maxLength: 6, example: "123456" }
+                newPassword: { type: string, minLength: 8, example: "NewStrongPass@2026" }
+      responses:
+        200:
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Password has been reset successfully. Please log in with your new password." }
+        400:
+          description: Invalid OTP, expired OTP, or same as current password
+        429:
+          description: Brute-force protection (too many failed attempts)
+
   /auth/invite/verify:
     post:
       summary: Verify invite code and DOB (Step 1 of Onboarding)

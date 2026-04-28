@@ -35,22 +35,26 @@ function sanitizeError(error: any) {
     technicalDetails = { type: "ZodError", issues: error.issues };
   } else if (error instanceof Error) {
     const rawMessage = error.message;
+    
+    // HIPAA: Never log or store stack traces in production logs
     technicalDetails = { 
-      message: rawMessage, 
-      stack: error.stack, 
+      message: "Internal Error", 
       name: error.name 
     };
 
-    const sqlKeywords = ["select", "insert", "update", "delete", "from", "where", "returning"];
+    const sqlKeywords = ["select", "insert", "update", "delete", "from", "where", "returning", "Failed query:"];
     const isSqlLeaked = sqlKeywords.some(k => rawMessage.toLowerCase().includes(k)) || rawMessage.includes("\"");
 
     if (isSqlLeaked) {
       sanitizedMessage = "Internal processing error. The clinical record could not be updated.";
+      technicalDetails.message = "Database Query Error (Redacted)";
     } else {
       sanitizedMessage = redactData(rawMessage);
+      technicalDetails.message = sanitizedMessage;
     }
   } else if (typeof error === "string") {
     sanitizedMessage = redactData(error);
+    technicalDetails = { message: sanitizedMessage };
   }
 
   return { sanitizedMessage, technicalDetails };

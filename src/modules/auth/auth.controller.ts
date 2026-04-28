@@ -1,7 +1,13 @@
 import { Request, Response } from "express";
 import { AuthService } from "./auth.service";
 import { InvitationService } from "../invitation/invitation.service";
-import { loginSchema, refreshSchema, changePasswordSchema } from "./auth.schema";
+import { 
+  loginSchema, 
+  refreshSchema, 
+  changePasswordSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema
+} from "./auth.schema";
 import { 
   verifyInviteSchema, 
   registerPatientSchema 
@@ -192,6 +198,64 @@ export class AuthController {
       return sendSuccess(res, { message: "Logged out successfully" });
     } catch (error: any) {
       return sendError(res, error || "Logout failed", 500);
+    }
+  }
+
+  // -------------------------------POST /auth/forgot-password---------------------------------------
+  async forgotPassword(req: Request, res: Response) {
+    try {
+      const validated = forgotPasswordSchema.parse(req.body);
+      
+      await authService.forgotPassword(validated.email);
+
+      await writeAudit(req, {
+        action: "FORGOT_PASSWORD_REQUESTED",
+        status: "success",
+      });
+
+      // Generic response for privacy
+      return sendSuccess(res, { message: "If an account with that email exists, a verification code has been sent." });
+    } catch (error: any) {
+      const isRateLimit = error.message === "Please wait before requesting a new code";
+      const safeErrorMessage = isRateLimit ? error.message : "An internal error occurred";
+
+      await writeAudit(req, {
+        action: "FORGOT_PASSWORD_REQUESTED",
+        status: "failure",
+        details: { error: safeErrorMessage },
+      });
+      
+      if (isRateLimit) {
+        return sendError(res, error, 429);
+      }
+      return sendSuccess(res, { message: "If an account with that email exists, a verification code has been sent." });
+    }
+  }
+
+  // -------------------------------POST /auth/reset-password---------------------------------------
+  async resetPassword(req: Request, res: Response) {
+    try {
+      const validated = resetPasswordSchema.parse(req.body);
+
+      await authService.resetPassword(validated.email, validated.otp, validated.newPassword);
+
+      await writeAudit(req, {
+        action: "PASSWORD_RESET",
+        status: "success",
+      });
+
+      return sendSuccess(res, { message: "Password has been reset successfully. Please log in with your new password." });
+    } catch (error: any) {
+      const safeMessage = (error.message.includes("select") || error.message.includes("Failed query")) 
+        ? "Internal database error" 
+        : error.message;
+
+      await writeAudit(req, {
+        action: "PASSWORD_RESET",
+        status: "failure",
+        details: { error: safeMessage },
+      });
+      return sendError(res, safeMessage, 400);
     }
   }
 }

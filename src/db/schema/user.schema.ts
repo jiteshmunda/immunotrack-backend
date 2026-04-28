@@ -1,5 +1,5 @@
 import {
-  pgTable, uuid, varchar, text, timestamp, foreignKey, boolean
+  pgTable, uuid, varchar, text, timestamp, foreignKey, boolean, integer
 } from "drizzle-orm/pg-core";
 import { roles } from "./role.schema";
 
@@ -21,6 +21,12 @@ export const users = pgTable("users", {
   // Security flags
   isTempPassword: boolean("is_temp_password").default(false).notNull(),
   passwordChangedAt: timestamp("password_changed_at").defaultNow().notNull(),
+
+  // Password Reset (OTP)
+  resetPasswordOtp: varchar("reset_password_otp", { length: 64 }),
+  resetPasswordExpires: timestamp("reset_password_expires"),
+  resetPasswordAttempts: integer("reset_password_attempts").default(0).notNull(),
+  resetPasswordRequestedAt: timestamp("reset_password_requested_at"),
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

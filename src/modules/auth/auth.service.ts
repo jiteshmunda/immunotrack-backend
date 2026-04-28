@@ -350,9 +350,10 @@ export class AuthService {
 
       const otpHash = crypto.createHmac("sha256", ENV.ENCRYPTION_KEY).update(otp).digest("hex");
       if (user.resetPasswordOtp !== otpHash) {
-        await tx.update(users)
+        await db.update(users)
           .set({ resetPasswordAttempts: user.resetPasswordAttempts + 1 })
           .where(eq(users.id, user.id));
+        
         throw new Error("Invalid verification code");
       }
 

@@ -33,7 +33,7 @@ export class ClinicianController {
         },
       });
     } catch (error: any) {
-      return sendError(res, error.message || "Failed to create clinician", 400);
+      return sendError(res, error, 400);
     }
   }
 }

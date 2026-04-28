@@ -1,0 +1,1 @@
+ALTER TABLE "patient_medications" ADD COLUMN "category" varchar(100);

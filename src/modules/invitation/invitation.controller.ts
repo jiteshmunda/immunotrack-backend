@@ -34,7 +34,7 @@ export class InvitationController {
 
       return sendSuccess(res, result, 201);
     } catch (error: any) {
-      return sendError(res, error.message || "Failed to invite patient", 400);
+      return sendError(res, error, 400);
     }
   }
 
@@ -61,7 +61,7 @@ export class InvitationController {
 
       return sendSuccess(res, result);
     } catch (error: any) {
-      return sendError(res, error.message || "Failed to resend invitation", 500);
+      return sendError(res, error, 500);
     }
   }
 
@@ -88,7 +88,7 @@ export class InvitationController {
 
       return sendSuccess(res, result);
     } catch (error: any) {
-      return sendError(res, error.message || "Failed to cancel invitation", 500);
+      return sendError(res, error, 500);
     }
   }
 }

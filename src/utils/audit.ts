@@ -4,7 +4,7 @@ import { Request } from "express";
 import { db } from "../db";
 import { auditLogs } from "../db/schema/compliance.schema";
 
-const auditLogger = winston.createLogger({
+export const auditLogger = winston.createLogger({
   level: "info",
   format: winston.format.combine(
     winston.format.timestamp(),
@@ -23,11 +23,7 @@ const auditLogger = winston.createLogger({
   ],
 });
 
-if (process.env.NODE_ENV !== "production") {
-  auditLogger.add(new winston.transports.Console({
-    format: winston.format.simple(),
-  }));
-}
+// Console logging is disabled to maintain terminal cleanliness and security.
 
 interface AuditOptions {
   action: string;
@@ -41,6 +37,27 @@ interface AuditOptions {
 export async function writeAudit(req: Request, opts: AuditOptions) {
   const ip = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "unknown";
   const userAgent = req.headers["user-agent"] || "unknown";
+  
+  // HIPAA: Sanitize details to prevent raw SQL or sensitive schema info 
+  const sanitizeDetails = (details: Record<string, any>) => {
+    const sanitized = { ...details };
+    for (const key in sanitized) {
+      if (typeof sanitized[key] === "string") {
+       
+        if (
+          sanitized[key].includes("select") || 
+          sanitized[key].includes("insert") || 
+          sanitized[key].includes("update") || 
+          sanitized[key].includes("Failed query:")
+        ) {
+          sanitized[key] = "Internal database error";
+        }
+      }
+    }
+    return sanitized;
+  };
+
+  const safeDetails = opts.details ? sanitizeDetails(opts.details) : {};
 
   // 1. Log to Winston (File)
   auditLogger.info({
@@ -51,10 +68,10 @@ export async function writeAudit(req: Request, opts: AuditOptions) {
     resourceType: opts.resourceType ?? "unknown",
     ip,
     userAgent,
-    details: opts.details ?? {},
+    details: safeDetails,
   });
 
-  // 2. Log to Database (compliance.schema.auditLogs)
+  // 2. Log to Database 
   try {
     await db.insert(auditLogs).values({
       userId: opts.userId,
@@ -64,9 +81,9 @@ export async function writeAudit(req: Request, opts: AuditOptions) {
       ipAddress: ip,
       userAgent: userAgent,
       status: opts.status,
-      metadata: opts.details || {},
+      metadata: safeDetails,
     });
   } catch (error) {
     auditLogger.error("Failed to write audit log to database", { error });
   }
-}
+}

@@ -1,5 +1,6 @@
 import { db } from "../../db";
 import { clinicians, patients } from "../../db/schema/profile.schema";
+import { users } from "../../db/schema/user.schema";
 import { clinics } from "../../db/schema/clinic.schema";
 import { invitations } from "../../db/schema/invitation.schema";
 import { eq, and, sql } from "drizzle-orm";
@@ -35,10 +36,15 @@ export class InvitationService {
 //  ----------------------------POST /clinician/invite------------------------------------------
 
   async invitePatient(clinicianId: string, input: InvitePatientInput) {
-    // 1. Fetch clinician's clinic
+    // 1. Fetch clinician's details (Join with users for name)
     const [clinician] = await db
-      .select({ clinicId: clinicians.clinicId, organizationName: clinicians.organizationName })
+      .select({ 
+        clinicId: clinicians.clinicId, 
+        fullName: users.fullName,
+        organizationName: clinicians.organizationName 
+      })
       .from(clinicians)
+      .innerJoin(users, eq(clinicians.userId, users.id))
       .where(eq(clinicians.id, clinicianId))
       .limit(1);
 
@@ -92,10 +98,10 @@ export class InvitationService {
       try {
         await emailService.sendEmail({
           to: input.patient_email,
-          subject: `${clinician.organizationName || 'Your Doctor'} has invited you to ImmunoTrack`,
+          subject: `${clinician.fullName ? decrypt(clinician.fullName) : 'Your Doctor'} has invited you to ImmunoTrack`,
           body: emailService.getInviteTemplate(
             input.patient_first_name,
-            clinician.organizationName || 'Your Doctor',
+            clinician.fullName ? decrypt(clinician.fullName) : 'Your Doctor',
             display,
             expiresAt.toISOString(),
             input.personal_message
@@ -170,13 +176,19 @@ export class InvitationService {
     );
 
     const [clinic] = await db.select().from(clinics).where(eq(clinics.id, invitation.clinicId)).limit(1);
-    const [clinician] = await db.select().from(clinicians).where(eq(clinicians.id, invitation.clinicianId)).limit(1);
+    const [clinician] = await db.select({ 
+        fullName: users.fullName 
+      })
+      .from(clinicians)
+      .innerJoin(users, eq(clinicians.userId, users.id))
+      .where(eq(clinicians.id, invitation.clinicianId))
+      .limit(1);
 
     return {
       verification_token: verificationToken,
       patient_first_name: decrypt(invitation.patientFirstName),
       clinic_name: clinic?.name || "Your Clinic",
-      clinician_name: clinician?.organizationName || "Your Doctor",
+      clinician_name: clinician?.fullName ? decrypt(clinician.fullName) : "Your Doctor",
       rpm_required: invitation.rpmEnrolled === "true",
     };
   }
@@ -226,14 +238,20 @@ export class InvitationService {
 
       const patientEmail = decrypt(oldInvite.patientEmail);
       const patientFirstName = decrypt(oldInvite.patientFirstName);
-      const [clinician] = await tx.select().from(clinicians).where(eq(clinicians.id, clinicianId)).limit(1);
+      const [clinician] = await tx.select({ 
+          fullName: users.fullName 
+        })
+        .from(clinicians)
+        .innerJoin(users, eq(clinicians.userId, users.id))
+        .where(eq(clinicians.id, clinicianId))
+        .limit(1);
 
       await emailService.sendEmail({
         to: patientEmail,
         subject: `New Invitation - ImmunoTrack`,
         body: emailService.getInviteTemplate(
           patientFirstName,
-          clinician?.organizationName || 'Your Doctor',
+          clinician?.fullName ? decrypt(clinician.fullName) : 'Your Doctor',
           display,
           expiresAt.toISOString(),
           oldInvite.personalMessage || undefined

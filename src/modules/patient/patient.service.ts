@@ -5,6 +5,15 @@ import { patientConsents, onboardingSessions, notifications } from "../../db/sch
 import { eq, and } from "drizzle-orm";
 import { UpdatePatientProfileInput, PatientConsentInput } from "./patient.schema";
 import { decrypt, encrypt } from "../../utils/encryption";
+import { RpmService } from "../rpm/rpm.service";
+import { SymptomService } from "../symptoms/symptoms.service";
+import { MedicationService } from "../medication/medication.service";
+import { aiInsights } from "../../db/schema/ai.schema";
+import { desc } from "drizzle-orm";
+
+const rpmService = new RpmService();
+const symptomService = new SymptomService();
+const medicationService = new MedicationService();
 
 export class PatientService {
 
@@ -49,12 +58,12 @@ export class PatientService {
           if (clinician) {
             const [user] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
             const fullName = user && user.fullName ? decrypt(user.fullName) : "Patient";
-            await tx.insert(notifications).values({
+            await tx.insert(notifications).values([{
               userId: clinician.userId,
               type: "patient_deterioration",
               title: encrypt("Patient Enrolled"),
               body: encrypt(`${fullName} has securely registered their account and activated remote monitoring.`),
-            });
+            }]);
           }
         }
       }
@@ -107,7 +116,7 @@ export class PatientService {
     const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
 
-    await db.insert(patientConsents).values({
+    await db.insert(patientConsents).values([{
       patientId: patient.id,
       consentType: input.consent_type,
       consentVersion: input.consent_version,
@@ -119,7 +128,7 @@ export class PatientService {
       icd10Code: input.icd10_code,
       consentFormVersion: input.consent_version,
       ipAddress: ip,
-    });
+    }]);
 
     let next_step = "complete";
     if (input.consent_type === "platform") next_step = "consent_hipaa_npp";
@@ -130,6 +139,60 @@ export class PatientService {
       next_step = "profile_setup";
     }
 
+    if (input.consent_type === "rpm") {
+      await rpmService.initializeEnrollment(patient.id, new Date(), input.icd10_code || "J45.20");
+    }
+
     return { success: true, next_step };
+  }
+
+  // -----------------------GET /patient/dashboard----------------------------
+
+  async getDashboardData(userId: string) {
+    const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
+    if (!patient) throw new Error("PATIENT_NOT_FOUND");
+
+    // 1. Fetch Latest Symptom Status
+    const allLogs = await symptomService.getSymptomHistory(userId, {} as any);
+    const latestLog = allLogs.length > 0 ? allLogs[0] : null;
+
+    const status = latestLog ? {
+      respiratory: latestLog.respiratoryScore,
+      nasal: latestLog.nasalScore,
+      skin: latestLog.skinScore,
+      last_updated: latestLog.loggedAt,
+      log_date: latestLog.logDate
+    } : null;
+
+    // 2. Fetch Active Medications
+    const medications = await medicationService.getMedicationPlan(userId);
+
+    // 3. Fetch Latest AI Insight
+    const [latestInsight] = await db.select()
+      .from(aiInsights)
+      .where(eq(aiInsights.patientId, patient.id))
+      .orderBy(desc(aiInsights.generatedAt))
+      .limit(1);
+
+    const insight = latestInsight ? {
+      id: latestInsight.id,
+      type: latestInsight.insightType,
+      title: decrypt(latestInsight.title),
+      description: decrypt(latestInsight.description),
+      recommendation: latestInsight.recommendation ? decrypt(latestInsight.recommendation) : null,
+      risk_level: latestInsight.riskLevel,
+      generated_at: latestInsight.generatedAt
+    } : null;
+
+    return {
+      today_status: status,
+      medications: medications.map(m => ({
+        name: m.name,
+        dose: m.dose,
+        frequency: m.frequency,
+        category: m.category
+      })),
+      ai_insight: insight
+    };
   }
 }

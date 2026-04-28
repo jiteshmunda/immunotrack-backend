@@ -145,4 +145,53 @@ export class EmailService {
       </html>
     `;
   }
+
+  /**
+   * Generates a HIPAA-compliant OTP email template
+   */
+  getOtpTemplate(otp: string): string {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ImmunoTrack Verification Code</title>
+      </head>
+      <body style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1B1E54; margin: 0; padding: 0; background-color: #f9f9f9;">
+        <div style="max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e1e1e1; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+          
+          <!-- Header -->
+          <div style="background-color: #1B1E54; padding: 30px; text-align: center;">
+            <h1 style="color: #7FE3C5; margin: 0; font-size: 28px; letter-spacing: 1px;">ImmunoTrack</h1>
+          </div>
+
+          <!-- Content -->
+          <div style="padding: 40px 30px;">
+            <p style="font-size: 18px; font-weight: 600; margin-bottom: 20px;">Password Reset Request</p>
+            
+            <p style="font-size: 16px; margin-bottom: 20px;">We received a request to reset your password. Use the verification code below to proceed. This code is valid for 10 minutes.</p>
+
+            <div style="background-color: #F0F9F7; padding: 30px; border-radius: 8px; text-align: center; border: 1px dashed #7FE3C5; margin: 30px 0;">
+              <p style="margin-top: 0; margin-bottom: 10px; font-size: 14px; color: #666; text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">Your Verification Code</p>
+              <div style="font-size: 48px; font-weight: 800; color: #1B1E54; letter-spacing: 8px; font-family: monospace;">${otp}</div>
+            </div>
+
+            <p style="font-size: 14px; color: #666; font-style: italic;">
+               If you did not request a password reset, please ignore this email or contact support if you have concerns.
+            </p>
+
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 40px 0;">
+
+            <!-- Footer -->
+            <div style="font-size: 12px; color: #999; text-align: center;">
+              <p>This is an automated security notification. ImmunoTrack handles your health information in accordance with HIPAA.</p>
+              <p style="margin-top: 15px;">Questions? Contact us at support@immunotrack.ai</p>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
 }

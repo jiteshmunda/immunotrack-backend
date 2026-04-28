@@ -1,5 +1,6 @@
 import { seedRoles } from "./roles.seed";
 import { seedAdmin } from "./admin.seed";
+import { seedMedications } from "./medications.seed";
 
 async function main() {
   console.log("🏁 Starting total database seed...");
@@ -7,6 +8,7 @@ async function main() {
   try {
     await seedRoles();
     await seedAdmin();
+    await seedMedications();
     // Add other seeds here as they are created
     
     console.log("Seeding completed successfully!");

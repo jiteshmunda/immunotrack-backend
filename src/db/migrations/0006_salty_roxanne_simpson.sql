@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "daily_logs_patient_date_idx" ON "daily_logs" USING btree ("patient_id","log_date");

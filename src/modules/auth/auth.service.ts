@@ -13,6 +13,9 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { ENV } from "../../config/env";
 import { RegisterPatientInput } from "../invitation/invitation.schema";
+import { EmailService } from "../../utils/email";
+
+const emailService = new EmailService();
 
 export class AuthService {
 
@@ -58,13 +61,13 @@ export class AuthService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
-    const [session] = await db.insert(userSessions).values({
+    const [session] = await db.insert(userSessions).values([{
       userId: user.id,
       tokenHash,
       ipAddress: ip,
       userAgent: userAgent,
       expiresAt,
-    }).returning();
+    }]).returning();
 
     const accessToken = generateAccessToken({ 
       userId: user.id, 
@@ -72,7 +75,9 @@ export class AuthService {
       sid: session.id 
     });
 
-    const isExpired = (new Date().getTime() - user.passwordChangedAt.getTime()) > 60 * 24 * 60 * 60 * 1000;
+    const isExpired = user.passwordChangedAt
+      ? (new Date().getTime() - user.passwordChangedAt.getTime()) > 60 * 24 * 60 * 60 * 1000
+      : false;
 
     return {
       accessToken,
@@ -122,31 +127,31 @@ export class AuthService {
 
     return await db.transaction(async (tx) => {
       // 4. Create User
-      const [user] = await tx.insert(users).values({
+      const [user] = await tx.insert(users).values([{
         fullName: encrypt(fullName),
         email: encrypt(email),
         emailHash: emailHash,
         passwordHash: passwordHash,
         roleId: patientRole.id,
         status: "active",
-      }).returning();
+      }]).returning();
 
       // 5. Create Patient Profile
-      const [patient] = await tx.insert(patients).values({
+      const [patient] = await tx.insert(patients).values([{
         userId: user.id,
         dateOfBirth: invite.patientDob, // Already encrypted
         primaryDiagnosis: invite.patientDiagnosis,
         icd10QualifyingCode: invite.icd10Code,
         onboardingCompleted: false,
         monitoringActive: false,
-      }).returning();
+      }]).returning();
 
       // 6. Assignment
-      await tx.insert(patientClinicianAssignments).values({
+      await tx.insert(patientClinicianAssignments).values([{
         patientId: patient.id,
         clinicianId: invite.clinicianId,
         isPrimary: true,
-      });
+      }]);
 
       // 7. Update Invite
       await tx.update(invitations)
@@ -164,13 +169,13 @@ export class AuthService {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
 
-      const [session] = await tx.insert(userSessions).values({
+      const [session] = await tx.insert(userSessions).values([{
         userId: user.id,
         tokenHash,
         ipAddress: ip,
         userAgent: userAgent,
         expiresAt,
-      }).returning();
+      }]).returning();
 
       const accessToken = generateAccessToken({ 
         userId: user.id, 
@@ -226,13 +231,13 @@ export class AuthService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
-    const [newSession] = await db.insert(userSessions).values({
+    const [newSession] = await db.insert(userSessions).values([{
       userId: user.id,
       tokenHash: newTokenHash,
       ipAddress: ip,
       userAgent,
       expiresAt,
-    }).returning();
+    }]).returning();
 
     const accessToken = generateAccessToken({ 
       userId: user.id, 
@@ -240,7 +245,9 @@ export class AuthService {
       sid: newSession.id 
     });
 
-    const isExpired = (new Date().getTime() - user.passwordChangedAt.getTime()) > 60 * 24 * 60 * 60 * 1000;
+    const isExpired = user.passwordChangedAt
+      ? (new Date().getTime() - user.passwordChangedAt.getTime()) > 60 * 24 * 60 * 60 * 1000
+      : false;
 
     return {
       accessToken,
@@ -280,5 +287,99 @@ export class AuthService {
   async logout(rawRefreshToken: string) {
     const tokenHash = crypto.createHmac("sha256", ENV.ENCRYPTION_KEY).update(rawRefreshToken).digest("hex");
     await db.delete(userSessions).where(eq(userSessions.tokenHash, tokenHash));
+  }
+
+  // ---------------------------------POST /auth/forgot-password-----------------------------------------
+  async forgotPassword(email: string) {
+    const emailHash = hashForLookup(email);
+    const [user] = await db.select().from(users).where(eq(users.emailHash, emailHash)).limit(1);
+
+    // HIPAA: Always return success to prevent email enumeration
+    if (!user || user.status !== "active") return;
+
+    // Cooldown check (2 minutes)
+    if (user.resetPasswordRequestedAt) {
+      const diff = new Date().getTime() - user.resetPasswordRequestedAt.getTime();
+      if (diff < 2 * 60 * 1000) {
+        throw new Error("Please wait before requesting a new code");
+      }
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpHash = crypto.createHmac("sha256", ENV.ENCRYPTION_KEY).update(otp).digest("hex");
+    
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+
+    await db.update(users)
+      .set({
+        resetPasswordOtp: otpHash,
+        resetPasswordExpires: expiresAt,
+        resetPasswordAttempts: 0,
+        resetPasswordRequestedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, user.id));
+
+    await emailService.sendEmail({
+      to: email,
+      subject: "Your ImmunoTrack Verification Code",
+      body: emailService.getOtpTemplate(otp),
+    });
+  }
+
+  // ---------------------------------POST /auth/reset-password-----------------------------------------
+  async resetPassword(email: string, otp: string, newPassword: string) {
+    const emailHash = hashForLookup(email);
+    
+    return await db.transaction(async (tx) => {
+      const [user] = await tx.select().from(users).where(eq(users.emailHash, emailHash)).limit(1);
+
+      if (!user || user.status !== "active") {
+        throw new Error("Invalid request");
+      }
+
+      if (!user.resetPasswordOtp || !user.resetPasswordExpires || user.resetPasswordExpires < new Date()) {
+        throw new Error("Code has expired or is invalid");
+      }
+
+      if (user.resetPasswordAttempts >= 5) {
+        throw new Error("Too many failed attempts. Please request a new code.");
+      }
+
+      const otpHash = crypto.createHmac("sha256", ENV.ENCRYPTION_KEY).update(otp).digest("hex");
+      if (user.resetPasswordOtp !== otpHash) {
+        await tx.update(users)
+          .set({ resetPasswordAttempts: user.resetPasswordAttempts + 1 })
+          .where(eq(users.id, user.id));
+        throw new Error("Invalid verification code");
+      }
+
+      // Prevent Password Reuse
+      if (user.passwordHash) {
+        const isSame = await verifyPassword(newPassword, user.passwordHash);
+        if (isSame) {
+          throw new Error("New password cannot be the same as your old password");
+        }
+      }
+
+      const newPasswordHash = await hashPassword(newPassword);
+
+      await tx.update(users)
+        .set({
+          passwordHash: newPasswordHash,
+          isTempPassword: false,
+          passwordChangedAt: new Date(),
+          resetPasswordOtp: null,
+          resetPasswordExpires: null,
+          resetPasswordAttempts: 0,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, user.id));
+
+      // Revoke all sessions for security
+      await tx.delete(userSessions).where(eq(userSessions.userId, user.id));
+    });
   }
 }

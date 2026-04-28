@@ -12,8 +12,11 @@ router.post("/refresh", authController.refresh.bind(authController));
 router.post("/logout", authController.logout.bind(authController));
 router.post("/change-password", authenticateJWT, authController.changePassword.bind(authController));
 
-// Patient Onboarding
+// Password Reset
+router.post("/forgot-password", requireHttps, authController.forgotPassword.bind(authController));
+router.post("/reset-password", requireHttps, authController.resetPassword.bind(authController));
 
+// Patient Onboarding
 router.post("/invite/verify", requireHttps, (req, res) => authController.verifyInvite(req, res));
 
 router.post("/register", requireHttps, (req, res) => authController.register(req, res));

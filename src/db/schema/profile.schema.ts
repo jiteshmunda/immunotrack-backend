@@ -47,6 +47,10 @@ export const clinicians = pgTable("clinicians", {
   // PHI — AES-256 encrypted
 
   licenseNumber:    text("license_number"),
+  npiNumber:        text("npi_number"),
+  phone:            text("phone"),
+  stateOfLicensure: varchar("state_of_licensure", { length: 100 }),
+  clinicalRole:     varchar("clinical_role", { length: 100 }),
 
   specialty:        varchar("specialty", { length: 100 }),
   organizationName: varchar("organization_name", { length: 255 }),

@@ -148,8 +148,8 @@ export const patientConsents = pgTable("patient_consents", {
   scrollCompleted: boolean("scroll_completed").notNull().default(false),
   
   // For RPM consent
-  typedSignature: varchar("typed_signature", { length: 200 }),
-  icd10Code:      varchar("icd10_code", { length: 10 }),
+  typedSignature: text("typed_signature"),
+  icd10Code:      text("icd10_code"),
   
   consentFormVersion: varchar("consent_form_version", { length: 10 }).notNull(),
   ipAddress:          varchar("ip_address", { length: 45 }),

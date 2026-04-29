@@ -35,10 +35,10 @@ export const invitations = pgTable("invitations", {
   patientDob: text("patient_dob").notNull(),
   
   // Primary diagnosis code: 'allergy', 'asthma', or 'both'
-  patientDiagnosis: varchar("patient_diagnosis", { length: 50 }).notNull(),
-  icd10Code: varchar("icd10_code", { length: 20 }),
-  
-  rpmEnrolled: varchar("rpm_enrolled", { length: 10 }).default("false"), 
+  patientDiagnosis: text("patient_diagnosis").notNull(),
+  icd10Code: text("icd10_code"),
+
+  rpmEnrolled: varchar("rpm_enrolled", { length: 10 }).default("false"),
   personalMessage: text("personal_message"),
 
   status: varchar("status", { length: 20 }).notNull().default("pending"),

@@ -85,7 +85,6 @@ export class AuthService {
       user: {
         user_id: user.id,
         role: role.name,
-        isTemporaryPassword: user.isTempPassword || false,
       },
       resetRequired: user.isTempPassword || isExpired,
     };
@@ -255,7 +254,6 @@ export class AuthService {
       user: {
         user_id: user.id,
         role: role.name,
-        isTemporaryPassword: user.isTempPassword || false,
       },
       resetRequired: user.isTempPassword || isExpired,
     };

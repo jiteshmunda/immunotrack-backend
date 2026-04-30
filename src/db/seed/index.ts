@@ -1,20 +1,26 @@
-import { seedRoles } from "./roles.seed";
-import { seedAdmin } from "./admin.seed";
-import { seedMedications } from "./medications.seed";
+import { loadSecrets } from "../../config/env";
 
 async function main() {
   console.log("🏁 Starting total database seed...");
   
   try {
+    // 1. Load configuration (from .env or AWS Secrets Manager)
+    await loadSecrets();
+
+    // 2. Dynamically import seeders AFTER secrets are loaded
+    const { seedRoles } = await import("./roles.seed");
+    const { seedAdmin } = await import("./admin.seed");
+    const { seedMedications } = await import("./medications.seed");
+
     await seedRoles();
     await seedAdmin();
     await seedMedications();
-    // Add other seeds here as they are created
     
-    console.log("Seeding completed successfully!");
+    console.log("✅ Seeding completed successfully!");
     process.exit(0);
-  } catch (error) {
-    console.error("Seeding failed:", error);
+  } catch (error: any) {
+    console.error("❌ Seeding failed!");
+    console.error("Error:", error.message);
     process.exit(1);
   }
 }

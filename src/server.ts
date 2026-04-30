@@ -1,8 +1,22 @@
-import app from "./app";
-import { ENV } from "./config/env";
+import { ENV, loadSecrets } from "./config/env";
 
-const PORT = ENV.PORT || 3000;
+async function startServer() {
+  try {
+    // Load configuration (from .env or AWS Secrets Manager)
+    await loadSecrets();
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+
+    const { default: app } = await import("./app");
+
+    const PORT = ENV.PORT || 3000;
+
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Failed to start server:", error);
+    process.exit(1);
+  }
+}
+
+startServer();

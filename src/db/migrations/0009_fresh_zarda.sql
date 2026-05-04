@@ -1,0 +1,1 @@
+ALTER TABLE "rpm_consents" ALTER COLUMN "icd10_qualifying_code" SET DATA TYPE text;

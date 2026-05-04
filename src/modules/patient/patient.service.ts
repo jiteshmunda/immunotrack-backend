@@ -100,7 +100,7 @@ export class PatientService {
       mrn: patient.mrn ? decrypt(patient.mrn) : null,
       primary_diagnosis: patient.primaryDiagnosis ? decrypt(patient.primaryDiagnosis) : null,
       location_zip: patient.locationZip,
-      icd10_qualifying_code: patient.icd10QualifyingCode,
+      icd10_qualifying_code: patient.icd10QualifyingCode ? decrypt(patient.icd10QualifyingCode) : null,
       medication_reminders_enabled: patient.medicationRemindersEnabled,
       reminder_time_utc: patient.reminderTimeUtc,
       onboarding_completed: patient.onboardingCompleted,
@@ -116,6 +116,10 @@ export class PatientService {
     const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
 
+    // Encrypt PHI for storage
+    const encryptedSignature = input.typed_signature ? encrypt(input.typed_signature) : null;
+    const encryptedIcd10 = input.icd10_code ? encrypt(input.icd10_code) : null;
+
     await db.insert(patientConsents).values([{
       patientId: patient.id,
       consentType: input.consent_type,
@@ -124,8 +128,8 @@ export class PatientService {
       devicePlatform: input.device_platform,
       deviceId: input.device_id,
       scrollCompleted: input.scroll_completed,
-      typedSignature: input.typed_signature,
-      icd10Code: input.icd10_code,
+      typedSignature: encryptedSignature,
+      icd10Code: encryptedIcd10,
       consentFormVersion: input.consent_version,
       ipAddress: ip,
     }]);

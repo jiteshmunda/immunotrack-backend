@@ -23,8 +23,8 @@ export const patients = pgTable("patients", {
   locationZip:        varchar("location_zip", { length: 20 }),
 
   // RPM eligibility
-  icd10QualifyingCode: varchar("icd10_qualifying_code", { length: 20 }), // e.g. J45.20
-  rpmEnrollmentDate:  date("rpm_enrollment_date"),
+  icd10QualifyingCode: text("icd10_qualifying_code"), // e.g. J45.20
+  rpmEnrollmentDate: date("rpm_enrollment_date"),
 
   medicationRemindersEnabled: boolean("medication_reminders_enabled").default(true).notNull(),
   reminderTimeUtc: varchar("reminder_time_utc", { length: 5 }), // HH:MM

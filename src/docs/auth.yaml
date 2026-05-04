@@ -28,7 +28,6 @@ paths:
                     properties:
                       user_id: { type: string, format: uuid, example: "a8cffc86-f212-489b-bbf4-7f109570ea39" }
                       role: { type: string, example: "patient" }
-                      isTemporaryPassword: { type: boolean, example: true }
                   resetRequired: { type: boolean, example: false }
         401:
           description: Authentication failed

@@ -18,7 +18,8 @@ export const rpmConsents = pgTable("rpm_consents", {
   // AES-256 encrypted
   icd10Code:           text("icd10_code").notNull(),
   // e.g. J45.20, J30.1, L20.x
-  icd10QualifyingCode: varchar("icd10_qualifying_code", { length: 20 }).notNull(),
+  icd10QualifyingCode: text("icd10_qualifying_code").notNull(),
+
   // S3 URL — AES-256 encrypted
   consentPdfUrl:       text("consent_pdf_url"),
   consentVersion:      varchar("consent_version", { length: 20 }),

@@ -9,13 +9,15 @@
     "db:generate": "drizzle-kit generate --config=src/db/drizzle.config.ts",
     "db:push": "drizzle-kit push --config=src/db/drizzle.config.ts",
     "db:migrate": "tsx src/scripts/migrate.ts",
-    "db:seed": "tsx src/db/seed/index.ts"
+    "db:seed": "tsx src/db/seed/index.ts",
+    "test:secrets": "tsx src/scripts/test-secrets.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.1039.0",
     "@azure/identity": "^4.13.1",
     "@microsoft/microsoft-graph-client": "^3.0.7",
     "bcryptjs": "^3.0.3",

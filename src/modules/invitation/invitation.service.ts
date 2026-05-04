@@ -72,6 +72,8 @@ export class InvitationService {
     const encryptedFirstName = encrypt(input.patient_first_name);
     const encryptedLastName = encrypt(input.patient_last_name);
     const encryptedDob = encrypt(input.patient_dob);
+    const encryptedDiagnosis = encrypt(input.patient_diagnosis);
+    const encryptedIcd10 = input.icd10_code ? encrypt(input.icd10_code) : null;
 
     return await db.transaction(async (tx) => {
       const [invitation] = await tx
@@ -85,8 +87,8 @@ export class InvitationService {
           patientFirstName: encryptedFirstName,
           patientLastName: encryptedLastName,
           patientDob: encryptedDob,
-          patientDiagnosis: input.patient_diagnosis,
-          icd10Code: input.icd10_code,
+          patientDiagnosis: encryptedDiagnosis,
+          icd10Code: encryptedIcd10,
           rpmEnrolled: String(input.rpm_enrolled),
           personalMessage: input.personal_message,
           status: "pending",

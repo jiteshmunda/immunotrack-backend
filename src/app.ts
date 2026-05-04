@@ -15,9 +15,7 @@ app.use(express.json({ limit: "10kb" }));
 app.use(cookieParser());
 
 // Documentation
-if (ENV.NODE_ENV !== "production") {
-  app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-}
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 // Health Check
 app.use("/health", (req, res) => {
   res.json({ status: "ok" });

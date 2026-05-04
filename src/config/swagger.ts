@@ -14,6 +14,10 @@ const options: swaggerJsdoc.Options = {
         url: `http://localhost:${ENV.PORT}/api/v1`,
         description: "Local Development Server",
       },
+      {
+        url: "https://dev-api.immunotrack.ai/api/v1",
+        description: "Deployed Development Server",
+      },
     ],
     components: {
       securitySchemes: {

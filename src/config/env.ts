@@ -27,6 +27,10 @@ export async function loadSecrets() {
       
       // Update ENV object with fetched secrets
       Object.assign(ENV, secrets);
+
+      // Ensure numeric values are actually numbers (AWS returns strings)
+      if (secrets.PORT) ENV.PORT = parseInt(secrets.PORT);
+      if (secrets.BCRYPT_ROUNDS) ENV.BCRYPT_ROUNDS = parseInt(secrets.BCRYPT_ROUNDS);
       
       // Also update process.env for any other libraries that check it
       for (const [key, value] of Object.entries(secrets)) {

@@ -1,0 +1,34 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - deployment/dev # change if needed
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /var/www/immunotrack/backend
+
+            echo "Pull latest code"
+            git pull origin deployment/dev
+
+            echo "Install dependencies"
+            npm install
+
+            echo "Build project"
+            npm run build
+
+            echo "Restart backend"
+            pm2 reload immunotrack-backend || pm2 start dist/server.js --name immunotrack-backend
+
+            pm2 save

@@ -4,3 +4,4 @@ package-lock.json
 logs/
 *.xlsx
 src/db/seed/medication-data.ts
+dist/

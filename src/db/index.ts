@@ -5,7 +5,7 @@ import { ENV } from "../config/env";
 
 const pool = new Pool({
   connectionString: ENV.DATABASE_URL,
-  ssl: ENV.NODE_ENV === "production" ? { rejectUnauthorized: true } : false,
+  ssl: { rejectUnauthorized: false },
   max: 10,
 });
 pool.connect()

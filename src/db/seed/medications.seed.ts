@@ -1,6 +1,6 @@
 import { db } from "../index";
 import { medicationCatalog } from "../schema/medication.schema";
-import { medicationData } from "./medication-data";
+import { medicationData } from "./medication-Catalog";
 
 import { count } from "drizzle-orm";
 

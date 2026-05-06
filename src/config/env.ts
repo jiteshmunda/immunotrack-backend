@@ -17,25 +17,32 @@ export const ENV = {
   FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:5173",
 };
 
-export async function loadSecrets() {
+/**
+ * Loads secrets from AWS Secrets Manager and populates the ENV object.
+ * @param force If true, re-fetches secrets even if they are already loaded.
+ */
+export async function loadSecrets(force: boolean = false) {
   const secretName = process.env.AWS_SECRET_NAME;
   const region = process.env.AWS_REGION || "eu-north-1";
+
+  if (!force && ENV.DATABASE_URL && !secretName) return;
 
   if (secretName) {
     console.log(`[Config] Fetching secrets from AWS Secrets Manager: ${secretName}...`);
     try {
       const secrets = await getSecretsFromAWS(secretName, region);
       
-      // Update ENV object with fetched secrets
       Object.assign(ENV, secrets);
 
-      // Ensure numeric values are actually numbers (AWS returns strings)
       if (secrets.PORT) ENV.PORT = parseInt(secrets.PORT);
       if (secrets.BCRYPT_ROUNDS) ENV.BCRYPT_ROUNDS = parseInt(secrets.BCRYPT_ROUNDS);
+      if (secrets.FRONTEND_URL) ENV.FRONTEND_URL = secrets.FRONTEND_URL;
       
       // Also update process.env for any other libraries that check it
       for (const [key, value] of Object.entries(secrets)) {
-        process.env[key] = value as string;
+        if (typeof value === "string") {
+          process.env[key] = value;
+        }
       }
       
       console.log("[Config] Secrets loaded successfully from AWS.");
@@ -47,7 +54,7 @@ export async function loadSecrets() {
     }
   }
 
-  // Validate required fields
+  // Validate required fields after loading
   const required = [
     "DATABASE_URL", 
     "ENCRYPTION_KEY", 

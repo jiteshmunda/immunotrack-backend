@@ -26,15 +26,15 @@ export async function getSecretsFromAWS(secretName: string, region: string = "us
       throw new Error("Secret found but it is empty");
     }
 
-    // MANDATORY FOR 7-DAY ROTATION: Construct DATABASE_URL from components
-    if (!secrets.DATABASE_URL && secrets.host && secrets.username && secrets.password) {
-      const port = secrets.port || 5432;
-      const dbname = secrets.dbname || "";
-      
-      // Clean host in case it contains port or protocol (prevents Invalid URL error)
-      let cleanHost = secrets.host.replace(/^postgresql?:\/\//, "").split(":")[0].split("/")[0];
-      
-      secrets.DATABASE_URL = `postgresql://${secrets.username}:${encodeURIComponent(secrets.password)}@${cleanHost}:${port}/${dbname}`;
+    const host = secrets.host || secrets.endpoint;
+    const user = secrets.username || secrets.user;
+    const pass = secrets.password;
+    const dbname = secrets.dbname || secrets.database || secrets.dbInstanceIdentifier || "";
+    const port = secrets.port || 5432;
+
+    if (!secrets.DATABASE_URL && host && user && pass) {
+      let cleanHost = host.replace(/^postgresql?:\/\//, "").split(":")[0].split("/")[0];
+      secrets.DATABASE_URL = `postgresql://${user}:${encodeURIComponent(pass)}@${cleanHost}:${port}/${dbname}`;
       console.log("[AWS Secrets Manager] Successfully built DATABASE_URL from individual keys.");
     }
 

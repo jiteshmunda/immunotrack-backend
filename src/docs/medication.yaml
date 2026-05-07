@@ -75,9 +75,86 @@ paths:
         201:
           description: Created
 
+  /medications/logs:
+    get:
+      summary: Get medication history
+      description: Returns a list of all medication doses taken or missed by the patient.
+      tags:
+        - Medication
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+          description: Filter logs from this date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+          description: Filter logs up to this date
+      responses:
+        200:
+          description: List of medication logs
+          content:
+            application/json:
+              example:
+                - id: "..."
+                  status: "taken"
+                  scheduledFor: "2026-05-07T08:00:00Z"
+                  takenTime: "2026-05-07T08:12:00Z"
+                  medicationName: "Cetirizine"
+                - id: "..."
+                  status: "missed"
+                  scheduledFor: "2026-05-07T08:00:00Z"
+                  missedReason: "forgot"
+                  medicationName: "Flonase"
+
+    post:
+      summary: Log medication dose
+      description: Mark a medication dose as taken or missed.
+      tags:
+        - Medication
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [medicationId, status]
+              properties:
+                medicationId:
+                  type: string
+                  format: uuid
+                status:
+                  type: string
+                  enum: [taken, missed]
+                scheduledFor:
+                  type: string
+                  format: date-time
+                  description: The planned time for the dose (optional)
+                takenTime:
+                  type: string
+                  format: date-time
+                  description: Mandatory if status is "taken"
+                missedReason:
+                  type: string
+                  enum: [forgot, side_effects, out_of_medication, other]
+                  description: Mandatory if status is "missed"
+      responses:
+        201:
+          description: Log created
+        400:
+          description: Validation error
+
   /medications/{id}:
     delete:
-      summary: Delete medication from plan
+      summary: Delete  medication from plan
       description: Remove a medication entry from the patient's plan.
       tags:
         - Medication

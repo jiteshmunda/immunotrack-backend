@@ -110,6 +110,7 @@ export const medicationLogs = pgTable("medication_logs", {
   medicationId: uuid("medication_id").notNull().references(() => patientMedications.id),
   scheduledFor: timestamp("scheduled_for"),
   loggedAt:     timestamp("logged_at").defaultNow().notNull(),
+  takenTime:    timestamp("taken_time"),
   status:       varchar("status", { length: 20 }).notNull(), // taken | missed
   // Required if status = missed
   missedReason: varchar("missed_reason", { length: 255 }), // forgot | side_effects | out_of_medication | other

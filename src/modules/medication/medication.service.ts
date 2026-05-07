@@ -2,8 +2,10 @@ import { db } from "../../db";
 import { medicationCatalog } from "../../db/schema/medication.schema";
 import { patientMedications } from "../../db/schema/tracking.schema";
 import { patients } from "../../db/schema/profile.schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc, between } from "drizzle-orm";
 import { encrypt, decrypt } from "../../utils/encryption";
+import { medicationLogs } from "../../db/schema/tracking.schema";
+import { LogMedicationInput } from "./medication.validation";
 
 export interface AddMedicationInput {
   medicationId?: string; // Optional catalog link
@@ -128,5 +130,64 @@ export class MedicationService {
     if (result.length === 0) throw new Error("MEDICATION_NOT_FOUND_OR_UNAUTHORIZED");
 
     return { success: true };
+  }
+
+  // ---------------------------------- POST /medications/logs ------------------------------------------
+  async logMedication(userId: string, input: LogMedicationInput) {
+    const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
+    if (!patient) throw new Error("PATIENT_NOT_FOUND");
+
+    const [med] = await db.select().from(patientMedications)
+      .where(and(
+        eq(patientMedications.id, input.medicationId),
+        eq(patientMedications.patientId, patient.id)
+      )).limit(1);
+
+    if (!med) throw new Error("MEDICATION_NOT_FOUND_OR_UNAUTHORIZED");
+
+    const [log] = await db.insert(medicationLogs).values({
+      patientId: patient.id,
+      medicationId: input.medicationId,
+      status: input.status,
+      scheduledFor: input.scheduledFor ? new Date(input.scheduledFor) : null,
+      takenTime: input.takenTime ? new Date(input.takenTime) : null,
+      missedReason: input.missedReason || null,
+    }).returning();
+
+    return log;
+  }
+
+  // ---------------------------------- GET /medications/logs -------------------------------------------
+  async getMedicationLogs(userId: string, filters: { startDate?: string, endDate?: string }) {
+    const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
+    if (!patient) throw new Error("PATIENT_NOT_FOUND");
+
+    const conditions = [eq(medicationLogs.patientId, patient.id)];
+
+    if (filters.startDate && filters.endDate) {
+      conditions.push(between(
+        medicationLogs.scheduledFor, 
+        new Date(filters.startDate), 
+        new Date(filters.endDate)
+      ));
+    }
+
+    const results = await db.select({
+      id: medicationLogs.id,
+      status: medicationLogs.status,
+      scheduledFor: medicationLogs.scheduledFor,
+      takenTime: medicationLogs.takenTime,
+      missedReason: medicationLogs.missedReason,
+      medicationName: patientMedications.name,
+    })
+    .from(medicationLogs)
+    .innerJoin(patientMedications, eq(medicationLogs.medicationId, patientMedications.id))
+    .where(and(...conditions))
+    .orderBy(desc(medicationLogs.scheduledFor));
+
+    return results.map(r => ({
+      ...r,
+      medicationName: decrypt(r.medicationName),
+    }));
   }
 }

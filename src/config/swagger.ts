@@ -1,5 +1,6 @@
 import swaggerJsdoc from "swagger-jsdoc";
 import { ENV } from "./env";
+import path from "path";
 
 const options: swaggerJsdoc.Options = {
   definition: {
@@ -29,7 +30,7 @@ const options: swaggerJsdoc.Options = {
       },
     },
   },
-  apis: ["./src/docs/*.yaml"], // separate swagger files
+  apis: [path.join(__dirname, "../docs/*.yaml")], // absolute path for reliability
 };
 
 export const swaggerSpec = swaggerJsdoc(options);

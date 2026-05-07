@@ -16,4 +16,8 @@ router.post("/", requireRole(["patient"]), controller.addMedication);
 
 router.delete("/:id", requireRole(["patient"]), controller.deleteMedication);
 
+router.get("/logs", requireRole(["patient"]), controller.getMedicationLogs);
+
+router.post("/logs", requireRole(["patient"]), controller.logMedication);
+
 export default router;

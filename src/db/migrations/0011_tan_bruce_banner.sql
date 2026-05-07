@@ -1,0 +1,1 @@
+ALTER TABLE "medication_logs" ADD COLUMN "taken_time" timestamp;

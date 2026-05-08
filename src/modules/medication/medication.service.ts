@@ -1,10 +1,9 @@
 import { db } from "../../db";
 import { medicationCatalog } from "../../db/schema/medication.schema";
-import { patientMedications } from "../../db/schema/tracking.schema";
+import { patientMedications, medicationLogs, medicationReminders } from "../../db/schema/tracking.schema";
 import { patients } from "../../db/schema/profile.schema";
 import { eq, and, desc, between } from "drizzle-orm";
 import { encrypt, decrypt } from "../../utils/encryption";
-import { medicationLogs } from "../../db/schema/tracking.schema";
 import { LogMedicationInput } from "./medication.validation";
 
 export interface AddMedicationInput {
@@ -189,5 +188,109 @@ export class MedicationService {
       ...r,
       medicationName: decrypt(r.medicationName),
     }));
+  }
+
+  // ---------------------------------- POST /medications/reminders -------------------------------------
+  async createReminder(userId: string, data: { medicationId: string, time: string, frequency?: string }) {
+    const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
+    if (!patient) throw new Error("PATIENT_NOT_FOUND");
+
+    const [medication] = await db.select()
+      .from(patientMedications)
+      .where(and(
+        eq(patientMedications.id, data.medicationId),
+        eq(patientMedications.patientId, patient.id)
+      ))
+      .limit(1);
+
+    if (!medication) throw new Error("MEDICATION_NOT_FOUND_OR_UNAUTHORIZED");
+
+    const [existing] = await db.select()
+      .from(medicationReminders)
+      .where(and(
+        eq(medicationReminders.medicationId, data.medicationId),
+        eq(medicationReminders.reminderTime, data.time)
+      ))
+      .limit(1);
+
+    if (existing) throw new Error("REMINDER_ALREADY_EXISTS");
+
+    const [newReminder] = await db.insert(medicationReminders)
+      .values({
+        patientId: patient.id,
+        medicationId: data.medicationId,
+        reminderTime: data.time,
+        frequency: data.frequency || "DAILY",
+      })
+      .returning();
+
+    return newReminder;
+  }
+
+  // ---------------------------------- GET /medications/reminders --------------------------------------
+  async getReminders(userId: string) {
+    const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
+    if (!patient) throw new Error("PATIENT_NOT_FOUND");
+
+    const reminders = await db.select({
+      id: medicationReminders.id,
+      medicationId: medicationReminders.medicationId,
+      medicationName: patientMedications.name,
+      time: medicationReminders.reminderTime,
+      active: medicationReminders.isEnabled,
+      frequency: medicationReminders.frequency,
+    })
+    .from(medicationReminders)
+    .innerJoin(patientMedications, eq(medicationReminders.medicationId, patientMedications.id))
+    .where(eq(medicationReminders.patientId, patient.id))
+    .orderBy(desc(medicationReminders.createdAt));
+
+    return reminders.map(r => ({
+      ...r,
+      medicationName: decrypt(r.medicationName),
+    }));
+  }
+
+  // ---------------------------------- PATCH /medications/reminders/:id --------------------------------
+  async toggleReminder(userId: string, reminderId: string, active: boolean) {
+    const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
+    if (!patient) throw new Error("PATIENT_NOT_FOUND");
+
+    const [reminder] = await db.select()
+      .from(medicationReminders)
+      .where(and(
+        eq(medicationReminders.id, reminderId),
+        eq(medicationReminders.patientId, patient.id)
+      ))
+      .limit(1);
+
+    if (!reminder) throw new Error("REMINDER_NOT_FOUND_OR_UNAUTHORIZED");
+
+    const [updated] = await db.update(medicationReminders)
+      .set({ 
+        isEnabled: active,
+        updatedAt: new Date()
+      })
+      .where(eq(medicationReminders.id, reminderId))
+      .returning();
+
+    return updated;
+  }
+
+  // ---------------------------------- DELETE /medications/reminders/:id -------------------------------
+  async deleteReminder(userId: string, reminderId: string) {
+    const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
+    if (!patient) throw new Error("PATIENT_NOT_FOUND");
+
+    const result = await db.delete(medicationReminders)
+      .where(and(
+        eq(medicationReminders.id, reminderId),
+        eq(medicationReminders.patientId, patient.id)
+      ))
+      .returning();
+
+    if (result.length === 0) throw new Error("REMINDER_NOT_FOUND_OR_UNAUTHORIZED");
+
+    return { success: true };
   }
 }

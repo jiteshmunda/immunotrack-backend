@@ -170,3 +170,106 @@ paths:
       responses:
         200:
           description: Success
+
+  /medications/reminders:
+    get:
+      summary: List medication reminders
+      description: Returns all active and inactive reminders for the authenticated patient.
+      tags:
+        - Medication Reminder
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: List of reminders
+          content:
+            application/json:
+              example:
+                - id: "..."
+                  medicationName: "Symbicort"
+                  time: "08:00"
+                  active: true
+                  frequency: "DAILY"
+
+    post:
+      summary: Set new reminder
+      description: Create a new reminder for a specific medication in the plan.
+      tags:
+        - Medication Reminder
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [medicationId, time]
+              properties:
+                medicationId:
+                  type: string
+                  format: uuid
+                time:
+                  type: string
+                  example: "08:00"
+                  description: Time in HH:mm 24-hour format
+                frequency:
+                  type: string
+                  example: "DAILY"
+      responses:
+        201:
+          description: Reminder created
+        400:
+          description: Validation error or duplicate reminder
+
+  /medications/reminders/{id}:
+    patch:
+      summary: Toggle reminder status
+      description: Enable or disable a medication reminder.
+      tags:
+        - Medication Reminder
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [active]
+              properties:
+                active:
+                  type: boolean
+                  example: true
+      responses:
+        200:
+          description: Updated reminder
+        404:
+          description: Reminder not found
+
+    delete:
+      summary: Delete reminder
+      description: Permanently remove a medication reminder.
+      tags:
+        - Medication Reminder
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Success
+        404:
+          description: Reminder not found

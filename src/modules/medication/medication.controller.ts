@@ -1,7 +1,7 @@
 import { Response, Request } from "express";
 import { MedicationService } from "./medication.service";
 import { addMedicationSchema } from "./medication.schema";
-import { logMedicationSchema, createReminderSchema, toggleReminderSchema } from "./medication.validation";
+import { logMedicationSchema, createReminderSchema, updateReminderSchema } from "./medication.validation";
 import { sendSuccess, sendError } from "../../utils/response";
 import { writeAudit } from "../../utils/audit";
 import { AuthenticatedRequest } from "../../common/middleware/auth.middleware";
@@ -171,10 +171,10 @@ export class MedicationController {
     try {
       const authReq = req as AuthenticatedRequest;
       const id = req.params.id as string;
-      const { active } = toggleReminderSchema.parse(req.body);
+      const { active, time } = updateReminderSchema.parse(req.body);
       const userId = authReq.user.userId;
 
-      const reminder = await medicationService.toggleReminder(userId, id, active);
+      const reminder = await medicationService.updateReminder(userId, id, { active, time });
 
       await writeAudit(req, {
         action: "REMINDER_TOGGLED",

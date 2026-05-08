@@ -26,6 +26,7 @@ export const createReminderSchema = z.object({
   frequency: z.string().optional().default("DAILY"),
 });
 
-export const toggleReminderSchema = z.object({
-  active: z.boolean(),
+export const updateReminderSchema = z.object({
+  active: z.boolean().optional(),
+  time: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:mm)").optional(),
 });

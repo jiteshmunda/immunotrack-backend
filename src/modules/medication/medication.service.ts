@@ -262,7 +262,7 @@ export class MedicationService {
   }
 
   // ---------------------------------- PATCH /medications/reminders/:id --------------------------------
-  async toggleReminder(userId: string, reminderId: string, active: boolean) {
+  async updateReminder(userId: string, reminderId: string, data: { active?: boolean, time?: string }) {
     const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
 
@@ -276,9 +276,22 @@ export class MedicationService {
 
     if (!reminder) throw new Error("REMINDER_NOT_FOUND_OR_UNAUTHORIZED");
 
+    if (data.time && data.time !== reminder.reminderTime) {
+      const [existing] = await db.select()
+        .from(medicationReminders)
+        .where(and(
+          eq(medicationReminders.medicationId, reminder.medicationId),
+          eq(medicationReminders.reminderTime, data.time)
+        ))
+        .limit(1);
+      
+      if (existing) throw new Error("REMINDER_ALREADY_EXISTS");
+    }
+
     const [updated] = await db.update(medicationReminders)
       .set({ 
-        isEnabled: active,
+        isEnabled: data.active !== undefined ? data.active : reminder.isEnabled,
+        reminderTime: data.time || reminder.reminderTime,
         updatedAt: new Date()
       })
       .where(eq(medicationReminders.id, reminderId))

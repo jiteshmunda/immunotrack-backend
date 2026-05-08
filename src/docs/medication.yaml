@@ -241,11 +241,14 @@ paths:
           application/json:
             schema:
               type: object
-              required: [active]
               properties:
                 active:
                   type: boolean
                   example: true
+                time:
+                  type: string
+                  example: "08:30"
+                  description: New time for the reminder in HH:mm format
       responses:
         200:
           description: Updated reminder

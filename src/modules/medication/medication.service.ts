@@ -2,7 +2,7 @@ import { db } from "../../db";
 import { medicationCatalog } from "../../db/schema/medication.schema";
 import { patientMedications, medicationLogs, medicationReminders } from "../../db/schema/tracking.schema";
 import { patients } from "../../db/schema/profile.schema";
-import { eq, and, desc, between } from "drizzle-orm";
+import { eq, and, desc, between, sql } from "drizzle-orm";
 import { encrypt, decrypt } from "../../utils/encryption";
 import { LogMedicationInput } from "./medication.validation";
 
@@ -148,12 +148,20 @@ export class MedicationService {
       patientId: patient.id,
       medicationId: input.medicationId,
       status: input.status,
-      scheduledFor: input.scheduledFor ? new Date(input.scheduledFor) : null,
+      scheduledFor: null,
       takenTime: input.takenTime ? new Date(input.takenTime) : null,
       missedReason: input.missedReason || null,
     }).returning();
 
-    return log;
+    const [reminder] = await db.select({ time: medicationReminders.reminderTime })
+      .from(medicationReminders)
+      .where(eq(medicationReminders.medicationId, input.medicationId))
+      .limit(1);
+
+    return {
+      ...log,
+      scheduledFor: reminder?.time || null
+    };
   }
 
   // ---------------------------------- GET /medications/logs -------------------------------------------
@@ -178,15 +186,17 @@ export class MedicationService {
       takenTime: medicationLogs.takenTime,
       missedReason: medicationLogs.missedReason,
       medicationName: patientMedications.name,
+      reminderTime: sql<string>`(SELECT reminder_time FROM medication_reminders WHERE medication_id = ${medicationLogs.medicationId} LIMIT 1)`
     })
     .from(medicationLogs)
     .innerJoin(patientMedications, eq(medicationLogs.medicationId, patientMedications.id))
     .where(and(...conditions))
-    .orderBy(desc(medicationLogs.scheduledFor));
+    .orderBy(desc(medicationLogs.createdAt));
 
     return results.map(r => ({
       ...r,
       medicationName: decrypt(r.medicationName),
+      scheduledFor: r.scheduledFor ? r.scheduledFor.toISOString().split('T')[1].substring(0, 5) : (r.reminderTime || null)
     }));
   }
 

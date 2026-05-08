@@ -44,7 +44,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name, dose, frequency]
+              required: [name, category, dose]
               properties:
                 medicationId:
                   type: string
@@ -62,6 +62,8 @@ paths:
                 frequency:
                   type: string
                   example: "Daily"
+                  description: "Frequency of medication. Common values: Once daily, Twice daily, Every 4-6 hours, etc."
+                  enum: [Once daily, Once or twice daily, Once daily (evening), Every 4-6 hours, 3-4 times daily, Once daily (empty stomach), Twice daily, Every 10-12 hours (max 3 days), Every 8-10 hours (max 3 days), Every 4 hours, 2-3 times daily, 4x daily (IR) or 2x daily (ER), Twice daily (or once daily for Ellipta), Twice daily (also MART strategy), Every 4-6 hours PRN, Every 4-8 hours PRN, Every 2-4 weeks, Every 4 weeks, Every 4 weeks (IV infusion), Every 4 weeks (loading) then every 8 weeks, Every 2 weeks, Once daily (investigational), 3-6 times daily, 4 times daily, As needed (anaphylaxis emergency), Weekly (build-up), Monthly (maintenance), Once daily (start 4 months before grass season), Once daily (start 12 weeks before ragweed season), Daily (maintenance)]
                 route:
                   type: string
                   example: "Oral"
@@ -104,12 +106,12 @@ paths:
               example:
                 - id: "..."
                   status: "taken"
-                  scheduledFor: "2026-05-07T08:00:00Z"
+                  scheduledFor: "08:00"
                   takenTime: "2026-05-07T08:12:00Z"
                   medicationName: "Cetirizine"
                 - id: "..."
                   status: "missed"
-                  scheduledFor: "2026-05-07T08:00:00Z"
+                  scheduledFor: "08:00"
                   missedReason: "forgot"
                   medicationName: "Flonase"
 
@@ -134,10 +136,6 @@ paths:
                 status:
                   type: string
                   enum: [taken, missed]
-                scheduledFor:
-                  type: string
-                  format: date-time
-                  description: The planned time for the dose (optional)
                 takenTime:
                   type: string
                   format: date-time

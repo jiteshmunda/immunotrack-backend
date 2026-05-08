@@ -3,7 +3,6 @@ import { z } from "zod";
 export const logMedicationSchema = z.object({
   medicationId: z.string().uuid("Invalid medication ID"),
   status: z.enum(["taken", "missed"]),
-  scheduledFor: z.string().optional(), 
   takenTime: z.string().optional(),
   missedReason: z.string().trim().optional(),
 }).refine((data) => {

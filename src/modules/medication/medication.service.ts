@@ -3,7 +3,7 @@ import { medicationCatalog } from "../../db/schema/medication.schema";
 import { patientMedications, medicationLogs, medicationReminders } from "../../db/schema/tracking.schema";
 import { patients } from "../../db/schema/profile.schema";
 import { eq, and, desc, between, sql } from "drizzle-orm";
-import { encrypt, decrypt } from "../../utils/encryption";
+import { encrypt, decrypt, hashForLookup } from "../../utils/encryption";
 import { LogMedicationInput } from "./medication.validation";
 
 export interface AddMedicationInput {
@@ -69,12 +69,34 @@ export class MedicationService {
       throw new Error("CATEGORY_AND_FREQUENCY_REQUIRED_FOR_CUSTOM_MEDICATION");
     }
 
+    // Duplicate check
+    const nameHash = hashForLookup(input.name);
+    const doseHash = hashForLookup(input.dose);
+
+    const [existing] = await db.select()
+      .from(patientMedications)
+      .where(and(
+        eq(patientMedications.patientId, patient.id),
+        eq(patientMedications.nameHash, nameHash),
+        eq(patientMedications.doseHash, doseHash),
+        eq(patientMedications.category, finalCategory),
+        eq(patientMedications.frequency, finalFrequency),
+        eq(patientMedications.active, true)
+      ))
+      .limit(1);
+
+    if (existing) {
+      throw new Error("MEDICATION_ALREADY_EXISTS_IN_PLAN");
+    }
+
     const [newMed] = await db.insert(patientMedications).values({
       patientId: patient.id,
       medicationId: input.medicationId,
       name: encrypt(input.name),
-      category: finalCategory as string,
+      nameHash,
       dose: encrypt(input.dose),
+      doseHash,
+      category: finalCategory as string,
       route: finalRoute || null,
       frequency: finalFrequency as string,
       startDate: input.startDate,

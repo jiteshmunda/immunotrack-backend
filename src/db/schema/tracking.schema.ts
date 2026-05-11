@@ -91,6 +91,11 @@ export const patientMedications = pgTable("patient_medications", {
   // PHI — AES-256 encrypted
   name: text("name").notNull(),
   dose: text("dose").notNull(),
+  
+  // Deterministic hashes for exact-match lookup on encrypted fields
+  nameHash: varchar("name_hash", { length: 64 }), 
+  doseHash: varchar("dose_hash", { length: 64 }),
+
   category: varchar("category", { length: 100 }), 
 
   route:     varchar("route", { length: 50 }),       // oral | inhaled | topical | injection

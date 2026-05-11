@@ -92,6 +92,13 @@
       "when": 1778157471637,
       "tag": "0012_dazzling_psylocke",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1778493802279,
+      "tag": "0013_furry_shocker",
+      "breakpoints": true
     }
   ]
 }

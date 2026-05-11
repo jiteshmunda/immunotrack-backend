@@ -119,14 +119,17 @@ export class MedicationService {
     const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
 
-    // hard delete here 
-    const result = await db.delete(patientMedications)
+    const result = await db.update(patientMedications)
+      .set({ active: false, updatedAt: new Date() })
       .where(and(
         eq(patientMedications.id, id),
         eq(patientMedications.patientId, patient.id)
       )).returning();
 
     if (result.length === 0) throw new Error("MEDICATION_NOT_FOUND_OR_UNAUTHORIZED");
+
+    await db.delete(medicationReminders)
+      .where(eq(medicationReminders.medicationId, id));
 
     return { success: true };
   }

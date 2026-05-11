@@ -176,7 +176,7 @@ export class MedicationService {
 
     if (filters.startDate && filters.endDate) {
       conditions.push(between(
-        medicationLogs.scheduledFor, 
+        medicationLogs.loggedAt, 
         new Date(filters.startDate), 
         new Date(filters.endDate)
       ));

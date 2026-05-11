@@ -110,6 +110,7 @@ export const medicationLogs = pgTable("medication_logs", {
   medicationId: uuid("medication_id").notNull().references(() => patientMedications.id),
   scheduledFor: timestamp("scheduled_for"),
   loggedAt:     timestamp("logged_at").defaultNow().notNull(),
+  takenTime:    timestamp("taken_time"),
   status:       varchar("status", { length: 20 }).notNull(), // taken | missed
   // Required if status = missed
   missedReason: varchar("missed_reason", { length: 255 }), // forgot | side_effects | out_of_medication | other
@@ -140,4 +141,16 @@ export const environmentalData = pgTable("environmental_data", {
   windSpeed:      numeric("wind_speed", { precision: 5, scale: 2 }),
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── Medication Reminders ─────────────────────────────────────
+export const medicationReminders = pgTable("medication_reminders", {
+  id:           uuid("id").primaryKey().defaultRandom(),
+  patientId:    uuid("patient_id").notNull().references(() => patients.id),
+  medicationId: uuid("medication_id").notNull().references(() => patientMedications.id),
+  reminderTime: varchar("reminder_time", { length: 5 }).notNull(), // HH:mm
+  frequency:    varchar("frequency", { length: 100 }).default("DAILY").notNull(),
+  isEnabled:    boolean("is_enabled").default(true).notNull(),
+  createdAt:    timestamp("created_at").defaultNow().notNull(),
+  updatedAt:    timestamp("updated_at").defaultNow().notNull(),
 });

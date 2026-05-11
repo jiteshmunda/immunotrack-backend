@@ -30,7 +30,7 @@ paths:
                       role: { type: string, example: "patient" }
                   resetRequired: { type: boolean, example: false }
         401:
-          description: Authentication failed
+          description: Authentication failed. May return "You're already logged in on another device. Please log out from that device to continue here." if session was revoked by a newer login.
 
   /auth/refresh:
     post:

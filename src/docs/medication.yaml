@@ -44,7 +44,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name, dose, frequency]
+              required: [name, category, dose]
               properties:
                 medicationId:
                   type: string
@@ -62,6 +62,8 @@ paths:
                 frequency:
                   type: string
                   example: "Daily"
+                  description: "Frequency of medication. Common values: Once daily, Twice daily, Every 4-6 hours, etc."
+                  enum: [Once daily, Once or twice daily, Once daily (evening), Every 4-6 hours, 3-4 times daily, Once daily (empty stomach), Twice daily, Every 10-12 hours (max 3 days), Every 8-10 hours (max 3 days), Every 4 hours, 2-3 times daily, 4x daily (IR) or 2x daily (ER), Twice daily (or once daily for Ellipta), Twice daily (also MART strategy), Every 4-6 hours PRN, Every 4-8 hours PRN, Every 2-4 weeks, Every 4 weeks, Every 4 weeks (IV infusion), Every 4 weeks (loading) then every 8 weeks, Every 2 weeks, Once daily (investigational), 3-6 times daily, 4 times daily, As needed (anaphylaxis emergency), Weekly (build-up), Monthly (maintenance), Once daily (start 4 months before grass season), Once daily (start 12 weeks before ragweed season), Daily (maintenance)]
                 route:
                   type: string
                   example: "Oral"
@@ -75,9 +77,82 @@ paths:
         201:
           description: Created
 
+  /medications/logs:
+    get:
+      summary: Get medication history
+      description: Returns a list of all medication doses taken or missed by the patient.
+      tags:
+        - Medication
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+          description: Filter logs from this date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+          description: Filter logs up to this date
+      responses:
+        200:
+          description: List of medication logs
+          content:
+            application/json:
+              example:
+                - id: "..."
+                  status: "taken"
+                  scheduledFor: "08:00"
+                  takenTime: "2026-05-07T08:12:00Z"
+                  medicationName: "Cetirizine"
+                - id: "..."
+                  status: "missed"
+                  scheduledFor: "08:00"
+                  missedReason: "forgot"
+                  medicationName: "Flonase"
+
+    post:
+      summary: Log medication dose
+      description: Mark a medication dose as taken or missed.
+      tags:
+        - Medication
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [medicationId, status]
+              properties:
+                medicationId:
+                  type: string
+                  format: uuid
+                status:
+                  type: string
+                  enum: [taken, missed]
+                takenTime:
+                  type: string
+                  format: date-time
+                  description: Mandatory if status is "taken"
+                missedReason:
+                  type: string
+                  enum: [forgot, side_effects, out_of_medication, other]
+                  description: Mandatory if status is "missed"
+      responses:
+        201:
+          description: Log created
+        400:
+          description: Validation error
+
   /medications/{id}:
     delete:
-      summary: Delete medication from plan
+      summary: Delete  medication from plan
       description: Remove a medication entry from the patient's plan.
       tags:
         - Medication
@@ -93,3 +168,109 @@ paths:
       responses:
         200:
           description: Success
+
+  /medications/reminders:
+    get:
+      summary: List medication reminders
+      description: Returns all active and inactive reminders for the authenticated patient.
+      tags:
+        - Medication Reminder
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: List of reminders
+          content:
+            application/json:
+              example:
+                - id: "..."
+                  medicationName: "Symbicort"
+                  time: "08:00"
+                  active: true
+                  frequency: "DAILY"
+
+    post:
+      summary: Set new reminder
+      description: Create a new reminder for a specific medication in the plan.
+      tags:
+        - Medication Reminder
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [medicationId, time]
+              properties:
+                medicationId:
+                  type: string
+                  format: uuid
+                time:
+                  type: string
+                  example: "08:00"
+                  description: Time in HH:mm 24-hour format
+                frequency:
+                  type: string
+                  example: "DAILY"
+      responses:
+        201:
+          description: Reminder created
+        400:
+          description: Validation error or duplicate reminder
+
+  /medications/reminders/{id}:
+    patch:
+      summary: Toggle reminder status
+      description: Enable or disable a medication reminder.
+      tags:
+        - Medication Reminder
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                active:
+                  type: boolean
+                  example: true
+                time:
+                  type: string
+                  example: "08:30"
+                  description: New time for the reminder in HH:mm format
+      responses:
+        200:
+          description: Updated reminder
+        404:
+          description: Reminder not found
+
+    delete:
+      summary: Delete reminder
+      description: Permanently remove a medication reminder.
+      tags:
+        - Medication Reminder
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Success
+        404:
+          description: Reminder not found

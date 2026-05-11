@@ -37,6 +37,19 @@ export async function authenticateJWT(
       .limit(1);
 
     if (!session) {
+      const [activeSession] = await db
+        .select()
+        .from(userSessions)
+        .where(eq(userSessions.userId, decoded.userId))
+        .limit(1);
+
+      if (activeSession) {
+        return sendError(
+          res,
+          "You're already logged in on another device. Please log out from that device to continue here.",
+          401
+        );
+      }
       return sendError(res, "Session expired or revoked", 401);
     }
 

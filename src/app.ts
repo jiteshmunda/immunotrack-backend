@@ -15,7 +15,7 @@ app.use(
   })
 );
 
-const allowedOrigins = (ENV.FRONTEND_URL || "")
+const allowedOrigins = (ENV.ALLOWED_ORIGINS || "")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
@@ -25,9 +25,14 @@ console.log("[CORS] Allowed Origins:", allowedOrigins);
 app.use(
   cors({
     origin: (origin, callback) => {
-      // allow requests with no origin 
       if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) === -1) {
+      
+      const normalizedOrigin = origin.trim().replace(/\/$/, "");
+      const isAllowed = allowedOrigins.some(allowed => 
+        allowed.trim().replace(/\/$/, "").toLowerCase() === normalizedOrigin.toLowerCase()
+      );
+
+      if (!isAllowed) {
         console.error(`[CORS Error] Origin "${origin}" not allowed. Allowed origins:`, allowedOrigins);
         const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
         return callback(new Error(msg), false);

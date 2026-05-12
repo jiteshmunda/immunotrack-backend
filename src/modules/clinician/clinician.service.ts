@@ -4,6 +4,7 @@ import { clinicians, patients, patientClinicianAssignments } from "../../db/sche
 import { dailyLogs } from "../../db/schema/tracking.schema";
 import { clinics } from "../../db/schema/clinic.schema";
 import { roles } from "../../db/schema/role.schema";
+import { patientClinicalNotes } from "../../db/schema/clinical-note.schema";
 import { hashForLookup, encrypt, decrypt } from "../../utils/encryption";
 import { hashPassword } from "../../utils/hash";
 import { eq, desc, and, sql } from "drizzle-orm";
@@ -12,6 +13,8 @@ import { CreateClinicianInput } from "./clinician.schema";
 import { calculateRiskScore, getSeverityLevel } from "../symptoms/utils/symptom-scores";
 
 export class ClinicianService {
+
+// -----------------------------------------------------POST /clinician/create--------------------------------------------------
   async createClinician(input: CreateClinicianInput) {
     // 1. Generate secure random 16-character temporary password
     const tempPassword = crypto.randomBytes(8).toString("hex");
@@ -174,4 +177,49 @@ export class ClinicianService {
       patients: patientList,
     };
   }
+
+  // ------------------------------------------------------POST /clinician/create-notes -------------------------------------------------------
+
+  async createClinicalNote(clinicianUserId: string, patientId: string, input: { noteType: string; notes: string }) {
+    const [clinician] = await db
+      .select({
+        id: clinicians.id,
+        fullName: users.fullName,
+      })
+      .from(clinicians)
+      .innerJoin(users, eq(clinicians.userId, users.id))
+      .where(eq(clinicians.userId, clinicianUserId))
+      .limit(1);
+
+    if (!clinician) throw new Error("CLINICIAN_NOT_FOUND");
+
+    const [patient] = await db
+      .select({ id: patients.id })
+      .from(patients)
+      .where(eq(patients.id, patientId))
+      .limit(1);
+
+    if (!patient) throw new Error("PATIENT_NOT_FOUND");
+
+    const encryptedNotes = encrypt(input.notes);
+
+    const [newNote] = await db
+      .insert(patientClinicalNotes)
+      .values({
+        patientId,
+        clinicianId: clinician.id,
+        noteType: input.noteType,
+        notes: encryptedNotes,
+      })
+      .returning();
+
+    return {
+      note_type: newNote.noteType,
+      notes: decrypt(newNote.notes),
+      created_at: newNote.createdAt,
+      clinician_name: decrypt(clinician.fullName!),
+    };
+  }
+
+
 }

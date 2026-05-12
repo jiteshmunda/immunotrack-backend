@@ -52,6 +52,12 @@ paths:
       tags: [Clinician]
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search patients by name (partial match, case-insensitive)
       responses:
         200:
           description: List of assigned patients

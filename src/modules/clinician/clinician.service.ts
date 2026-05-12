@@ -96,7 +96,7 @@ export class ClinicianService {
 
   // ---------------------------------------------------- GET Assigned Patients with Risk Calculation ---------------------------------------------------
 
-  async getAssignedPatients(userId: string) {
+  async getAssignedPatients(userId: string, search?: string) {
     // 1. Get clinician profile
     const [clinician] = await db
       .select()
@@ -171,10 +171,19 @@ export class ClinicianService {
       };
     });
 
+    // 4. Filter by search query (case-insensitive) if provided
+    let filteredList = patientList;
+    if (search) {
+      const query = search.toLowerCase();
+      filteredList = patientList.filter((p) => 
+        p.name.toLowerCase().includes(query)
+      );
+    }
+
     return {
-      total_patient_count: assignedPatients.length,
-      total_high_risk_count: highRiskCount,
-      patients: patientList,
+      total_patient_count: filteredList.length,
+      total_high_risk_count: filteredList.filter(p => p.risk_level === "High").length,
+      patients: filteredList,
     };
   }
 

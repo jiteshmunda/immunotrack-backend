@@ -43,7 +43,9 @@ export class ClinicianController {
   async getAssignedPatients(req: Request, res: Response) {
     try {
       const userId = (req as AuthenticatedRequest).user.userId;
-      const result = await clinicianService.getAssignedPatients(userId);
+      const { search } = req.query;
+      
+      const result = await clinicianService.getAssignedPatients(userId, search as string);
 
       await writeAudit(req, {
         action: "VIEW_ASSIGNED_PATIENTS",

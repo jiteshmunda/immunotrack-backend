@@ -12,4 +12,11 @@ router.post(
   clinicianController.create.bind(clinicianController)
 );
 
+router.get(
+  "/patients",
+  authenticateJWT,
+  requireRole(["clinician"]),
+  clinicianController.getAssignedPatients.bind(clinicianController)
+);
+
 export default router;

@@ -4,6 +4,12 @@ import { patients } from "../../db/schema/profile.schema";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { LogSymptomsInput, HistoryFilters } from "./symptoms.schema";
 import { RpmService } from "../rpm/rpm.service";
+import { 
+  calculateRiskScore, 
+  normalizeScore, 
+  getSeverityLevel, 
+  getStatusColor 
+} from "./utils/symptom-scores";
 
 const rpmService = new RpmService();
 
@@ -138,52 +144,10 @@ export class SymptomService {
     });
   }
 
-  public getStatusColor(category: "respiratory" | "nasal" | "skin", score: number): "green" | "amber" | "red" {
-    if (category === "respiratory") {
-      if (score <= 0.75) return "green";
-      if (score <= 1.50) return "amber";
-      return "red";
-    }
-    if (category === "nasal") {
-      if (score <= 7) return "green";
-      if (score <= 17) return "amber";
-      return "red";
-    }
-    if (category === "skin") {
-      if (score <= 7) return "green";
-      if (score <= 16) return "amber";
-      return "red";
-    }
-    return "green";
-  }
-
-  public getTrend(current: number, previous?: number): "up" | "down" | "stable" {
-    if (previous === undefined || previous === null) return "stable";
-    if (current > previous) return "up";
-    if (current < previous) return "down";
-    return "stable";
-  }
-
-  public calculateRiskScore(respiratory: number, nasal: number, skin: number): number {
-    const normResp = this.normalizeScore("respiratory", respiratory);
-    const normNasal = this.normalizeScore("nasal", nasal);
-    const normSkin = this.normalizeScore("skin", skin);
-    return parseFloat(((normResp + normNasal + normSkin) / 3).toFixed(1));
-  }
-
-  public normalizeScore(category: "respiratory" | "nasal" | "skin", score: number): number {
-    let max = 1;
-    if (category === "respiratory") max = 6;
-    if (category === "nasal") max = 30;
-    if (category === "skin") max = 28;
-    return parseFloat(((score / max) * 10).toFixed(1));
-  }
-
-  private getSeverityLevel(score: number): string {
-    if (score <= 4) return "Low";
-    if (score <= 9) return "Moderate";
-    return "High";
-  }
+  public getStatusColor = getStatusColor;
+  public calculateRiskScore = calculateRiskScore;
+  public normalizeScore = normalizeScore;
+  private getSeverityLevel = getSeverityLevel;
 
   async getSymptomHistory(userId: string, filters: HistoryFilters) {
     const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);

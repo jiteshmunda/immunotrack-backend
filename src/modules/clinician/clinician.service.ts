@@ -1,13 +1,15 @@
 import { db } from "../../db";
 import { users } from "../../db/schema/user.schema";
-import { clinicians } from "../../db/schema/profile.schema";
+import { clinicians, patients, patientClinicianAssignments } from "../../db/schema/profile.schema";
+import { dailyLogs } from "../../db/schema/tracking.schema";
 import { clinics } from "../../db/schema/clinic.schema";
 import { roles } from "../../db/schema/role.schema";
-import { hashForLookup, encrypt } from "../../utils/encryption";
+import { hashForLookup, encrypt, decrypt } from "../../utils/encryption";
 import { hashPassword } from "../../utils/hash";
-import { eq } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { CreateClinicianInput } from "./clinician.schema";
+import { calculateRiskScore, getSeverityLevel } from "../symptoms/utils/symptom-scores";
 
 export class ClinicianService {
   async createClinician(input: CreateClinicianInput) {
@@ -87,5 +89,89 @@ export class ClinicianService {
         tempPassword,
       };
     });
+  }
+
+  // ---------------------------------------------------- GET Assigned Patients with Risk Calculation ---------------------------------------------------
+
+  async getAssignedPatients(userId: string) {
+    // 1. Get clinician profile
+    const [clinician] = await db
+      .select()
+      .from(clinicians)
+      .where(eq(clinicians.userId, userId))
+      .limit(1);
+
+    if (!clinician) throw new Error("CLINICIAN_NOT_FOUND");
+
+    // 2. Fetch all assigned patients with their core user data
+    const assignedPatients = await db
+      .select({
+        id: patients.id,
+        fullName: users.fullName,
+        primaryDiagnosis: patients.primaryDiagnosis,
+      })
+      .from(patientClinicianAssignments)
+      .innerJoin(patients, eq(patientClinicianAssignments.patientId, patients.id))
+      .innerJoin(users, eq(patients.userId, users.id))
+      .where(eq(patientClinicianAssignments.clinicianId, clinician.id));
+
+    if (assignedPatients.length === 0) {
+      return {
+        total_patient_count: 0,
+        total_high_risk_count: 0,
+        patients: [],
+      };
+    }
+
+    // 3. For each patient, fetch the latest daily log to calculate risk
+    const patientIds = assignedPatients.map((p) => p.id);
+    
+    const latestLogs = await db
+      .select()
+      .from(dailyLogs)
+      .where(sql`${dailyLogs.patientId} IN ${patientIds}`)
+      .orderBy(dailyLogs.patientId, desc(dailyLogs.logDate), desc(dailyLogs.loggedAt));
+    
+    const latestLogMap = latestLogs.reduce((acc: Record<string, any>, log) => {
+      if (!acc[log.patientId]) {
+        acc[log.patientId] = log;
+      }
+      return acc;
+    }, {});
+
+    let highRiskCount = 0;
+    const patientList = assignedPatients.map((p) => {
+      const latestLog = latestLogMap[p.id];
+      let riskScore = 0;
+      let riskLevel = "Low";
+      let lastLoggedDate = null;
+
+      if (latestLog) {
+        lastLoggedDate = latestLog.loggedAt;
+        riskScore = calculateRiskScore(
+          parseFloat(latestLog.respiratoryComposite),
+          latestLog.nasalComposite,
+          latestLog.skinComposite
+        );
+        riskLevel = getSeverityLevel(riskScore);
+
+        if (riskLevel === "High") highRiskCount++;
+      }
+
+      return {
+        id: p.id,
+        name: decrypt(p.fullName!),
+        primary_diagnosis: p.primaryDiagnosis ? decrypt(p.primaryDiagnosis) : null,
+        last_logged_date: lastLoggedDate,
+        risk_score: riskScore,
+        risk_level: riskLevel,
+      };
+    });
+
+    return {
+      total_patient_count: assignedPatients.length,
+      total_high_risk_count: highRiskCount,
+      patients: patientList,
+    };
   }
 }

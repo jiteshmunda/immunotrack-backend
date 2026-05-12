@@ -36,4 +36,28 @@ export class ClinicianController {
       return sendError(res, error, 400);
     }
   }
+
+  // ------------------------------GET /clinicians/patients------------------------------------
+
+  async getAssignedPatients(req: Request, res: Response) {
+    try {
+      const userId = (req as AuthenticatedRequest).user.userId;
+      const result = await clinicianService.getAssignedPatients(userId);
+
+      await writeAudit(req, {
+        action: "VIEW_ASSIGNED_PATIENTS",
+        status: "success",
+        userId: userId,
+        resourceType: "clinician",
+        resourceId: userId,
+      });
+
+      return sendSuccess(res, {
+        message: "Assigned patients fetched successfully",
+        data: result,
+      });
+    } catch (error: any) {
+      return sendError(res, error, 500);
+    }
+  }
 }

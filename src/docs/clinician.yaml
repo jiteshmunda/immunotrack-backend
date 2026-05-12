@@ -44,6 +44,42 @@ paths:
         400: { description: Bad Request }
         401: { description: Unauthorized }
         403: { description: Forbidden }
+  
+  /clinicians/patients:
+    get:
+      summary: List all patients assigned to the clinician
+      description: Returns a list of patients assigned to the logged-in clinician, including their clinical risk status.
+      tags: [Clinician]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: List of assigned patients
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Assigned patients fetched successfully" }
+                  data:
+                    type: object
+                    properties:
+                      total_patient_count: { type: integer, example: 25 }
+                      total_high_risk_count: { type: integer, example: 3 }
+                      patients:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string, format: uuid, example: "c7f1718b-ccff-47e0-b31b-8929c853f9b4" }
+                            name: { type: string, example: "Jane Doe" }
+                            primary_diagnosis: { type: string, example: "Persistent Asthma" }
+                            last_logged_date: { type: string, format: date-time, example: "2026-05-12T13:30:00Z" }
+                            risk_score: { type: number, example: 8.5 }
+                            risk_level: { type: string, enum: [Low, Moderate, High], example: "Moderate" }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
 
   /clinician/invite:
     post:

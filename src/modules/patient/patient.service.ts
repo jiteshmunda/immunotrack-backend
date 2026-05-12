@@ -166,19 +166,16 @@ export class PatientService {
         score: latestLog.respiratoryScore,
         score_out_of_10: symptomService.normalizeScore("respiratory", latestLog.respiratoryScore),
         color: symptomService.getStatusColor("respiratory", latestLog.respiratoryScore),
-        trend: symptomService.getTrend(latestLog.respiratoryScore, previousLog?.respiratoryScore)
       },
       nasal: {
         score: latestLog.nasalScore,
         score_out_of_10: symptomService.normalizeScore("nasal", latestLog.nasalScore),
         color: symptomService.getStatusColor("nasal", latestLog.nasalScore),
-        trend: symptomService.getTrend(latestLog.nasalScore, previousLog?.nasalScore)
       },
       skin: {
         score: latestLog.skinScore,
         score_out_of_10: symptomService.normalizeScore("skin", latestLog.skinScore),
         color: symptomService.getStatusColor("skin", latestLog.skinScore),
-        trend: symptomService.getTrend(latestLog.skinScore, previousLog?.skinScore)
       },
       risk_score: symptomService.calculateRiskScore(
         latestLog.respiratoryScore,

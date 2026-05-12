@@ -124,9 +124,29 @@ paths:
                     type: object
                     nullable: true
                     properties:
-                      respiratory: { type: number, example: 3 }
-                      nasal: { type: number, example: 4 }
-                      skin: { type: number, example: 2 }
+                      respiratory:
+                        type: object
+                        properties:
+                          score: { type: number, example: 1.5, description: "Raw ACQ-6 mean (0.00-6.00)" }
+                          score_out_of_10: { type: number, example: 2.5, description: "Normalized score for UI (0-10)" }
+                          color: { type: string, enum: [green, amber, red], example: "amber" }
+                          trend: { type: string, enum: [up, down, stable], example: "stable" }
+                      nasal:
+                        type: object
+                        properties:
+                          score: { type: number, example: 12, description: "Raw SNOT-22 sum (0-30)" }
+                          score_out_of_10: { type: number, example: 4.0, description: "Normalized score for UI (0-10)" }
+                          color: { type: string, enum: [green, amber, red], example: "amber" }
+                          trend: { type: string, enum: [up, down, stable], example: "up" }
+                      skin:
+                        type: object
+                        properties:
+                          score: { type: number, example: 5, description: "Raw POEM sum (0-28)" }
+                          score_out_of_10: { type: number, example: 1.8, description: "Normalized score for UI (0-10)" }
+                          color: { type: string, enum: [green, amber, red], example: "green" }
+                          trend: { type: string, enum: [up, down, stable], example: "down" }
+                      risk_score: { type: number, example: 2.8, description: "Unified 0-10 risk score (mean of normalized scores)" }
+                      overall_severity: { type: string, example: "Moderate" }
                       last_updated: { type: string, format: date-time }
                       log_date: { type: string, format: date, example: "2026-04-27" }
                   medications:

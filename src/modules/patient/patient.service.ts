@@ -156,14 +156,36 @@ export class PatientService {
     const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
 
-    // 1. Fetch Latest Symptom Status
-    const allLogs = await symptomService.getSymptomHistory(userId, {} as any);
+    // 1. Fetch Latest Symptom Status (Latest 2 logs for trend)
+    const allLogs = await symptomService.getSymptomHistory(userId, { period: "month" } as any);
     const latestLog = allLogs.length > 0 ? allLogs[0] : null;
+    const previousLog = allLogs.length > 1 ? allLogs[1] : null;
 
     const status = latestLog ? {
-      respiratory: latestLog.respiratoryScore,
-      nasal: latestLog.nasalScore,
-      skin: latestLog.skinScore,
+      respiratory: {
+        score: latestLog.respiratoryScore,
+        score_out_of_10: symptomService.normalizeScore("respiratory", latestLog.respiratoryScore),
+        color: symptomService.getStatusColor("respiratory", latestLog.respiratoryScore),
+        trend: symptomService.getTrend(latestLog.respiratoryScore, previousLog?.respiratoryScore)
+      },
+      nasal: {
+        score: latestLog.nasalScore,
+        score_out_of_10: symptomService.normalizeScore("nasal", latestLog.nasalScore),
+        color: symptomService.getStatusColor("nasal", latestLog.nasalScore),
+        trend: symptomService.getTrend(latestLog.nasalScore, previousLog?.nasalScore)
+      },
+      skin: {
+        score: latestLog.skinScore,
+        score_out_of_10: symptomService.normalizeScore("skin", latestLog.skinScore),
+        color: symptomService.getStatusColor("skin", latestLog.skinScore),
+        trend: symptomService.getTrend(latestLog.skinScore, previousLog?.skinScore)
+      },
+      risk_score: symptomService.calculateRiskScore(
+        latestLog.respiratoryScore,
+        latestLog.nasalScore,
+        latestLog.skinScore
+      ),
+      overall_severity: latestLog.severityLevel,
       last_updated: latestLog.loggedAt,
       log_date: latestLog.logDate
     } : null;

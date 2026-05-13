@@ -1,6 +1,7 @@
 import { db } from "../../db";
 import { dailyLogs } from "../../db/schema/tracking.schema";
 import { patients } from "../../db/schema/profile.schema";
+import { alerts } from "../../db/schema/ai.schema";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { LogSymptomsInput, HistoryFilters } from "./symptoms.schema";
 import { RpmService } from "../rpm/rpm.service";
@@ -10,6 +11,7 @@ import {
   getSeverityLevel, 
   getStatusColor 
 } from "./utils/symptom-scores";
+import { encrypt } from "../../utils/encryption";
 
 const rpmService = new RpmService();
 
@@ -131,6 +133,44 @@ export class SymptomService {
         await rpmService.recordTransmission(patient.id, input.log_date);
       }
 
+      // 5. Check for Symptom Deterioration Alert
+      const riskScore = calculateRiskScore(
+        parseFloat(respiratoryComposite),
+        nasalComposite,
+        skinComposite
+      );
+      const severity = getSeverityLevel(riskScore);
+
+      if (severity === "High") {
+        const [activeAlert] = await tx
+          .select()
+          .from(alerts)
+          .where(
+            and(
+              eq(alerts.patientId, patient.id),
+              eq(alerts.alertType, "SYMPTOM DETERIORATION"),
+              eq(alerts.status, "active")
+            )
+          )
+          .limit(1);
+
+        if (activeAlert) {
+          await tx
+            .update(alerts)
+            .set({ lastTriggeredAt: new Date() })
+            .where(eq(alerts.id, activeAlert.id));
+        } else {
+          await tx.insert(alerts).values({
+            patientId: patient.id,
+            alertType: "SYMPTOM DETERIORATION",
+            severity: "High",
+            status: "active",
+            description: encrypt(`Patient's overall risk score has reached ${riskScore}/10.`),
+            lastTriggeredAt: new Date(),
+          });
+        }
+      }
+
       return {
         success: true,
         log_id: log.id,
@@ -139,6 +179,8 @@ export class SymptomService {
           nasal: nasalComposite,
           skin: skinComposite,
         },
+        risk_score: riskScore,
+        severity: severity,
         rpm_incremented: !existingLog,
       };
     });

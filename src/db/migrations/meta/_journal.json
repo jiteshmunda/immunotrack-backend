@@ -113,6 +113,20 @@
       "when": 1778658231359,
       "tag": "0015_absent_maginty",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1778667102621,
+      "tag": "0016_bored_namorita",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1778667903086,
+      "tag": "0017_lively_masked_marvel",
+      "breakpoints": true
     }
   ]
 }

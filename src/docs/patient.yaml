@@ -27,6 +27,7 @@ paths:
                       mrn: { type: string }
                       primary_diagnosis: { type: string }
                       location_zip: { type: string }
+                      location: { type: string }
                       icd10_qualifying_code: { type: string }
                       medication_reminders_enabled: { type: boolean }
                       reminder_time_utc: { type: string }
@@ -57,6 +58,7 @@ paths:
                 medication_reminders_enabled: { type: boolean, example: true }
                 reminder_time_utc: { type: string, example: "08:00" }
                 fcm_token: { type: string, example: "firebase-token-xyz" }
+                location: { type: string, example: "New York, NY" }
       responses:
         200:
           description: Profile fields updated successfully.

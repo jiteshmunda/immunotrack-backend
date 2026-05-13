@@ -9,6 +9,7 @@ export const updatePatientProfileSchema = z.object({
   medication_reminders_enabled: z.boolean().optional(),
   reminder_time_utc: z.string().optional(),
   fcm_token: z.string().optional(),
+  location: z.string().optional(),
 });
 
 export type UpdatePatientProfileInput = z.infer<typeof updatePatientProfileSchema>;

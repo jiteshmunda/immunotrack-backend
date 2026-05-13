@@ -43,6 +43,7 @@ export class PatientService {
       if (input.medication_reminders_enabled !== undefined) updates.medicationRemindersEnabled = input.medication_reminders_enabled;
       if (input.reminder_time_utc !== undefined) updates.reminderTimeUtc = input.reminder_time_utc;
       if (input.fcm_token !== undefined) updates.fcmToken = input.fcm_token;
+      if (input.location !== undefined) updates.location = input.location;
 
       updates.onboardingCompleted = true;
       updates.monitoringActive = true;
@@ -100,6 +101,7 @@ export class PatientService {
       mrn: patient.mrn ? decrypt(patient.mrn) : null,
       primary_diagnosis: patient.primaryDiagnosis ? decrypt(patient.primaryDiagnosis) : null,
       location_zip: patient.locationZip,
+      location: patient.location,
       icd10_qualifying_code: patient.icd10QualifyingCode ? decrypt(patient.icd10QualifyingCode) : null,
       medication_reminders_enabled: patient.medicationRemindersEnabled,
       reminder_time_utc: patient.reminderTimeUtc,

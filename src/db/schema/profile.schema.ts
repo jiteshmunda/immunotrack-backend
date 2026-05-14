@@ -21,6 +21,7 @@ export const patients = pgTable("patients", {
 
   // Location for pollen/AQI API — not encrypted (zip only)
   locationZip:        varchar("location_zip", { length: 20 }),
+  location:           text("location"),
 
   // RPM eligibility
   icd10QualifyingCode: text("icd10_qualifying_code"), // e.g. J45.20

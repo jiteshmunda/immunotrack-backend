@@ -44,6 +44,48 @@ paths:
         400: { description: Bad Request }
         401: { description: Unauthorized }
         403: { description: Forbidden }
+  
+  /clinicians/patients:
+    get:
+      summary: List all patients assigned to the clinician
+      description: Returns a list of patients assigned to the logged-in clinician, including their clinical risk status.
+      tags: [Clinician]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search patients by name (partial match, case-insensitive)
+      responses:
+        200:
+          description: List of assigned patients
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Assigned patients fetched successfully" }
+                  data:
+                    type: object
+                    properties:
+                      total_patient_count: { type: integer, example: 25 }
+                      total_high_risk_count: { type: integer, example: 3 }
+                      patients:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string, format: uuid, example: "c7f1718b-ccff-47e0-b31b-8929c853f9b4" }
+                            name: { type: string, example: "Jane Doe" }
+                            primary_diagnosis: { type: string, example: "Persistent Asthma" }
+                            last_logged_date: { type: string, format: date-time, example: "2026-05-12T13:30:00Z" }
+                            risk_score: { type: number, example: 8.5 }
+                            risk_level: { type: string, enum: [Low, Moderate, High], example: "Moderate" }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
 
   /clinician/invite:
     post:
@@ -133,3 +175,56 @@ paths:
                   success: { type: boolean, example: true }
         401: { description: Unauthorized }
         404: { description: Invite not found }
+  /clinicians/patients/{patientId}/notes:
+    post:
+      summary: Add a clinical note for a patient
+      description: Allows a clinician to add an encrypted clinical note to a patient's record. HIPAA-compliant.
+      tags: [Clinician]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: patientId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: "c7f1718b-ccff-47e0-b31b-8929c853f9b4"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note_type, notes]
+              properties:
+                note_type:
+                  type: string
+                  example: "Treatment Plan"
+                  description: "Type of clinical note (e.g., Assessment, Plan)"
+                notes:
+                  type: string
+                  example: "Patient to continue current medication with increased dosage."
+                  minLength: 10
+                  maxLength: 5000
+      responses:
+        200:
+          description: Clinical note added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Clinical note added successfully" }
+                  data:
+                    type: object
+                    properties:
+                      note_type: { type: string, example: "Treatment Plan" }
+                      notes: { type: string, example: "Patient to continue current medication with increased dosage." }
+                      created_at: { type: string, format: date-time, example: "2026-05-12T13:30:00Z" }
+                      clinician_name: { type: string, example: "Dr. Willson" }
+        400: { description: Bad Request }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
+        404: { description: Patient not found }

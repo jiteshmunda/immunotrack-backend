@@ -5,6 +5,7 @@ import invitationRoutes from "../modules/invitation/invitation.routes";
 import patientRoutes from "../modules/patient/patient.routes";
 import symptomRoutes from "../modules/symptoms/symptoms.routes";
 import medicationRoutes from "../modules/medication/medication.routes";
+import alertRoutes from "../modules/alert/alert.routes";
 
 const router = Router();
 
@@ -13,6 +14,7 @@ router.use("/clinicians", clinicianRoutes);
 router.use("/patients", patientRoutes);
 router.use("/symptoms", symptomRoutes);
 router.use("/medications", medicationRoutes);
+router.use("/alerts", alertRoutes);
 router.use("/", invitationRoutes);
 
 export default router;

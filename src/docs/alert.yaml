@@ -1,0 +1,57 @@
+paths:
+  /alerts:
+    get:
+      summary: Retrieve active clinical alerts for assigned patients
+      tags: [Clinical Alerts]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: List of active alerts retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  alerts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        patient_id: { type: string, format: uuid }
+                        patient_name: { type: string, example: "Michael Chen" }
+                        alert_type: { type: string, example: "SYMPTOM_DETERIORATION" }
+                        description: { type: string, example: "Patient's overall risk score has reached 9.5/10." }
+                        severity: { type: string, enum: [low, medium, high, critical], example: "high" }
+                        status: { type: string, enum: [active, resolved, dismissed], example: "active" }
+                        created_at: { type: string, format: date-time }
+                        last_triggered_at: { type: string, format: date-time }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
+
+  /alerts/{id}/resolve:
+    patch:
+      summary: Mark a clinical alert as resolved
+      tags: [Clinical Alerts]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+          description: The ID of the alert to resolve
+      responses:
+        200:
+          description: Alert resolved successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  resolved_at: { type: string, format: date-time }
+        401: { description: Unauthorized }
+        404: { description: Alert not found }

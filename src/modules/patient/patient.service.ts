@@ -43,6 +43,7 @@ export class PatientService {
       if (input.medication_reminders_enabled !== undefined) updates.medicationRemindersEnabled = input.medication_reminders_enabled;
       if (input.reminder_time_utc !== undefined) updates.reminderTimeUtc = input.reminder_time_utc;
       if (input.fcm_token !== undefined) updates.fcmToken = input.fcm_token;
+      if (input.location !== undefined) updates.location = input.location;
 
       updates.onboardingCompleted = true;
       updates.monitoringActive = true;
@@ -100,6 +101,7 @@ export class PatientService {
       mrn: patient.mrn ? decrypt(patient.mrn) : null,
       primary_diagnosis: patient.primaryDiagnosis ? decrypt(patient.primaryDiagnosis) : null,
       location_zip: patient.locationZip,
+      location: patient.location,
       icd10_qualifying_code: patient.icd10QualifyingCode ? decrypt(patient.icd10QualifyingCode) : null,
       medication_reminders_enabled: patient.medicationRemindersEnabled,
       reminder_time_utc: patient.reminderTimeUtc,
@@ -156,14 +158,33 @@ export class PatientService {
     const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
 
-    // 1. Fetch Latest Symptom Status
-    const allLogs = await symptomService.getSymptomHistory(userId, {} as any);
+    // 1. Fetch Latest Symptom Status (Latest 2 logs for trend)
+    const allLogs = await symptomService.getSymptomHistory(userId, { period: "month" } as any);
     const latestLog = allLogs.length > 0 ? allLogs[0] : null;
+    const previousLog = allLogs.length > 1 ? allLogs[1] : null;
 
     const status = latestLog ? {
-      respiratory: latestLog.respiratoryScore,
-      nasal: latestLog.nasalScore,
-      skin: latestLog.skinScore,
+      respiratory: {
+        score: latestLog.respiratoryScore,
+        score_out_of_10: symptomService.normalizeScore("respiratory", latestLog.respiratoryScore),
+        color: symptomService.getStatusColor("respiratory", latestLog.respiratoryScore),
+      },
+      nasal: {
+        score: latestLog.nasalScore,
+        score_out_of_10: symptomService.normalizeScore("nasal", latestLog.nasalScore),
+        color: symptomService.getStatusColor("nasal", latestLog.nasalScore),
+      },
+      skin: {
+        score: latestLog.skinScore,
+        score_out_of_10: symptomService.normalizeScore("skin", latestLog.skinScore),
+        color: symptomService.getStatusColor("skin", latestLog.skinScore),
+      },
+      risk_score: symptomService.calculateRiskScore(
+        latestLog.respiratoryScore,
+        latestLog.nasalScore,
+        latestLog.skinScore
+      ),
+      overall_severity: latestLog.severityLevel,
       last_updated: latestLog.loggedAt,
       log_date: latestLog.logDate
     } : null;

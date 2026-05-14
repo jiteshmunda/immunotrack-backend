@@ -41,3 +41,10 @@ export const createClinicianSchema = z.object({
 });
 
 export type CreateClinicianInput = z.infer<typeof createClinicianSchema>;
+
+export const addClinicalNoteSchema = z.object({
+  note_type: z.string().min(1, "Note type is required"),
+  notes: z.string().min(10, "Notes must be at least 10 characters long").max(5000, "Notes cannot exceed 5000 characters"),
+});
+
+export type AddClinicalNoteInput = z.infer<typeof addClinicalNoteSchema>;

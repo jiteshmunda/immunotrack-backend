@@ -48,3 +48,56 @@ export const addClinicalNoteSchema = z.object({
 });
 
 export type AddClinicalNoteInput = z.infer<typeof addClinicalNoteSchema>;
+
+export const patientDetailsResponseSchema = z.object({
+  profile: z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string().nullable(),
+    dob: z.string().nullable(),
+    sex: z.string().nullable(),
+    mrn: z.string().nullable(),
+    phone: z.string().nullable(),
+    primary_diagnosis: z.string().nullable(),
+  }),
+  stats: z.object({
+    risk_score: z.number(),
+    risk_level: z.string(),
+    active_alerts: z.number(),
+  }),
+  symptom_trends: z.array(z.object({
+    date: z.string(),
+    respiratory: z.number(),
+    nasal: z.number(),
+    skin: z.number(),
+    risk_score: z.number(),
+  })),
+  clinical_notes: z.array(z.object({
+    id: z.string(),
+    type: z.string(),
+    notes: z.string(),
+    clinician_name: z.string(),
+    created_at: z.date(),
+  })),
+  medications: z.object({
+    plan: z.array(z.object({
+      id: z.string(),
+      name: z.string(),
+      dose: z.string(),
+      frequency: z.string(),
+      category: z.string(),
+      start_date: z.string().nullable(),
+    })),
+    adherence_30d: z.number(),
+    weekly_adherence: z.array(z.number()),
+  }),
+  alerts: z.array(z.object({
+    id: z.string(),
+    type: z.string(),
+    description: z.string().nullable(),
+    severity: z.string(),
+    created_at: z.date(),
+  })),
+});
+
+export type PatientDetailsResponse = z.infer<typeof patientDetailsResponseSchema>;

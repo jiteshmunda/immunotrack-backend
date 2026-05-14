@@ -344,7 +344,7 @@ export class MedicationService {
   }
 
   // ---------------------------------- GET /medications/adherence --------------------------------------
-  async getAdherenceMetrics(userId: string, role: string, patientId?: string, rangeDays?: number) {
+  async getAdherenceMetrics(userId: string, role: string, patientId?: string, rangeDays?: number, targetDate: Date = new Date()) {
     let targetPatientId: string;
 
     if (role === "clinician") {
@@ -374,32 +374,32 @@ export class MedicationService {
         eq(patientMedications.active, true)
       ));
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = new Date(targetDate);
 
     const metrics = await Promise.all(meds.map(async (m) => {
       // 3.1 Calculate Window using common utility
       const { windowStartDate, windowEndDate, totalDays } = calculateAdherenceWindow(
         m.startDate || m.createdAt,
-        rangeDays
+        rangeDays,
+        today
       );
 
       // 3.2 Query unique days logged as 'taken' within the window
       const uniqueDaysTaken = await db
         .select({
-          logDate: sql<string>`DATE(${medicationLogs.loggedAt})`
+          logDate: sql<string>`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`
         })
         .from(medicationLogs)
         .where(and(
           eq(medicationLogs.medicationId, m.id),
           eq(medicationLogs.status, 'taken'),
           between(
-            sql`DATE(${medicationLogs.loggedAt})`, 
+            sql`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`, 
             windowStartDate.toISOString().split('T')[0], 
             windowEndDate.toISOString().split('T')[0]
           )
         ))
-        .groupBy(sql`DATE(${medicationLogs.loggedAt})`);
+        .groupBy(sql`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`);
 
       const daysTaken = uniqueDaysTaken.length;
       const adherencePercentage = formatAdherencePercentage(daysTaken, totalDays);

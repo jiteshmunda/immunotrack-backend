@@ -19,28 +19,38 @@ export function calculateAdherenceWindow(
   rangeDays?: number,
   targetDate: Date = new Date()
 ): AdherenceWindow {
+  // Normalize everything to UTC midnight for comparison
   const today = new Date(targetDate);
-  today.setHours(0, 0, 0, 0);
+  const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
 
-  const start = new Date(itemStartDate);
-  start.setHours(0, 0, 0, 0);
+  let startUTC: Date;
+  if (typeof itemStartDate === 'string') {
+    const parts = itemStartDate.split('-');
+    if (parts.length === 3) {
+        startUTC = new Date(Date.UTC(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])));
+    } else {
+        startUTC = new Date(itemStartDate);
+        startUTC = new Date(Date.UTC(startUTC.getUTCFullYear(), startUTC.getUTCMonth(), startUTC.getUTCDate()));
+    }
+  } else {
+    startUTC = new Date(Date.UTC(itemStartDate.getUTCFullYear(), itemStartDate.getUTCMonth(), itemStartDate.getUTCDate()));
+  }
 
   // Total days since start (inclusive)
-  const diffTimeSinceStart = today.getTime() - start.getTime();
+  const diffTimeSinceStart = todayUTC.getTime() - startUTC.getTime();
   let daysSinceStart = Math.floor(diffTimeSinceStart / (1000 * 60 * 60 * 24)) + 1;
   if (daysSinceStart < 0) daysSinceStart = 0;
 
   let totalDays = daysSinceStart;
-  let windowStartDate = start;
+  let windowStartDate = startUTC;
 
   if (rangeDays && rangeDays > 0) {
     // We only care about the last 'rangeDays' but capped by when the item actually started
     totalDays = Math.min(rangeDays, daysSinceStart);
     
     // Window start is (Today - rangeDays + 1)
-    const windowStartTime = today.getTime() - (rangeDays - 1) * (1000 * 60 * 60 * 24);
+    const windowStartTime = todayUTC.getTime() - (rangeDays - 1) * (1000 * 60 * 60 * 24);
     const calculatedWindowStart = new Date(windowStartTime);
-    calculatedWindowStart.setHours(0, 0, 0, 0);
 
     // If calculated window start is before the actual start date, use the actual start date
     if (calculatedWindowStart > windowStartDate) {
@@ -50,7 +60,7 @@ export function calculateAdherenceWindow(
 
   return {
     windowStartDate,
-    windowEndDate: today,
+    windowEndDate: todayUTC,
     totalDays
   };
 }

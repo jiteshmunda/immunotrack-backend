@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { ClinicianService } from "./clinician.service";
-import { createClinicianSchema } from "./clinician.schema";
+import { createClinicianSchema, addClinicalNoteSchema } from "./clinician.schema";
+
 import { sendSuccess, sendError } from "../../utils/response";
 import { writeAudit } from "../../utils/audit";
 import { AuthenticatedRequest } from "../../common/middleware/auth.middleware";
@@ -31,6 +32,64 @@ export class ClinicianController {
           clinicianId: result.clinicianId,
           temporaryPassword: result.tempPassword, 
         },
+      });
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
+
+  // ------------------------------GET /clinicians/patients------------------------------------
+
+  async getAssignedPatients(req: Request, res: Response) {
+    try {
+      const userId = (req as AuthenticatedRequest).user.userId;
+      const { search } = req.query;
+      
+      const result = await clinicianService.getAssignedPatients(userId, search as string);
+
+      await writeAudit(req, {
+        action: "VIEW_ASSIGNED_PATIENTS",
+        status: "success",
+        userId: userId,
+        resourceType: "clinician",
+        resourceId: userId,
+      });
+
+      return sendSuccess(res, {
+        message: "Assigned patients fetched successfully",
+        data: result,
+      });
+    } catch (error: any) {
+      return sendError(res, error, 500);
+    }
+  }
+
+  // ------------------------------POST /clinicians/patients/:patientId/notes-------------------
+
+  async addClinicalNote(req: Request, res: Response) {
+    try {
+      const clinicianUserId = (req as AuthenticatedRequest).user.userId;
+      const { patientId } = req.params;
+      
+      const validated = addClinicalNoteSchema.parse(req.body);
+
+      const result = await clinicianService.createClinicalNote(clinicianUserId, patientId as string, {
+        noteType: validated.note_type,
+        notes: validated.notes,
+      });
+
+      await writeAudit(req, {
+        action: "ADD_CLINICAL_NOTE",
+        status: "success",
+        userId: clinicianUserId,
+        resourceType: "patient",
+        resourceId: patientId as string,
+      });
+
+
+      return sendSuccess(res, {
+        message: "Clinical note added successfully",
+        data: result,
       });
     } catch (error: any) {
       return sendError(res, error, 400);

@@ -10,3 +10,4 @@ export * from "./session.schema";
 export * from "./invitation.schema";
 export * from "./clinic.schema";
 export * from "./medication.schema";
+export * from "./clinical-note.schema";

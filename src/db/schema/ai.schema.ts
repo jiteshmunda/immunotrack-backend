@@ -101,13 +101,13 @@ export const alerts = pgTable("alerts", {
   // low | medium | high | critical
   severity: varchar("severity", { length: 20 }).notNull(),
 
-  // open | resolved | dismissed
-  status: varchar("status", { length: 20 }).notNull().default("open"),
+  // active | resolved | dismissed
+  status: varchar("status", { length: 20 }).notNull().default("active"),
 
   // PHI — AES-256 encrypted
-  title:       text("title").notNull(),
   description: text("description"),
 
+  lastTriggeredAt: timestamp("last_triggered_at").defaultNow().notNull(),
   resolvedBy: uuid("resolved_by").references(() => users.id),
   resolvedAt: timestamp("resolved_at"),
   createdAt:  timestamp("created_at").defaultNow().notNull(),

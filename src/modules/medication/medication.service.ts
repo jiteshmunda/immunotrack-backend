@@ -2,6 +2,7 @@ import { db } from "../../db";
 import { medicationCatalog } from "../../db/schema/medication.schema";
 import { patientMedications, medicationLogs, medicationReminders } from "../../db/schema/tracking.schema";
 import { patients, clinicians, patientClinicianAssignments } from "../../db/schema/profile.schema";
+import { alerts } from "../../db/schema/ai.schema";
 import { eq, and, desc, between, sql } from "drizzle-orm";
 import { encrypt, decrypt, hashForLookup } from "../../utils/encryption";
 import { LogMedicationInput } from "./medication.validation";
@@ -178,6 +179,17 @@ export class MedicationService {
       takenTime: input.takenTime ? new Date(input.takenTime) : null,
       missedReason: input.missedReason || null,
     }).returning();
+
+    if (input.status === "missed") {
+      await db.insert(alerts).values({
+        patientId: patient.id,
+        alertType: "Medication Non-Adherence",
+        description: encrypt(`Patient missed medication: ${decrypt(med.name)}`),
+        severity: "medium",
+        status: "active",
+        lastTriggeredAt: new Date(),
+      });
+    }
 
     const [reminder] = await db.select({ time: medicationReminders.reminderTime })
       .from(medicationReminders)

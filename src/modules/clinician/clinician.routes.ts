@@ -33,4 +33,11 @@ router.get(
   clinicianController.getPatientDetails.bind(clinicianController)
 );
 
+router.get(
+  "/analytics",
+  authenticateJWT,
+  requireRole(["clinician"]),
+  clinicianController.getAnalytics.bind(clinicianController)
+);
+
 export default router;

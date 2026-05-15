@@ -101,3 +101,27 @@ export const patientDetailsResponseSchema = z.object({
 });
 
 export type PatientDetailsResponse = z.infer<typeof patientDetailsResponseSchema>;
+
+export const clinicianAnalyticsResponseSchema = z.object({
+  summary: z.object({
+    total_patients: z.number(),
+    average_adherence: z.number(),
+    average_symptom_score: z.number(),
+    high_risk_patients: z.number(),
+  }),
+  risk_distribution: z.object({
+    low: z.number(),
+    moderate: z.number(),
+    high: z.number(),
+  }),
+  average_symptom_trend: z.array(z.object({
+    week: z.string(),
+    average_score: z.number(),
+  })),
+  patient_adherence_comparison: z.array(z.object({
+    patient_name: z.string(),
+    adherence_percentage: z.number(),
+  })),
+});
+
+export type ClinicianAnalyticsResponse = z.infer<typeof clinicianAnalyticsResponseSchema>;

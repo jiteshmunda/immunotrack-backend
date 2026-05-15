@@ -326,3 +326,53 @@ paths:
         401: { description: Unauthorized }
         403: { description: Forbidden }
         404: { description: Patient not found }
+
+  /clinicians/analytics:
+    get:
+      summary: Get population-level analytics for the clinician
+      description: Returns aggregated data for risk distribution, average symptom trends (4 weeks), and patient-level adherence comparisons.
+      tags: [Clinician]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Clinician analytics fetched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Clinician analytics fetched successfully" }
+                  data:
+                    type: object
+                    properties:
+                      summary:
+                        type: object
+                        properties:
+                          total_patients: { type: integer, example: 3 }
+                          average_adherence: { type: number, example: 87.5 }
+                          average_symptom_score: { type: number, example: 4.2 }
+                          high_risk_patients: { type: integer, example: 1 }
+                      risk_distribution:
+                        type: object
+                        properties:
+                          low: { type: integer, example: 12 }
+                          moderate: { type: integer, example: 5 }
+                          high: { type: integer, example: 3 }
+                      average_symptom_trend:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            week: { type: string, example: "Week 1" }
+                            average_score: { type: number, example: 4.5 }
+                      patient_adherence_comparison:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            patient_name: { type: string, example: "Michael Chen" }
+                            adherence_percentage: { type: number, example: 92.5 }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }

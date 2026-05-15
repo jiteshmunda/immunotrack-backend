@@ -7,9 +7,9 @@ import { roles } from "../../db/schema/role.schema";
 import { patientClinicalNotes } from "../../db/schema/clinical-note.schema";
 import { hashForLookup, encrypt, decrypt } from "../../utils/encryption";
 import { hashPassword } from "../../utils/hash";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, between } from "drizzle-orm";
 import crypto from "crypto";
-import { CreateClinicianInput } from "./clinician.schema";
+import { CreateClinicianInput, ClinicianAnalyticsResponse } from "./clinician.schema";
 import { calculateRiskScore, getSeverityLevel } from "../symptoms/utils/symptom-scores";
 import { alerts } from "../../db/schema/ai.schema";
 import { MedicationService } from "../medication/medication.service";
@@ -378,10 +378,142 @@ export class ClinicianService {
         id: a.id,
         type: a.alertType,
         description: a.description ? decrypt(a.description) : null,
-        severity: a.severity,
         created_at: a.createdAt,
       })),
     };
   }
 
+  async getClinicianAnalytics(clinicianUserId: string): Promise<ClinicianAnalyticsResponse> {
+    // 1. Get Clinician
+    const [clinician] = await db.select({ id: clinicians.id })
+      .from(clinicians)
+      .where(eq(clinicians.userId, clinicianUserId))
+      .limit(1);
+    if (!clinician) throw new Error("CLINICIAN_NOT_FOUND");
+
+    // 2. Get Assigned Patients
+    const assignedPatients = await db
+      .select({ 
+        id: patients.id, 
+        fullName: users.fullName,
+        userId: users.id
+      })
+      .from(patientClinicianAssignments)
+      .innerJoin(patients, eq(patientClinicianAssignments.patientId, patients.id))
+      .innerJoin(users, eq(patients.userId, users.id))
+      .where(eq(patientClinicianAssignments.clinicianId, clinician.id));
+
+    if (assignedPatients.length === 0) {
+      return {
+        summary: {
+          total_patients: 0,
+          average_adherence: 0,
+          average_symptom_score: 0,
+          high_risk_patients: 0,
+        },
+        risk_distribution: { low: 0, moderate: 0, high: 0 },
+        average_symptom_trend: [],
+        patient_adherence_comparison: [],
+      };
+    }
+
+    const patientIds = assignedPatients.map(p => p.id);
+
+    // 3. Risk Distribution & Summary Stats
+    const riskDistribution = { low: 0, moderate: 0, high: 0 };
+    let totalRiskScoreForSummary = 0;
+    
+    // Efficiently get latest log for each patient
+    const latestLogs = await db
+      .select({
+        patientId: dailyLogs.patientId,
+        respiratoryComposite: dailyLogs.respiratoryComposite,
+        nasalComposite: dailyLogs.nasalComposite,
+        skinComposite: dailyLogs.skinComposite,
+      })
+      .from(dailyLogs)
+      .where(sql`${dailyLogs.id} IN (
+        SELECT id FROM (
+          SELECT id, row_number() OVER (PARTITION BY patient_id ORDER BY log_date DESC, logged_at DESC) as rn
+          FROM daily_logs
+          WHERE patient_id IN (${sql.join(patientIds.map(id => sql`${id}`), sql`, `)})
+        ) t WHERE rn = 1
+      )`);
+
+    latestLogs.forEach(log => {
+      const score = calculateRiskScore(
+        parseFloat(log.respiratoryComposite),
+        log.nasalComposite,
+        log.skinComposite
+      );
+      totalRiskScoreForSummary += score;
+      const level = getSeverityLevel(score).toLowerCase() as keyof typeof riskDistribution;
+      riskDistribution[level]++;
+    });
+    
+    riskDistribution.low += (patientIds.length - latestLogs.length);
+
+    // 4. Average Symptom Trend (4 Weeks)
+    const symptomTrend = [];
+    for (let i = 3; i >= 0; i--) {
+        const startOffset = (i + 1) * 7;
+        const endOffset = i * 7;
+        
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - startOffset);
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() - endOffset);
+
+        const logsInWeek = await db
+            .select({
+                respiratoryComposite: dailyLogs.respiratoryComposite,
+                nasalComposite: dailyLogs.nasalComposite,
+                skinComposite: dailyLogs.skinComposite,
+            })
+            .from(dailyLogs)
+            .where(and(
+                sql`${dailyLogs.patientId} IN (${sql.join(patientIds.map(id => sql`${id}`), sql`, `)})`,
+                between(dailyLogs.logDate, startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0])
+            ));
+
+        let totalScore = 0;
+        if (logsInWeek.length > 0) {
+            totalScore = logsInWeek.reduce((acc, log) => {
+                return acc + calculateRiskScore(
+                    parseFloat(log.respiratoryComposite),
+                    log.nasalComposite,
+                    log.skinComposite
+                );
+            }, 0) / logsInWeek.length;
+        }
+
+        symptomTrend.push({
+            week: `Week ${4 - i}`,
+            average_score: parseFloat(totalScore.toFixed(2)),
+        });
+    }
+
+    // 5. Patient Adherence Comparison
+    let totalAdherenceSum = 0;
+    const adherenceComparison = await Promise.all(assignedPatients.map(async (p) => {
+        const metrics = await medicationService.getAdherenceMetrics(clinicianUserId, "clinician", p.id, 30);
+        totalAdherenceSum += metrics.overallAdherence;
+        return {
+            patient_name: decrypt(p.fullName!),
+            adherence_percentage: metrics.overallAdherence,
+        };
+    }));
+
+    return {
+      summary: {
+        total_patients: assignedPatients.length,
+        average_adherence: parseFloat((totalAdherenceSum / assignedPatients.length).toFixed(2)),
+        average_symptom_score: latestLogs.length > 0 ? parseFloat((totalRiskScoreForSummary / latestLogs.length).toFixed(2)) : 0,
+        high_risk_patients: riskDistribution.high,
+      },
+      risk_distribution: riskDistribution,
+      average_symptom_trend: symptomTrend,
+      patient_adherence_comparison: adherenceComparison,
+    };
+  }
 }

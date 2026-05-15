@@ -26,4 +26,11 @@ router.post(
   clinicianController.addClinicalNote.bind(clinicianController)
 );
 
+router.get(
+  "/patients/:patientId/details",
+  authenticateJWT,
+  requireRole(["clinician"]),
+  clinicianController.getPatientDetails.bind(clinicianController)
+);
+
 export default router;

@@ -213,4 +213,26 @@ export class MedicationController {
       return sendError(res, error, 400);
     }
   }
+
+  // ---------------------------------- GET /medications/adherence --------------------------------------
+  async getAdherenceMetrics(req: Request, res: Response) {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const { patientId, rangeDays } = req.query;
+      const { userId, role } = authReq.user;
+
+      const result = await medicationService.getAdherenceMetrics(
+        userId,
+        role,
+        patientId as string,
+        rangeDays ? parseInt(rangeDays as string) : undefined
+      );
+
+      return sendSuccess(res, result);
+    } catch (error: any) {
+      const status = error.message.includes("UNAUTHORIZED") ? 403 : 
+                    error.message.includes("NOT_FOUND") ? 404 : 400;
+      return sendError(res, error, status);
+    }
+  }
 }

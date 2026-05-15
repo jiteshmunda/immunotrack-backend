@@ -95,4 +95,33 @@ export class ClinicianController {
       return sendError(res, error, 400);
     }
   }
+
+  // ------------------------------GET /clinicians/patients/:patientId/details-------------------
+
+  async getPatientDetails(req: Request, res: Response) {
+    try {
+      const clinicianUserId = (req as AuthenticatedRequest).user.userId;
+      const { patientId } = req.params;
+
+      const result = await clinicianService.getPatientDetails(clinicianUserId, patientId as string);
+
+      await writeAudit(req, {
+        action: "VIEW_PATIENT_DETAILS",
+        status: "success",
+        userId: clinicianUserId,
+        resourceType: "patient",
+        resourceId: patientId as string,
+      });
+
+      return sendSuccess(res, {
+        message: "Patient details fetched successfully",
+        data: result,
+      });
+    } catch (error: any) {
+      if (error.message === "UNAUTHORIZED_ACCESS_TO_PATIENT_DATA") {
+        return sendError(res, error, 403);
+      }
+      return sendError(res, error, 404);
+    }
+  }
 }

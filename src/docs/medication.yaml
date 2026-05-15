@@ -150,6 +150,52 @@ paths:
         400:
           description: Validation error
 
+  /medications/adherence:
+    get:
+      summary: Get medication adherence metrics
+      description: Returns adherence percentages for each medication and an overall score. Supports time range filtering. Accessible by patients (own data) and clinicians (assigned patients).
+      tags:
+        - Medication
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: patientId
+          schema:
+            type: string
+            format: uuid
+          description: "Required for clinicians. UUID of the patient to fetch adherence for."
+        - in: query
+          name: rangeDays
+          schema:
+            type: integer
+            example: 7
+          description: "Optional number of recent days to calculate adherence for (e.g., 7, 30). Defaults to all-time."
+      responses:
+        200:
+          description: Adherence metrics
+          content:
+            application/json:
+              example:
+                overallAdherence: 85.71
+                rangeDays: 7
+                medications:
+                  - id: "..."
+                    name: "Aspirin"
+                    startDate: "2026-05-01"
+                    calculationWindow:
+                      start: "2026-05-07"
+                      end: "2026-05-13"
+                      totalDays: 7
+                    daysTaken: 6
+                    adherencePercentage: 85.71
+        400:
+          description: Missing patientId for clinician or invalid parameters
+        403:
+          description: Unauthorized access (clinician not assigned to patient)
+        404:
+          description: Patient not found
+
   /medications/{id}:
     delete:
       summary: Delete  medication from plan

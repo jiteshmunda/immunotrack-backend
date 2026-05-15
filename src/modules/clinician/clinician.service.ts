@@ -11,6 +11,10 @@ import { eq, desc, and, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { CreateClinicianInput } from "./clinician.schema";
 import { calculateRiskScore, getSeverityLevel } from "../symptoms/utils/symptom-scores";
+import { alerts } from "../../db/schema/ai.schema";
+import { MedicationService } from "../medication/medication.service";
+
+const medicationService = new MedicationService();
 
 export class ClinicianService {
 
@@ -230,5 +234,154 @@ export class ClinicianService {
     };
   }
 
+
+  // ---------------------------------------------------- GET Comprehensive Patient Details ---------------------------------------------------
+
+  async getPatientDetails(clinicianUserId: string, patientId: string) {
+    const [clinician] = await db
+      .select()
+      .from(clinicians)
+      .where(eq(clinicians.userId, clinicianUserId))
+      .limit(1);
+
+    if (!clinician) throw new Error("CLINICIAN_NOT_FOUND");
+
+    const [assignment] = await db
+      .select()
+      .from(patientClinicianAssignments)
+      .where(and(
+        eq(patientClinicianAssignments.clinicianId, clinician.id),
+        eq(patientClinicianAssignments.patientId, patientId)
+      ))
+      .limit(1);
+
+    if (!assignment) throw new Error("UNAUTHORIZED_ACCESS_TO_PATIENT_DATA");
+
+    const [patientData] = await db
+      .select({
+        user: users,
+        patient: patients,
+      })
+      .from(patients)
+      .innerJoin(users, eq(patients.userId, users.id))
+      .where(eq(patients.id, patientId))
+      .limit(1);
+
+    if (!patientData) throw new Error("PATIENT_NOT_FOUND");
+
+    const profile = {
+      id: patientData.patient.id,
+      name: decrypt(patientData.user.fullName!),
+      email: patientData.user.email ? decrypt(patientData.user.email) : null,
+      dob: patientData.patient.dateOfBirth ? decrypt(patientData.patient.dateOfBirth) : null,
+      sex: patientData.patient.sex,
+      mrn: patientData.patient.mrn ? decrypt(patientData.patient.mrn) : null,
+      phone: patientData.patient.phone ? decrypt(patientData.patient.phone) : null,
+      primary_diagnosis: patientData.patient.primaryDiagnosis ? decrypt(patientData.patient.primaryDiagnosis) : null,
+    };
+
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+
+    const logs = await db
+      .select()
+      .from(dailyLogs)
+      .where(and(
+        eq(dailyLogs.patientId, patientId),
+        sql`${dailyLogs.logDate} >= ${fourteenDaysAgo.toISOString().split('T')[0]}`
+      ))
+      .orderBy(desc(dailyLogs.logDate));
+
+    const latestLog = logs[0];
+    let riskScore = 0;
+    let riskLevel = "Low";
+
+    if (latestLog) {
+      riskScore = calculateRiskScore(
+        parseFloat(latestLog.respiratoryComposite),
+        latestLog.nasalComposite,
+        latestLog.skinComposite
+      );
+      riskLevel = getSeverityLevel(riskScore);
+    }
+
+    const symptomTrends = logs.map(l => ({
+      date: l.logDate!,
+      respiratory: parseFloat(l.respiratoryComposite),
+      nasal: l.nasalComposite,
+      skin: l.skinComposite,
+      risk_score: calculateRiskScore(parseFloat(l.respiratoryComposite), l.nasalComposite, l.skinComposite),
+    })).reverse();
+
+    const notes = await db
+      .select({
+        id: patientClinicalNotes.id,
+        type: patientClinicalNotes.noteType,
+        notes: patientClinicalNotes.notes,
+        created_at: patientClinicalNotes.createdAt,
+        clinician_name: users.fullName,
+      })
+      .from(patientClinicalNotes)
+      .innerJoin(clinicians, eq(patientClinicalNotes.clinicianId, clinicians.id))
+      .innerJoin(users, eq(clinicians.userId, users.id))
+      .where(eq(patientClinicalNotes.patientId, patientId))
+      .orderBy(desc(patientClinicalNotes.createdAt));
+
+    const medicationPlan = await medicationService.getMedicationPlan(patientData.user.id);
+    const adherence30d = await medicationService.getAdherenceMetrics(clinicianUserId, "clinician", patientId, 30);
+    
+    const weeklyAdherence = [];
+    for (let i = 3; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - (i * 7));
+        const metrics = await medicationService.getAdherenceMetrics(clinicianUserId, "clinician", patientId, 7, date);
+        weeklyAdherence.push(metrics.overallAdherence);
+    }
+
+    const activeAlerts = await db
+      .select()
+      .from(alerts)
+      .where(and(
+        eq(alerts.patientId, patientId),
+        eq(alerts.status, "active")
+      ))
+      .orderBy(desc(alerts.lastTriggeredAt));
+
+    return {
+      profile,
+      stats: {
+        risk_score: riskScore,
+        risk_level: riskLevel,
+        active_alerts: activeAlerts.length,
+      },
+      symptom_trends: symptomTrends,
+      clinical_notes: notes.map(n => ({
+        id: n.id,
+        type: n.type,
+        notes: decrypt(n.notes),
+        clinician_name: decrypt(n.clinician_name!),
+        created_at: n.created_at,
+      })),
+      medications: {
+        plan: medicationPlan.map(m => ({
+          id: m.id,
+          name: m.name,
+          dose: m.dose,
+          frequency: m.frequency,
+          category: m.category,
+          start_date: m.startDate,
+        })),
+        adherence_30d: adherence30d.overallAdherence,
+        weekly_adherence: weeklyAdherence,
+      },
+      alerts: activeAlerts.map(a => ({
+        id: a.id,
+        type: a.alertType,
+        description: a.description ? decrypt(a.description) : null,
+        severity: a.severity,
+        created_at: a.createdAt,
+      })),
+    };
+  }
 
 }

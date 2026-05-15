@@ -22,4 +22,6 @@ router.get("/reminders", requireRole(["patient"]), controller.getReminders);
 router.patch("/reminders/:id", requireRole(["patient"]), controller.toggleReminder);
 router.delete("/reminders/:id", requireRole(["patient"]), controller.deleteReminder);
 
+router.get("/adherence", requireRole(["patient", "clinician"]), controller.getAdherenceMetrics);
+
 export default router;

@@ -228,3 +228,101 @@ paths:
         401: { description: Unauthorized }
         403: { description: Forbidden }
         404: { description: Patient not found }
+
+  /clinicians/patients/{patientId}/details:
+    get:
+      summary: Get comprehensive patient details
+      description: Returns a complete view of a patient's status, including profile, risk stats, symptom trends, clinical notes, medications, and active alerts.
+      tags: [Clinician]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: patientId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: "c7f1718b-ccff-47e0-b31b-8929c853f9b4"
+      responses:
+        200:
+          description: Patient details fetched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Patient details fetched successfully" }
+                  data:
+                    type: object
+                    properties:
+                      profile:
+                        type: object
+                        properties:
+                          id: { type: string, example: "c7f1718b-ccff-47e0-b31b-8929c853f9b4" }
+                          name: { type: string, example: "Jane Doe" }
+                          email: { type: string, example: "jane.doe@example.com" }
+                          dob: { type: string, example: "1990-05-15" }
+                          sex: { type: string, example: "Female" }
+                          mrn: { type: string, example: "MRN-12345" }
+                          phone: { type: string, example: "+1-555-0123" }
+                          primary_diagnosis: { type: string, example: "Persistent Asthma" }
+                      stats:
+                        type: object
+                        properties:
+                          risk_score: { type: number, example: 7.8 }
+                          risk_level: { type: string, example: "High" }
+                          active_alerts: { type: integer, example: 2 }
+                      symptom_trends:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            date: { type: string, format: date, example: "2026-05-12" }
+                            respiratory: { type: number, example: 1.5 }
+                            nasal: { type: number, example: 12 }
+                            skin: { type: number, example: 8 }
+                            risk_score: { type: number, example: 7.2 }
+                      clinical_notes:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string, format: uuid }
+                            type: { type: string, example: "Assessment" }
+                            notes: { type: string, example: "Patient reporting improvement." }
+                            clinician_name: { type: string, example: "Dr. Emily Carter" }
+                            created_at: { type: string, format: date-time }
+                      medications:
+                        type: object
+                        properties:
+                          plan:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id: { type: string, format: uuid }
+                                name: { type: string, example: "Montelukast" }
+                                dose: { type: string, example: "10mg" }
+                                frequency: { type: string, example: "Once daily" }
+                                category: { type: string, example: "Maintenance" }
+                                start_date: { type: string, format: date }
+                          adherence_30d: { type: number, example: 85.5 }
+                          weekly_adherence:
+                            type: array
+                            items: { type: number }
+                            example: [90, 85, 80, 87]
+                      alerts:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string, format: uuid }
+                            type: { type: string, example: "deterioration" }
+                            description: { type: string, example: "Symptom scores increased by 40%." }
+                            severity: { type: string, example: "high" }
+                            created_at: { type: string, format: date-time }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
+        404: { description: Patient not found }

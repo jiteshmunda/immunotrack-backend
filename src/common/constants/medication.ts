@@ -27,7 +27,8 @@ export const MEDICATION_FREQUENCIES = [
   "Weekly (build-up), Monthly (maintenance)",
   "Once daily (start 4 months before grass season)",
   "Once daily (start 12 weeks before ragweed season)",
-  "Daily (maintenance)"
+  "Daily (maintenance)",
+  "As needed (PRN)"
 ] as const;
 
 /**

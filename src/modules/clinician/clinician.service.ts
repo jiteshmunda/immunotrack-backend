@@ -273,22 +273,13 @@ export class ClinicianService {
     const symptom_trends = formatSymptomTrends(logs);
 
     // 4. Medication Adherence
-    const activeMeds = await db.select().from(patientMedications).where(and(eq(patientMedications.patientId, patientId), eq(patientMedications.active, true)));
-    const medIds = activeMeds.map(m => m.id);
-    const takenLogs = medIds.length > 0 ? await db.select({ medicationId: medicationLogs.medicationId, count: sql<number>`count(*)` }).from(medicationLogs).where(and(sql`${medicationLogs.medicationId} IN (${sql.join(medIds.map(id => sql`${id}`), sql`, `)})`, eq(medicationLogs.status, "taken"), sql`${medicationLogs.loggedAt} >= ${thirtyDaysAgo.toISOString()}`)).groupBy(medicationLogs.medicationId) : [];
-    
-    const takenMap = takenLogs.reduce((acc: Record<string, number>, curr) => ({ ...acc, [curr.medicationId]: Number(curr.count) }), {});
-    const adherence = calculateMedicationAdherence(activeMeds, takenMap, thirtyDaysAgo, getDailyFrequency);
-    
     const currentAdherence = await medicationService.getAdherenceMetrics(clinicianUserId, "clinician", patientId, 30);
     const prevAdherence30d = await medicationService.getAdherenceMetrics(clinicianUserId, "clinician", patientId, 30, thirtyDaysAgo);
     
     const medication_adherence = {
-      ...adherence,
-      doses_taken: adherence.taken,
-      doses_total: adherence.expected,
-      status: mapStatus(adherence.percentage >= 80 ? "green" : adherence.percentage >= 50 ? "amber" : "red"),
-      trend_text: `${(adherence.percentage - prevAdherence30d.overallAdherence) >= 0 ? "↑" : "↓"} ${Math.abs(adherence.percentage - prevAdherence30d.overallAdherence)}% vs previous 30 days`,
+      percentage: currentAdherence.overallAdherence,
+      status: mapStatus(currentAdherence.overallAdherence >= 80 ? "green" : currentAdherence.overallAdherence >= 50 ? "amber" : "red"),
+      trend_text: `${(currentAdherence.overallAdherence - prevAdherence30d.overallAdherence) >= 0 ? "↑" : "↓"} ${Math.abs(parseFloat((currentAdherence.overallAdherence - prevAdherence30d.overallAdherence).toFixed(2)))}% vs previous 30 days`,
       medications: currentAdherence.medications
     };
 
@@ -314,7 +305,18 @@ export class ClinicianService {
       },
       clinical_notes: notes.map(n => ({ ...n, notes: decrypt(n.notes), clinician_name: decrypt(n.clinician_name!) })),
       medications: { plan: medicationPlan.map(m => ({ ...m, start_date: m.startDate })) },
-      alerts: activeAlerts.map(a => ({ id: a.id, type: a.alertType, description: a.description ? decrypt(a.description) : null, created_at: a.createdAt })),
+      alerts: activeAlerts.map(a => {
+        let mappedType = a.alertType?.toLowerCase() || "";
+        if (mappedType === "symptom deterioration") mappedType = "symptom_deterioration";
+        if (mappedType === "medication non-adherence") mappedType = "medication_non_adherence";
+        return {
+          id: a.id,
+          type: mappedType,
+          description: a.description ? decrypt(a.description) : null,
+          created_at: a.createdAt,
+          lastTriggeredAt: a.lastTriggeredAt,
+        };
+      }),
     };
   }
 

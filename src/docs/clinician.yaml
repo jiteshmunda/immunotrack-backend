@@ -294,25 +294,40 @@ paths:
                             notes: { type: string, example: "Patient reporting improvement." }
                             clinician_name: { type: string, example: "Dr. Emily Carter" }
                             created_at: { type: string, format: date-time }
-                      medications:
+                      medication_adherence:
                         type: object
                         properties:
-                          plan:
+                          percentage: { type: number, example: 33.33 }
+                          status: { type: string, example: "Stable" }
+                          trend_text: { type: string, example: "↑ 0% vs previous 30 days" }
+                          medications:
                             type: array
                             items:
                               type: object
                               properties:
                                 id: { type: string, format: uuid }
-                                name: { type: string, example: "Montelukast" }
-                                dose: { type: string, example: "10mg" }
+                                name: { type: string, example: "Cetirizine" }
+                                category: { type: string, example: "Antihistamine" }
                                 frequency: { type: string, example: "Once daily" }
-                                category: { type: string, example: "Maintenance" }
-                                start_date: { type: string, format: date }
-                          adherence_30d: { type: number, example: 85.5 }
-                          weekly_adherence:
-                            type: array
-                            items: { type: number }
-                            example: [90, 85, 80, 87]
+                                startDate: { type: string, format: date, example: "2026-05-14" }
+                                isPrn: { type: boolean, example: false }
+                                calculationWindow:
+                                  type: object
+                                  properties:
+                                    start: { type: string, format: date, example: "2026-05-14" }
+                                    end: { type: string, format: date, example: "2026-05-18" }
+                                    totalDays: { type: integer, example: 5 }
+                                daysTaken: { type: integer, example: 4 }
+                                adherencePercentage: { type: number, example: 100 }
+                                rolling7DayAdherence: { type: number, example: 100 }
+                                prnUsageText: { type: string, nullable: true, example: null }
+                                adherenceLogs30Days:
+                                  type: array
+                                  items:
+                                    type: object
+                                    properties:
+                                      date: { type: string, format: date, example: "2026-05-18" }
+                                      status: { type: string, enum: [Taken, Missed, No Log], example: "Taken" }
                       alerts:
                         type: array
                         items:

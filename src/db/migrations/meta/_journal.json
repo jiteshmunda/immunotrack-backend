@@ -127,6 +127,13 @@
       "when": 1778667903086,
       "tag": "0017_lively_masked_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1779081581637,
+      "tag": "0018_real_stick",
+      "breakpoints": true
     }
   ]
 }

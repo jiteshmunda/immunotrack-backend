@@ -177,18 +177,59 @@ paths:
           content:
             application/json:
               example:
-                overallAdherence: 85.71
-                rangeDays: 7
+                overallAdherence: 33.33
+                rangeDays: "all-time"
                 medications:
-                  - id: "..."
-                    name: "Aspirin"
-                    startDate: "2026-05-01"
+                  - id: "f8b4d75f-5825-45ab-96cc-a1e7d1c6fc0a"
+                    name: "Cetirizine"
+                    category: "Antihistamine"
+                    frequency: "Once daily"
+                    startDate: "2026-05-14"
+                    isPrn: false
                     calculationWindow:
-                      start: "2026-05-07"
-                      end: "2026-05-13"
-                      totalDays: 7
-                    daysTaken: 6
-                    adherencePercentage: 85.71
+                      start: "2026-05-14"
+                      end: "2026-05-18"
+                      totalDays: 5
+                    daysTaken: 4
+                    adherencePercentage: 100
+                    rolling7DayAdherence: 100
+                    prnUsageText: null
+                    adherenceLogs30Days:
+                      - date: "2026-05-14"
+                        status: "Taken"
+                      - date: "2026-05-15"
+                        status: "Taken"
+                      - date: "2026-05-16"
+                        status: "No Log"
+                      - date: "2026-05-17"
+                        status: "No Log"
+                      - date: "2026-05-18"
+                        status: "Taken"
+                  - id: "7819e9fd-2959-4ede-9229-4dc831529c3a"
+                    name: "Levalbuterol"
+                    category: "SABA"
+                    frequency: "Every 4-8 hours PRN"
+                    startDate: "2026-05-14"
+                    isPrn: true
+                    calculationWindow:
+                      start: "2026-05-14"
+                      end: "2026-05-18"
+                      totalDays: 5
+                    daysTaken: 2
+                    adherencePercentage: null
+                    rolling7DayAdherence: null
+                    prnUsageText: "Used 2 times in last 7 days"
+                    adherenceLogs30Days:
+                      - date: "2026-05-14"
+                        status: "Missed"
+                      - date: "2026-05-15"
+                        status: "Taken"
+                      - date: "2026-05-16"
+                        status: "No Log"
+                      - date: "2026-05-17"
+                        status: "No Log"
+                      - date: "2026-05-18"
+                        status: "Missed"
         400:
           description: Missing patientId for clinician or invalid parameters
         403:

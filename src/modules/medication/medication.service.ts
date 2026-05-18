@@ -2,11 +2,12 @@ import { db } from "../../db";
 import { medicationCatalog } from "../../db/schema/medication.schema";
 import { patientMedications, medicationLogs, medicationReminders } from "../../db/schema/tracking.schema";
 import { patients, clinicians, patientClinicianAssignments } from "../../db/schema/profile.schema";
+import { users } from "../../db/schema/user.schema";
 import { alerts } from "../../db/schema/ai.schema";
 import { eq, and, desc, between, sql } from "drizzle-orm";
 import { encrypt, decrypt, hashForLookup } from "../../utils/encryption";
 import { LogMedicationInput } from "./medication.validation";
-import { calculateAdherenceWindow, formatAdherencePercentage } from "../../utils/adherence";
+import { calculateAdherenceWindow, formatAdherencePercentage, isPRNMedication, buildChronologicalLogGrid } from "../../utils/adherence";
 
 export interface AddMedicationInput {
   medicationId?: string; // Optional catalog link
@@ -171,25 +172,75 @@ export class MedicationService {
 
     if (!med) throw new Error("MEDICATION_NOT_FOUND_OR_UNAUTHORIZED");
 
-    const [log] = await db.insert(medicationLogs).values({
-      patientId: patient.id,
-      medicationId: input.medicationId,
-      status: input.status,
-      scheduledFor: null,
-      takenTime: input.takenTime ? new Date(input.takenTime) : null,
-      missedReason: input.missedReason || null,
-    }).returning();
-
-    if (input.status === "missed") {
-      await db.insert(alerts).values({
+    const log = await db.transaction(async (tx) => {
+      const [newLog] = await tx.insert(medicationLogs).values({
         patientId: patient.id,
-        alertType: "Medication Non-Adherence",
-        description: encrypt(`Patient missed medication: ${decrypt(med.name)}`),
-        severity: "medium",
-        status: "active",
-        lastTriggeredAt: new Date(),
-      });
-    }
+        medicationId: input.medicationId,
+        status: input.status,
+        scheduledFor: null,
+        takenTime: input.takenTime ? new Date(input.takenTime) : null,
+        missedReason: input.missedReason || null,
+      }).returning();
+
+      if (input.status === "missed") {
+        // Query the last 3 logs for this medication
+        const lastLogs = await tx
+          .select()
+          .from(medicationLogs)
+          .where(eq(medicationLogs.medicationId, input.medicationId))
+          .orderBy(desc(medicationLogs.loggedAt))
+          .limit(3);
+
+        if (lastLogs.length === 3 && lastLogs.every((l) => l.status === "missed")) {
+          const [patientUser] = await tx
+            .select({ fullName: users.fullName })
+            .from(patients)
+            .innerJoin(users, eq(patients.userId, users.id))
+            .where(eq(patients.id, patient.id))
+            .limit(1);
+
+          const patientName = patientUser?.fullName ? decrypt(patientUser.fullName) : "Patient";
+          const medName = decrypt(med.name);
+
+          const [activeAlert] = await tx
+            .select()
+            .from(alerts)
+            .where(
+              and(
+                eq(alerts.patientId, patient.id),
+                eq(alerts.patientMedicationId, med.id),
+                eq(alerts.alertType, "medication_non_adherence"),
+                eq(alerts.status, "active")
+              )
+            )
+            .limit(1);
+
+          const description = `${patientName} has missed ${medName} for 3 consecutive days.`;
+
+          if (activeAlert) {
+            await tx
+              .update(alerts)
+              .set({
+                lastTriggeredAt: new Date(),
+                description: encrypt(description),
+              })
+              .where(eq(alerts.id, activeAlert.id));
+          } else {
+            await tx.insert(alerts).values({
+              patientId: patient.id,
+              patientMedicationId: med.id,
+              alertType: "medication_non_adherence",
+              severity: "High",
+              status: "active",
+              description: encrypt(description),
+              lastTriggeredAt: new Date(),
+            });
+          }
+        }
+      }
+
+      return newLog;
+    });
 
     const [reminder] = await db.select({ time: medicationReminders.reminderTime })
       .from(medicationReminders)
@@ -389,51 +440,109 @@ export class MedicationService {
     const today = new Date(targetDate);
 
     const metrics = await Promise.all(meds.map(async (m) => {
-      // 3.1 Calculate Window using common utility
+      const isPrn = isPRNMedication(m.frequency || "");
+
+      // Calculate Window using common utility
       const { windowStartDate, windowEndDate, totalDays } = calculateAdherenceWindow(
         m.startDate || m.createdAt,
         rangeDays,
         today
       );
 
-      // 3.2 Query unique days logged as 'taken' within the window
-      const uniqueDaysTaken = await db
-        .select({
-          logDate: sql<string>`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`
-        })
+      // Query all logs within the overall window
+      const overallLogs = await db
+        .select({ status: medicationLogs.status })
         .from(medicationLogs)
         .where(and(
           eq(medicationLogs.medicationId, m.id),
-          eq(medicationLogs.status, 'taken'),
           between(
             sql`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`, 
             windowStartDate.toISOString().split('T')[0], 
             windowEndDate.toISOString().split('T')[0]
           )
-        ))
-        .groupBy(sql`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`);
+        ));
 
-      const daysTaken = uniqueDaysTaken.length;
-      const adherencePercentage = formatAdherencePercentage(daysTaken, totalDays);
+      const overallTaken = overallLogs.filter(l => l.status === "taken").length;
+      const overallLogged = overallLogs.length;
+      const adherencePercentage = !isPrn && overallLogged > 0 
+        ? formatAdherencePercentage(overallTaken, overallLogged) 
+        : (isPrn ? null : 0);
+
+      //Calculate 7-day rolling adherence
+      const { windowStartDate: start7d, windowEndDate: end7d } = calculateAdherenceWindow(
+        m.startDate || m.createdAt,
+        7,
+        today
+      );
+
+      const logs7d = await db
+        .select({ status: medicationLogs.status })
+        .from(medicationLogs)
+        .where(and(
+          eq(medicationLogs.medicationId, m.id),
+          between(
+            sql`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`, 
+            start7d.toISOString().split('T')[0], 
+            end7d.toISOString().split('T')[0]
+          )
+        ));
+
+      const taken7d = logs7d.filter(l => l.status === "taken").length;
+      const logged7d = logs7d.length;
+      const rolling7DayAdherence = !isPrn && logged7d > 0 
+        ? formatAdherencePercentage(taken7d, logged7d) 
+        : (isPrn ? null : 0);
+
+      //Formulate PRN usage count text
+      let prnUsageText = null;
+      if (isPrn) {
+        prnUsageText = `Used ${taken7d} times in last 7 days`;
+      }
+
+      //Calculate 30-day logs history for the bar chart
+      const logs30d = await db
+        .select({
+          status: medicationLogs.status,
+          logDate: sql<string>`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`
+        })
+        .from(medicationLogs)
+        .where(and(
+          eq(medicationLogs.medicationId, m.id),
+          between(
+            sql`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`, 
+            new Date(today.getTime() - 29 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], 
+            today.toISOString().split('T')[0]
+          )
+        ));
+
+      // Build 30-day chronological array using our clean helper
+      const adherenceLogs30Days = buildChronologicalLogGrid(logs30d, today, 30);
 
       return {
         id: m.id,
         name: decrypt(m.name),
+        category: m.category,
+        frequency: m.frequency,
         startDate: new Date(m.startDate || m.createdAt).toISOString().split('T')[0],
+        isPrn,
         calculationWindow: {
           start: windowStartDate.toISOString().split('T')[0],
           end: windowEndDate.toISOString().split('T')[0],
           totalDays
         },
-        daysTaken,
-        adherencePercentage
+        daysTaken: overallTaken,
+        adherencePercentage,
+        rolling7DayAdherence,
+        prnUsageText,
+        adherenceLogs30Days
       };
     }));
 
-    // 4. Calculate Overall Adherence (Average of all medications)
-    const overallPercentage = metrics.length > 0 
-      ? metrics.reduce((acc, m) => acc + m.adherencePercentage, 0) / metrics.length 
-      : 0;
+    // 4. Calculate Overall Adherence (Average of all active non-PRN medications)
+    const nonPrnMeds = metrics.filter(m => !m.isPrn);
+    const overallPercentage = nonPrnMeds.length > 0 
+      ? nonPrnMeds.reduce((acc, m) => acc + (m.adherencePercentage || 0), 0) / nonPrnMeds.length 
+      : 100;
 
     return {
       overallAdherence: parseFloat(overallPercentage.toFixed(2)),

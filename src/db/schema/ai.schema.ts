@@ -4,6 +4,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { patients } from "./profile.schema";
 import { users } from "./user.schema";
+import { patientMedications } from "./tracking.schema";
 
 // ── AI Insights ──────────────────────────────────────────────
 export const aiInsights = pgTable("ai_insights", {
@@ -111,6 +112,11 @@ export const alerts = pgTable("alerts", {
   resolvedBy: uuid("resolved_by").references(() => users.id),
   resolvedAt: timestamp("resolved_at"),
   createdAt:  timestamp("created_at").defaultNow().notNull(),
+  
+  // NEW fields
+  resolutionNote: varchar("resolution_note", { length: 500 }),
+  riskScore: numeric("risk_score", { precision: 5, scale: 2 }),
+  patientMedicationId: uuid("patient_medication_id").references(() => patientMedications.id),
 });
 
 // ── Flare History ────────────────────────────────────────────

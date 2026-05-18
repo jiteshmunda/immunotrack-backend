@@ -25,8 +25,8 @@ export function calculateRiskScore(respiratory: number, nasal: number, skin: num
  * Returns the clinical severity level/band based on the risk score.
  */
 export function getSeverityLevel(score: number): "Low" | "Moderate" | "High" {
-  if (score <= 4) return "Low";
-  if (score <= 9) return "Moderate";
+  if (score < 4) return "Low";
+  if (score < 7) return "Moderate";
   return "High";
 }
 

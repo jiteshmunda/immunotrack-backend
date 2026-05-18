@@ -66,10 +66,63 @@ export function calculateAdherenceWindow(
 }
 
 /**
+ * Checks if a medication frequency is PRN / as-needed.
+ */
+export function isPRNMedication(frequency: string): boolean {
+  const f = frequency.toLowerCase();
+  return f.includes("prn") || f.includes("as needed") || f.includes("as-needed") || f.includes("range");
+}
+
+/**
+ * Checks if a medication category is considered a controller/maintenance medication.
+ */
+export function isControllerMedication(category: string): boolean {
+  const c = (category || "").toLowerCase();
+  return (
+    c === "inhaled corticosteroid" ||
+    c === "ics/laba combo" ||
+    c === "biologic" ||
+    c === "immunotherapy" ||
+    c === "ics" ||
+    c === "laba"
+  );
+}
+
+/**
  * Calculates percentage and rounds to 2 decimal places.
  */
 export function formatAdherencePercentage(count: number, total: number): number {
   if (total <= 0) return 0;
   const percentage = (count / total) * 100;
   return parseFloat(percentage.toFixed(2));
+}
+
+/**
+ * Builds a chronological list of log statuses (Taken, Missed, or No Log) for a given number of days.
+ */
+export function buildChronologicalLogGrid(
+  logs: { status: string; logDate: string }[],
+  today: Date,
+  daysCount: number = 30
+): { date: string; status: "Taken" | "Missed" | "No Log" }[] {
+  const grid: { date: string; status: "Taken" | "Missed" | "No Log" }[] = [];
+
+  for (let i = daysCount - 1; i >= 0; i--) {
+    const d = new Date(today.getTime() - i * 24 * 60 * 60 * 1000);
+    const dStr = d.toISOString().split("T")[0];
+    const dayLogs = logs.filter(l => l.logDate === dStr);
+
+    let status: "Taken" | "Missed" | "No Log" = "No Log";
+    if (dayLogs.length > 0) {
+      if (dayLogs.some(l => l.status === "taken")) {
+        status = "Taken";
+      } else {
+        status = "Missed";
+      }
+    }
+
+    grid.push({ date: dStr, status });
+  }
+
+  return grid;
 }

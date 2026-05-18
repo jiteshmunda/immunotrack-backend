@@ -104,6 +104,8 @@ export const patientMedications = pgTable("patient_medications", {
   endDate:   date("end_date"),
   active:    boolean("active").default(true).notNull(),
 
+  notes: text("notes"), // PHI — AES-256 encrypted optional notes
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -156,6 +158,14 @@ export const medicationReminders = pgTable("medication_reminders", {
   reminderTime: varchar("reminder_time", { length: 5 }).notNull(), // HH:mm
   frequency:    varchar("frequency", { length: 100 }).default("DAILY").notNull(),
   isEnabled:    boolean("is_enabled").default(true).notNull(),
+
+  // Advanced scheduling fields
+  daysOfWeek:   text("days_of_week"),            // Comma-separated list (e.g. "Monday,Thursday")
+  dayOfMonth:   integer("day_of_month"),         // 1-31
+  month:        integer("month"),                // 1-12
+  nextDoseDate: date("next_dose_date"),          // For biologic start or quarterly start
+  intervalWeeks:integer("interval_weeks"),       // For biologics (2 or 4)
+
   createdAt:    timestamp("created_at").defaultNow().notNull(),
   updatedAt:    timestamp("updated_at").defaultNow().notNull(),
 });

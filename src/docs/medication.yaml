@@ -73,6 +73,10 @@ paths:
                 endDate:
                   type: string
                   format: date
+                notes:
+                  type: string
+                  example: "Take with food"
+                  description: "Optional notes for the medication"
       responses:
         201:
           description: Created
@@ -289,7 +293,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [medicationId, time]
+              required: [medicationId]
               properties:
                 medicationId:
                   type: string
@@ -297,10 +301,64 @@ paths:
                 time:
                   type: string
                   example: "08:00"
-                  description: Time in HH:mm 24-hour format
+                  description: Time in HH:mm 24-hour format (optional if times array is provided)
+                times:
+                  type: array
+                  items:
+                    type: string
+                  example: ["08:00", "20:00"]
+                  description: List of times for bulk scheduling (optional if time is provided)
                 frequency:
                   type: string
                   example: "DAILY"
+                daysOfWeek:
+                  type: array
+                  items:
+                    type: string
+                  example: ["Monday", "Thursday"]
+                dayOfMonth:
+                  type: integer
+                  example: 15
+                month:
+                  type: integer
+                  example: 5
+                nextDoseDate:
+                  type: string
+                  format: date
+                  example: "2026-05-18"
+                intervalWeeks:
+                  type: integer
+                  enum: [2, 4]
+                  example: 2
+            examples:
+              twiceDailyBulk:
+                summary: Twice daily schedule (bulk times)
+                value:
+                  medicationId: "78b4b75f-5825-45ab-96cc-a1e7d1c6fc0a"
+                  times: ["08:00", "20:00"]
+                  frequency: "Twice daily"
+              weeklyTwiceWeekly:
+                summary: Weekly / Twice weekly schedule
+                value:
+                  medicationId: "78b4b75f-5825-45ab-96cc-a1e7d1c6fc0a"
+                  time: "09:00"
+                  frequency: "Twice weekly"
+                  daysOfWeek: ["Monday", "Thursday"]
+              biweeklyBiologic:
+                summary: Biologic (Every 2-4 weeks) schedule
+                value:
+                  medicationId: "78b4b75f-5825-45ab-96cc-a1e7d1c6fc0a"
+                  time: "10:00"
+                  frequency: "Every 2-4 weeks"
+                  nextDoseDate: "2026-05-25"
+                  intervalWeeks: 2
+              monthlySchedule:
+                summary: Monthly schedule
+                value:
+                  medicationId: "78b4b75f-5825-45ab-96cc-a1e7d1c6fc0a"
+                  time: "08:00"
+                  frequency: "Monthly"
+                  dayOfMonth: 15
       responses:
         201:
           description: Reminder created
@@ -336,6 +394,25 @@ paths:
                   type: string
                   example: "08:30"
                   description: New time for the reminder in HH:mm format
+                daysOfWeek:
+                  type: array
+                  items:
+                    type: string
+                  example: ["Monday", "Thursday"]
+                dayOfMonth:
+                  type: integer
+                  example: 15
+                month:
+                  type: integer
+                  example: 5
+                nextDoseDate:
+                  type: string
+                  format: date
+                  example: "2026-05-18"
+                intervalWeeks:
+                  type: integer
+                  enum: [2, 4]
+                  example: 2
       responses:
         200:
           description: Updated reminder

@@ -18,6 +18,7 @@ export interface AddMedicationInput {
   frequency?: string;    // Auto-filled from catalog if ID exists
   startDate?: string;
   endDate?: string;
+  notes?: string;
 }
 
 export class MedicationService {
@@ -56,7 +57,7 @@ export class MedicationService {
     let finalRoute = input.route;
     let finalFrequency = input.frequency;
 
-    // Auto-fill from catalog if ID is provided
+    // Auto-fill from catalog if ID is provided (category & route only, NOT frequency or dose)
     if (input.medicationId) {
       const [catalogItem] = await db.select().from(medicationCatalog)
         .where(eq(medicationCatalog.id, input.medicationId)).limit(1);
@@ -64,13 +65,16 @@ export class MedicationService {
       if (catalogItem) {
         finalCategory = finalCategory || catalogItem.category || undefined;
         finalRoute = finalRoute || catalogItem.route || undefined;
-        finalFrequency = finalFrequency || catalogItem.defaultFrequency || undefined;
       }
     }
 
     if (!finalCategory || !finalFrequency) {
-      throw new Error("CATEGORY_AND_FREQUENCY_REQUIRED_FOR_CUSTOM_MEDICATION");
+      throw new Error("CATEGORY_AND_FREQUENCY_REQUIRED");
     }
+
+    // Default start date to today if not provided
+    const todayStr = new Date().toISOString().split("T")[0];
+    const finalStartDate = input.startDate || todayStr;
 
     // Duplicate check
     const nameHash = hashForLookup(input.name);
@@ -102,15 +106,17 @@ export class MedicationService {
       category: finalCategory as string,
       route: finalRoute || null,
       frequency: finalFrequency as string,
-      startDate: input.startDate,
+      startDate: finalStartDate,
       endDate: input.endDate,
+      notes: input.notes ? encrypt(input.notes) : null,
       active: true
     }).returning();
 
     return {
       ...newMed,
       name: input.name, 
-      dose: input.dose
+      dose: input.dose,
+      notes: input.notes || null
     };
   }
 
@@ -135,6 +141,7 @@ export class MedicationService {
       frequency: m.frequency,
       startDate: m.startDate,
       endDate: m.endDate,
+      notes: m.notes ? decrypt(m.notes) : null,
       createdAt: m.createdAt
     }));
   }
@@ -290,7 +297,17 @@ export class MedicationService {
   }
 
   // ---------------------------------- POST /medications/reminders -------------------------------------
-  async createReminder(userId: string, data: { medicationId: string, time: string, frequency?: string }) {
+  async createReminder(userId: string, data: { 
+    medicationId: string; 
+    time?: string; 
+    times?: string[]; 
+    frequency?: string; 
+    daysOfWeek?: string[];
+    dayOfMonth?: number;
+    month?: number;
+    nextDoseDate?: string;
+    intervalWeeks?: number;
+  }) {
     const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
 
@@ -304,26 +321,74 @@ export class MedicationService {
 
     if (!medication) throw new Error("MEDICATION_NOT_FOUND_OR_UNAUTHORIZED");
 
-    const [existing] = await db.select()
-      .from(medicationReminders)
-      .where(and(
-        eq(medicationReminders.medicationId, data.medicationId),
-        eq(medicationReminders.reminderTime, data.time)
-      ))
-      .limit(1);
+    // PRN Check: Range or PRN frequencies cannot have scheduled reminders
+    if (isPRNMedication(medication.frequency || "")) {
+      throw new Error("REMINDERS_NOT_ALLOWED_FOR_PRN_OR_RANGE_FREQUENCIES");
+    }
 
-    if (existing) throw new Error("REMINDER_ALREADY_EXISTS");
+    const timesToInsert = data.times && data.times.length > 0 ? data.times : (data.time ? [data.time] : []);
+    if (timesToInsert.length === 0) {
+      throw new Error("TIME_OR_TIMES_REQUIRED");
+    }
 
-    const [newReminder] = await db.insert(medicationReminders)
-      .values({
-        patientId: patient.id,
-        medicationId: data.medicationId,
-        reminderTime: data.time,
-        frequency: data.frequency || "DAILY",
-      })
-      .returning();
+    const insertedReminders: any[] = [];
+    const daysOfWeekStr = data.daysOfWeek ? data.daysOfWeek.join(",") : null;
 
-    return newReminder;
+    await db.transaction(async (tx) => {
+      for (const t of timesToInsert) {
+        const [existing] = await tx.select()
+          .from(medicationReminders)
+          .where(and(
+            eq(medicationReminders.medicationId, data.medicationId),
+            eq(medicationReminders.reminderTime, t),
+            daysOfWeekStr ? eq(medicationReminders.daysOfWeek, daysOfWeekStr) : sql`days_of_week IS NULL`
+          ))
+          .limit(1);
+
+        if (existing) continue; // Skip duplicates
+
+        const [newReminder] = await tx.insert(medicationReminders)
+          .values({
+            patientId: patient.id,
+            medicationId: data.medicationId,
+            reminderTime: t,
+            frequency: data.frequency || medication.frequency || "DAILY",
+            daysOfWeek: daysOfWeekStr,
+            dayOfMonth: data.dayOfMonth || null,
+            month: data.month || null,
+            nextDoseDate: data.nextDoseDate || null,
+            intervalWeeks: data.intervalWeeks || null,
+            isEnabled: true,
+          })
+          .returning();
+
+        insertedReminders.push(newReminder);
+      }
+    });
+
+    if (insertedReminders.length === 0) {
+      throw new Error("REMINDER_ALREADY_EXISTS");
+    }
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    const hasEnded = medication.endDate && todayStr > medication.endDate;
+
+    const mapped = insertedReminders.map(r => ({
+      id: r.id,
+      medicationId: r.medicationId,
+      medicationName: decrypt(medication.name),
+      time: r.reminderTime,
+      active: hasEnded ? false : r.isEnabled,
+      frequency: r.frequency,
+      daysOfWeek: r.daysOfWeek ? r.daysOfWeek.split(",") : null,
+      dayOfMonth: r.dayOfMonth,
+      month: r.month,
+      nextDoseDate: r.nextDoseDate,
+      intervalWeeks: r.intervalWeeks,
+      hasEnded: !!hasEnded,
+    }));
+
+    return mapped.length === 1 ? mapped[0] : mapped;
   }
 
   // ---------------------------------- GET /medications/reminders --------------------------------------
@@ -338,20 +403,53 @@ export class MedicationService {
       time: medicationReminders.reminderTime,
       active: medicationReminders.isEnabled,
       frequency: medicationReminders.frequency,
+      daysOfWeek: medicationReminders.daysOfWeek,
+      dayOfMonth: medicationReminders.dayOfMonth,
+      month: medicationReminders.month,
+      nextDoseDate: medicationReminders.nextDoseDate,
+      intervalWeeks: medicationReminders.intervalWeeks,
+      endDate: patientMedications.endDate,
     })
     .from(medicationReminders)
     .innerJoin(patientMedications, eq(medicationReminders.medicationId, patientMedications.id))
     .where(eq(medicationReminders.patientId, patient.id))
     .orderBy(desc(medicationReminders.createdAt));
 
-    return reminders.map(r => ({
-      ...r,
-      medicationName: decrypt(r.medicationName),
-    }));
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    return reminders.map(r => {
+      // Dynamic course auto-end check:
+      // If medication has an endDate and today is strictly past endDate, the reminder is dynamically inactive.
+      const hasEnded = r.endDate && todayStr > r.endDate;
+      const isCurrentlyActive = hasEnded ? false : r.active;
+
+      return {
+        id: r.id,
+        medicationId: r.medicationId,
+        medicationName: decrypt(r.medicationName),
+        time: r.time,
+        active: isCurrentlyActive,
+        frequency: r.frequency,
+        daysOfWeek: r.daysOfWeek ? r.daysOfWeek.split(",") : null,
+        dayOfMonth: r.dayOfMonth,
+        month: r.month,
+        nextDoseDate: r.nextDoseDate,
+        intervalWeeks: r.intervalWeeks,
+        hasEnded: !!hasEnded,
+      };
+    });
   }
 
   // ---------------------------------- PATCH /medications/reminders/:id --------------------------------
-  async updateReminder(userId: string, reminderId: string, data: { active?: boolean, time?: string }) {
+  async updateReminder(userId: string, reminderId: string, data: { 
+    active?: boolean; 
+    time?: string;
+    daysOfWeek?: string[];
+    dayOfMonth?: number;
+    month?: number;
+    nextDoseDate?: string;
+    intervalWeeks?: number;
+  }) {
     const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
 
@@ -365,12 +463,15 @@ export class MedicationService {
 
     if (!reminder) throw new Error("REMINDER_NOT_FOUND_OR_UNAUTHORIZED");
 
-    if (data.time && data.time !== reminder.reminderTime) {
+    const daysOfWeekStr = data.daysOfWeek ? data.daysOfWeek.join(",") : reminder.daysOfWeek;
+
+    if (data.time && (data.time !== reminder.reminderTime || daysOfWeekStr !== reminder.daysOfWeek)) {
       const [existing] = await db.select()
         .from(medicationReminders)
         .where(and(
           eq(medicationReminders.medicationId, reminder.medicationId),
-          eq(medicationReminders.reminderTime, data.time)
+          eq(medicationReminders.reminderTime, data.time),
+          daysOfWeekStr ? eq(medicationReminders.daysOfWeek, daysOfWeekStr) : sql`days_of_week IS NULL`
         ))
         .limit(1);
       
@@ -381,12 +482,38 @@ export class MedicationService {
       .set({ 
         isEnabled: data.active !== undefined ? data.active : reminder.isEnabled,
         reminderTime: data.time || reminder.reminderTime,
+        daysOfWeek: daysOfWeekStr,
+        dayOfMonth: data.dayOfMonth !== undefined ? data.dayOfMonth : reminder.dayOfMonth,
+        month: data.month !== undefined ? data.month : reminder.month,
+        nextDoseDate: data.nextDoseDate || reminder.nextDoseDate,
+        intervalWeeks: data.intervalWeeks !== undefined ? data.intervalWeeks : reminder.intervalWeeks,
         updatedAt: new Date()
       })
       .where(eq(medicationReminders.id, reminderId))
       .returning();
 
-    return updated;
+    const [medication] = await db.select()
+      .from(patientMedications)
+      .where(eq(patientMedications.id, updated.medicationId))
+      .limit(1);
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    const hasEnded = medication?.endDate && todayStr > medication.endDate;
+
+    return {
+      id: updated.id,
+      medicationId: updated.medicationId,
+      medicationName: medication ? decrypt(medication.name) : "",
+      time: updated.reminderTime,
+      active: hasEnded ? false : updated.isEnabled,
+      frequency: updated.frequency,
+      daysOfWeek: updated.daysOfWeek ? updated.daysOfWeek.split(",") : null,
+      dayOfMonth: updated.dayOfMonth,
+      month: updated.month,
+      nextDoseDate: updated.nextDoseDate,
+      intervalWeeks: updated.intervalWeeks,
+      hasEnded: !!hasEnded,
+    };
   }
 
   // ---------------------------------- DELETE /medications/reminders/:id -------------------------------

@@ -42,10 +42,10 @@ export function getDailyFrequency(freq: string): number {
   if (f.includes("as needed") || f.includes("prn")) return 0;
   
   // Daily Frequencies
-  if (f.includes("once daily") || f.includes("daily") || f.includes("qday")) return 1;
-  if (f.includes("twice daily") || f.includes("bid")) return 2;
-  if (f.includes("three times") || f.includes("tid") || f.includes("3 times")) return 3;
   if (f.includes("four times") || f.includes("qid") || f.includes("4 times") || f.includes("4x daily")) return 4;
+  if (f.includes("three times") || f.includes("tid") || f.includes("3 times")) return 3;
+  if (f.includes("twice daily") || f.includes("bid")) return 2;
+  if (f.includes("once daily") || f.includes("daily") || f.includes("qday")) return 1;
   
   // Ranges
   if (f.includes("once or twice")) return 1.5;

@@ -8,6 +8,7 @@ import { eq, and, desc, between, sql } from "drizzle-orm";
 import { encrypt, decrypt, hashForLookup } from "../../utils/encryption";
 import { LogMedicationInput } from "./medication.validation";
 import { calculateAdherenceWindow, formatAdherencePercentage, isPRNMedication, buildChronologicalLogGrid } from "../../utils/adherence";
+import { getDailyFrequency } from "../../common/constants/medication";
 
 export interface AddMedicationInput {
   medicationId?: string; // Optional catalog link
@@ -131,18 +132,78 @@ export class MedicationService {
         eq(patientMedications.active, true)
       ));
 
-    return meds.map(m => ({
-      id: m.id,
-      medicationId: m.medicationId,
-      category: m.category,
-      name: decrypt(m.name),
-      dose: decrypt(m.dose),
-      route: m.route,
-      frequency: m.frequency,
-      startDate: m.startDate,
-      endDate: m.endDate,
-      notes: m.notes ? decrypt(m.notes) : null,
-      createdAt: m.createdAt
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+
+    return Promise.all(meds.map(async (m) => {
+      const freq = m.frequency || "";
+      const freqLower = freq.toLowerCase();
+      
+      const isWeekly = freqLower.includes("weekly") || freqLower.includes("every week") || freqLower.includes("every 1 week");
+      const isBiWeekly = freqLower.includes("every 2 weeks") || freqLower.includes("every 2-4 weeks");
+      const isMonthly = freqLower.includes("every 4 weeks") || freqLower.includes("monthly") || freqLower.includes("every month");
+
+      let dosesCount = 1;
+      let dosesTaken = 0;
+
+      if (isWeekly || isBiWeekly || isMonthly) {
+        // Low-frequency/Biologics: keep 1/1 until the period closes
+        const lookbackDays = isWeekly ? 7 : isBiWeekly ? 14 : 30;
+        const windowStart = new Date();
+        windowStart.setDate(windowStart.getDate() - lookbackDays);
+        windowStart.setHours(0, 0, 0, 0);
+
+        const pastLogs = await db
+          .select({ status: medicationLogs.status })
+          .from(medicationLogs)
+          .where(and(
+            eq(medicationLogs.medicationId, m.id),
+            sql`${medicationLogs.loggedAt} >= ${windowStart}`
+          ));
+
+        const takenInWindow = pastLogs.filter(l => l.status === "taken").length;
+        dosesCount = 1;
+        dosesTaken = Math.min(1, takenInWindow);
+      } else {
+        // Standard Daily / Hourly: check logs for today only
+        if (freqLower.includes("twice daily") || freqLower.includes("bid")) dosesCount = 2;
+        else if (freqLower.includes("three times") || freqLower.includes("tid") || freqLower.includes("3 times")) dosesCount = 3;
+        else if (freqLower.includes("four times") || freqLower.includes("qid") || freqLower.includes("4 times") || freqLower.includes("4x daily")) dosesCount = 4;
+        else if (freqLower.includes("every 4 hours")) dosesCount = 6;
+        else if (freqLower.includes("every 4-6 hours")) dosesCount = 5;
+        else if (freqLower.includes("every 6 hours")) dosesCount = 4;
+        else if (freqLower.includes("every 8 hours")) dosesCount = 3;
+        else if (freqLower.includes("every 12 hours")) dosesCount = 2;
+        else if (freqLower.includes("as needed") || freqLower.includes("prn")) dosesCount = 1;
+
+        const todaysLogs = await db
+          .select({ status: medicationLogs.status })
+          .from(medicationLogs)
+          .where(and(
+            eq(medicationLogs.medicationId, m.id),
+            between(medicationLogs.loggedAt, startOfToday, endOfToday)
+          ));
+
+        dosesTaken = todaysLogs.filter(l => l.status === "taken").length;
+      }
+
+      return {
+        id: m.id,
+        medicationId: m.medicationId,
+        category: m.category,
+        name: decrypt(m.name),
+        dose: decrypt(m.dose),
+        route: m.route,
+        frequency: m.frequency,
+        startDate: m.startDate,
+        endDate: m.endDate,
+        notes: m.notes ? decrypt(m.notes) : null,
+        dosesCount,
+        dosesTaken,
+        createdAt: m.createdAt
+      };
     }));
   }
 //
@@ -178,6 +239,69 @@ export class MedicationService {
       )).limit(1);
 
     if (!med) throw new Error("MEDICATION_NOT_FOUND_OR_UNAUTHORIZED");
+
+    // Dynamic Daily Log Limit Check
+    const dailyFrequency = getDailyFrequency(med.frequency || "");
+    if (dailyFrequency > 0) {
+      const maxLogsPerDay = Math.ceil(dailyFrequency);
+
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      const endOfToday = new Date();
+      endOfToday.setHours(23, 59, 59, 999);
+
+      // Count existing logs for this medication today
+      const [existingLogsToday] = await db.select({
+        count: sql<number>`count(*)`
+      })
+      .from(medicationLogs)
+      .where(and(
+        eq(medicationLogs.medicationId, med.id),
+        between(medicationLogs.loggedAt, startOfToday, endOfToday)
+      ));
+
+      const logCount = Number(existingLogsToday?.count || 0);
+
+      if (logCount >= maxLogsPerDay) {
+        throw new Error("MAX_DAILY_LOG_LIMIT_EXCEEDED");
+      }
+    }
+
+    // Multi-Day Interval Overdose Protection for low-frequency medications
+    if (input.status === "taken") {
+      let minDaysBetweenLogs = 0;
+      const f = (med.frequency || "").toLowerCase();
+      
+      if (f.includes("weekly") || f.includes("every week")) {
+        minDaysBetweenLogs = 5;
+      } else if (f.includes("every 2 weeks") || f.includes("every two weeks") || f.includes("every 2-4 weeks")) {
+        minDaysBetweenLogs = 10;
+      } else if (f.includes("every 4 weeks") || f.includes("every four weeks") || f.includes("monthly")) {
+        minDaysBetweenLogs = 20;
+      }
+
+      if (minDaysBetweenLogs > 0) {
+        // Find the most recent "taken" log for this medication
+        const [lastTakenLog] = await db.select()
+          .from(medicationLogs)
+          .where(and(
+            eq(medicationLogs.medicationId, med.id),
+            eq(medicationLogs.status, "taken")
+          ))
+          .orderBy(desc(medicationLogs.loggedAt))
+          .limit(1);
+
+        if (lastTakenLog) {
+          const msSinceLastLog = Date.now() - new Date(lastTakenLog.loggedAt).getTime();
+          const daysSinceLastLog = msSinceLastLog / (1000 * 60 * 60 * 24);
+
+          if (daysSinceLastLog < minDaysBetweenLogs) {
+            throw new Error("MEDICATION_LOGGED_TOO_EARLY");
+          }
+        }
+      }
+    }
 
     const log = await db.transaction(async (tx) => {
       const [newLog] = await tx.insert(medicationLogs).values({
@@ -658,6 +782,7 @@ export class MedicationService {
           totalDays
         },
         daysTaken: overallTaken,
+        totalLogged: overallLogged,
         adherencePercentage,
         rolling7DayAdherence,
         prnUsageText,
@@ -671,9 +796,16 @@ export class MedicationService {
       ? nonPrnMeds.reduce((acc, m) => acc + (m.adherencePercentage || 0), 0) / nonPrnMeds.length 
       : 100;
 
+    const totalTaken = nonPrnMeds.reduce((sum, m) => sum + m.daysTaken, 0);
+    const totalDays = nonPrnMeds.reduce((sum, m) => sum + m.calculationWindow.totalDays, 0);
+    const totalLogged = nonPrnMeds.reduce((sum, m) => sum + m.totalLogged, 0);
+
     return {
       overallAdherence: parseFloat(overallPercentage.toFixed(2)),
       rangeDays: rangeDays || "all-time",
+      totalTaken,
+      totalDays,
+      totalLogged,
       medications: metrics
     };
   }

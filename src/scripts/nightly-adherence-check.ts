@@ -59,7 +59,30 @@ async function run() {
 
         // Skip PRN medications from adherence tracking
         if (isPRNMedication(med.frequency || "")) {
-          console.log(`Medication ${medName} for ${patientName} is PRN. Skipping adherence alert.`);
+          console.log(`Medication ${medName} (Patient ID: ${patient.id}) is PRN. Skipping adherence alert.`);
+          continue;
+        }
+
+        // Skip weekly adherence alerts for low-frequency multi-week/monthly medications (biologics)
+        const freqLower = (med.frequency || "").toLowerCase();
+        const catLower = (med.category || "").toLowerCase();
+        const isLowFrequency = catLower.includes("biologic") || 
+                               freqLower.includes("every 2 weeks") || 
+                               freqLower.includes("every 4 weeks") || 
+                               freqLower.includes("every 2-4 weeks") || 
+                               freqLower.includes("monthly");
+
+        if (isLowFrequency) {
+          console.log(`Medication ${medName} (Patient ID: ${patient.id}) is a biologic/low-frequency therapy. Skipping weekly adherence alert.`);
+          
+          // Clean up any legacy false non-adherence alerts for this low-frequency medication
+          await db.delete(schema.alerts)
+            .where(and(
+              eq(schema.alerts.patientMedicationId, med.id),
+              eq(schema.alerts.alertType, "medication_non_adherence"),
+              eq(schema.alerts.status, "active")
+            ));
+            
           continue;
         }
 
@@ -71,7 +94,7 @@ async function run() {
         );
 
         if (totalDays === 0) {
-          console.log(`Medication ${medName} for ${patientName} has 0 days in scheduled window. Skipping.`);
+          console.log(`Medication ${medName} (Patient ID: ${patient.id}) has 0 days in scheduled window. Skipping.`);
           continue;
         }
 
@@ -97,10 +120,9 @@ async function run() {
 
         // Add Insufficient Data Constraint:
         // If daily medication has logged < 3 unique calendar days in the last 7 days, skip the weekly adherence alert.
-        const freqLower = (med.frequency || "").toLowerCase();
         const isDaily = freqLower.includes("daily") || freqLower.includes("qday") || freqLower.includes("day") || freqLower.includes("times");
         if (isDaily && loggedDaysCount < 3) {
-          console.log(`Patient: ${patientName}, Med: ${medName} - Only logged ${loggedDaysCount}/7 days. Skipping weekly adherence alert due to insufficient data.`);
+          console.log(`Medication ${medName} (Patient ID: ${patient.id}) - Only logged ${loggedDaysCount}/7 days. Skipping weekly adherence alert due to insufficient data.`);
           continue;
         }
 
@@ -110,7 +132,7 @@ async function run() {
         // Corrected Formula: (Taken / Logged) * 100
         const adherence = totalLoggedCount > 0 ? (takenCount / totalLoggedCount) * 100 : 0;
 
-        console.log(`Patient: ${patientName}, Med: ${medName}, Adherence: ${adherence.toFixed(1)}% (${takenCount}/${totalLoggedCount} logs, ${loggedDaysCount} unique logged days)`);
+        console.log(`Medication ${medName} (Patient ID: ${patient.id}) - Adherence: ${adherence.toFixed(1)}% (${takenCount}/${totalLoggedCount} logs, ${loggedDaysCount} unique logged days)`);
 
         if (adherence < 80) {
           // Trigger or update Non-Adherence Alert!
@@ -130,7 +152,7 @@ async function run() {
           const description = `${patientName} weekly adherence to ${medName} is ${Math.round(adherence)}% (below 80% threshold).`;
 
           if (existingAlert) {
-            console.log(`Updating active alert for ${patientName} - ${medName}`);
+            console.log(`Updating active alert for Patient ID: ${patient.id} - Medication ID: ${med.id}`);
             await db
               .update(schema.alerts)
               .set({
@@ -139,7 +161,7 @@ async function run() {
               })
               .where(eq(schema.alerts.id, existingAlert.id));
           } else {
-            console.log(`Creating new active alert for ${patientName} - ${medName}`);
+            console.log(`Creating new active alert for Patient ID: ${patient.id} - Medication ID: ${med.id}`);
             await db.insert(schema.alerts).values({
               patientId: patient.id,
               patientMedicationId: med.id,
@@ -158,16 +180,18 @@ async function run() {
   } catch (error) {
     console.error("Nightly adherence check failed:", error);
   } finally {
-    await pool.end();
+    if (!process.argv.includes("--watch")) {
+      await pool.end();
+    }
   }
 }
 
-// Run the check once. If --watch is passed, repeat every 2 minutes for testing.
+// Run the check once. If --watch is passed, repeat every hour for monitoring.
 run().then(() => {
   if (process.argv.includes("--watch")) {
-    console.log("Watch mode enabled. Repeating adherence check every 2 minutes...");
+    console.log("Watch mode enabled. Repeating adherence check every hour...");
     setInterval(() => {
       run();
-    }, 2 * 60 * 1000);
+    }, 60 * 60 * 1000);
   }
 });

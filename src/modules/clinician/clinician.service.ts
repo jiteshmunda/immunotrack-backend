@@ -280,15 +280,28 @@ export class ClinicianService {
       percentage: currentAdherence.overallAdherence,
       status: mapStatus(currentAdherence.overallAdherence >= 80 ? "green" : currentAdherence.overallAdherence >= 50 ? "amber" : "red"),
       trend_text: `${(currentAdherence.overallAdherence - prevAdherence30d.overallAdherence) >= 0 ? "↑" : "↓"} ${Math.abs(parseFloat((currentAdherence.overallAdherence - prevAdherence30d.overallAdherence).toFixed(2)))}% vs previous 30 days`,
+      totalTaken: currentAdherence.totalTaken,
+      totalDays: currentAdherence.totalDays,
+      totalLogged: currentAdherence.totalLogged,
       medications: currentAdherence.medications
     };
 
-    // 5. Clinical Notes & Medication Plan
-    const [notes, medicationPlan, activeAlerts] = await Promise.all([
+    // 5. Clinical Notes, Medication Plan, Active Alerts & Medication Logged Days (Concurrent Queries)
+    const [notes, medicationPlan, activeAlerts, medicationLoggedDaysResult] = await Promise.all([
       db.select({ id: patientClinicalNotes.id, type: patientClinicalNotes.noteType, notes: patientClinicalNotes.notes, created_at: patientClinicalNotes.createdAt, clinician_name: users.fullName }).from(patientClinicalNotes).innerJoin(clinicians, eq(patientClinicalNotes.clinicianId, clinicians.id)).innerJoin(users, eq(clinicians.userId, users.id)).where(eq(patientClinicalNotes.patientId, patientId)).orderBy(desc(patientClinicalNotes.createdAt)),
       medicationService.getMedicationPlan(patientData.user.id),
-      db.select().from(alerts).where(and(eq(alerts.patientId, patientId), eq(alerts.status, "active"))).orderBy(desc(alerts.lastTriggeredAt))
+      db.select().from(alerts).where(and(eq(alerts.patientId, patientId), eq(alerts.status, "active"))).orderBy(desc(alerts.lastTriggeredAt)),
+      db.select({
+        count: sql<number>`count(distinct date(${medicationLogs.loggedAt} at time zone 'UTC'))`
+      })
+      .from(medicationLogs)
+      .where(and(
+        eq(medicationLogs.patientId, patientId),
+        sql`${medicationLogs.loggedAt} >= ${thirtyDaysAgo}`
+      ))
     ]);
+
+    const medicationsLoggedCount = Number(medicationLoggedDaysResult[0]?.count || 0);
 
     // 6. Final Assembly
     const lastLogDate = logs[0] ? new Date(logs[0].loggedAt).toLocaleString('en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : "No logs yet";
@@ -301,7 +314,7 @@ export class ClinicianService {
       daily_log_summary: {
         logs_completed: { count: logs.length, total: 30, percentage: Math.round((logs.length / 30) * 100) },
         symptoms_logged: { count: logs.length, total: 30, percentage: Math.round((logs.length / 30) * 100) },
-        medications_logged: { count: logs.length, total: 30, percentage: Math.round((logs.length / 30) * 100) },
+        medications_logged: { count: medicationsLoggedCount, total: 30, percentage: Math.round((medicationsLoggedCount / 30) * 100) },
       },
       clinical_notes: notes.map(n => ({ ...n, notes: decrypt(n.notes), clinician_name: decrypt(n.clinician_name!) })),
       medications: { plan: medicationPlan.map(m => ({ ...m, start_date: m.startDate })) },

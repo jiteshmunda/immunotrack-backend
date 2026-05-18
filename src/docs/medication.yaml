@@ -152,7 +152,7 @@ paths:
         201:
           description: Log created
         400:
-          description: Validation error
+          description: Validation error, max daily limit exceeded (MAX_DAILY_LOG_LIMIT_EXCEEDED), or logged too early for scheduled frequency (MEDICATION_LOGGED_TOO_EARLY)
 
   /medications/adherence:
     get:
@@ -183,6 +183,9 @@ paths:
               example:
                 overallAdherence: 33.33
                 rangeDays: "all-time"
+                totalTaken: 4
+                totalDays: 5
+                totalLogged: 3
                 medications:
                   - id: "f8b4d75f-5825-45ab-96cc-a1e7d1c6fc0a"
                     name: "Cetirizine"

@@ -18,6 +18,10 @@ export const ENV = {
   FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || "",
   FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL || "",
   FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY || "",
+  AWS_REGION: process.env.AWS_REGION || "us-east-1",
+  AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || "",
+  AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || "",
+  SES_FROM_EMAIL: process.env.SES_FROM_EMAIL || "",
 };
 
 /**
@@ -74,7 +78,10 @@ export async function loadSecrets(force: boolean = false) {
     "JWT_SECRET", 
     "ADMIN_EMAIL", 
     "ADMIN_PASSWORD", 
-    "ADMIN_NAME"
+    "ADMIN_NAME",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "SES_FROM_EMAIL"
   ] as const;
 
   for (const key of required) {

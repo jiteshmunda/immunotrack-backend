@@ -140,11 +140,13 @@ export class MedicationController {
 
       const reminder = await medicationService.createReminder(userId, input);
 
+      const auditId = Array.isArray(reminder) ? reminder[0]?.id : reminder.id;
+
       await writeAudit(req, {
         action: "REMINDER_CREATED",
         status: "success",
         userId: userId,
-        resourceId: reminder.id as string,
+        resourceId: auditId as string,
         resourceType: "medication_reminder",
       });
 
@@ -166,15 +168,15 @@ export class MedicationController {
     }
   }
 
- // ---------------------------------- PATCH /medications/reminders/:id --------------------------------
+  // ---------------------------------- PATCH /medications/reminders/:id --------------------------------
   async toggleReminder(req: Request, res: Response) {
     try {
       const authReq = req as AuthenticatedRequest;
       const id = req.params.id as string;
-      const { active, time } = updateReminderSchema.parse(req.body);
+      const parsedBody = updateReminderSchema.parse(req.body);
       const userId = authReq.user.userId;
 
-      const reminder = await medicationService.updateReminder(userId, id, { active, time });
+      const reminder = await medicationService.updateReminder(userId, id, parsedBody);
 
       await writeAudit(req, {
         action: "REMINDER_TOGGLED",

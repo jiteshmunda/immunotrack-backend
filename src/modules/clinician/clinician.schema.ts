@@ -50,20 +50,50 @@ export const addClinicalNoteSchema = z.object({
 export type AddClinicalNoteInput = z.infer<typeof addClinicalNoteSchema>;
 
 export const patientDetailsResponseSchema = z.object({
-  profile: z.object({
-    id: z.string(),
+  header: z.object({
     name: z.string(),
-    email: z.string().nullable(),
+    mrn: z.string().nullable(),
     dob: z.string().nullable(),
     sex: z.string().nullable(),
-    mrn: z.string().nullable(),
     phone: z.string().nullable(),
     primary_diagnosis: z.string().nullable(),
+    last_log: z.string().nullable(),
+    clinician: z.string().nullable(),
   }),
-  stats: z.object({
-    risk_score: z.number(),
-    risk_level: z.string(),
-    active_alerts: z.number(),
+  composite_summary: z.object({
+    respiratory: z.object({
+      value: z.number(),
+      label: z.string(),
+      status: z.string(),
+      status_color: z.string(),
+      trend: z.object({
+        direction: z.enum(["up", "down", "stable"]),
+        value: z.number(),
+        text: z.string(),
+      }),
+    }),
+    nasal: z.object({
+      value: z.number(),
+      label: z.string(),
+      status: z.string(),
+      status_color: z.string(),
+      trend: z.object({
+        direction: z.enum(["up", "down", "stable"]),
+        value: z.number(),
+        text: z.string(),
+      }),
+    }),
+    skin: z.object({
+      value: z.number(),
+      label: z.string(),
+      status: z.string(),
+      status_color: z.string(),
+      trend: z.object({
+        direction: z.enum(["up", "down", "stable"]),
+        value: z.number(),
+        text: z.string(),
+      }),
+    }),
   }),
   symptom_trends: z.array(z.object({
     date: z.string(),
@@ -71,7 +101,49 @@ export const patientDetailsResponseSchema = z.object({
     nasal: z.number(),
     skin: z.number(),
     risk_score: z.number(),
+    sub_items: z.object({
+      acq: z.object({
+        acq1: z.number(),
+        acq2: z.number(),
+        acq3: z.number(),
+        acq4: z.number(),
+        acq5: z.number(),
+        acq6: z.number(),
+        mean: z.number(),
+      }),
+      snot: z.object({
+        sn1: z.number(),
+        sn2: z.number(),
+        sn3: z.number(),
+        sn4: z.number(),
+        sn5: z.number(),
+        sn6: z.number(),
+        sum: z.number(),
+      }),
+      poem: z.object({
+        sk1: z.number(),
+        sk2: z.number(),
+        sk3: z.number(),
+        sk4: z.number(),
+        sk5: z.number(),
+        sk6: z.number(),
+        sk7: z.number(),
+        sum: z.number(),
+      }),
+    }),
   })),
+  medication_adherence: z.object({
+    percentage: z.number(),
+    status: z.string(),
+    doses_taken: z.number(),
+    doses_total: z.number(),
+    trend_text: z.string(),
+  }),
+  daily_log_summary: z.object({
+    logs_completed: z.object({ count: z.number(), total: z.number(), percentage: z.number() }),
+    symptoms_logged: z.object({ count: z.number(), total: z.number(), percentage: z.number() }),
+    medications_logged: z.object({ count: z.number(), total: z.number(), percentage: z.number() }),
+  }),
   clinical_notes: z.array(z.object({
     id: z.string(),
     type: z.string(),
@@ -88,16 +160,37 @@ export const patientDetailsResponseSchema = z.object({
       category: z.string(),
       start_date: z.string().nullable(),
     })),
-    adherence_30d: z.number(),
-    weekly_adherence: z.array(z.number()),
   }),
   alerts: z.array(z.object({
     id: z.string(),
     type: z.string(),
     description: z.string().nullable(),
-    severity: z.string(),
     created_at: z.date(),
   })),
 });
 
 export type PatientDetailsResponse = z.infer<typeof patientDetailsResponseSchema>;
+
+export const clinicianAnalyticsResponseSchema = z.object({
+  summary: z.object({
+    total_patients: z.number(),
+    average_adherence: z.number(),
+    average_symptom_score: z.number(),
+    high_risk_patients: z.number(),
+  }),
+  risk_distribution: z.object({
+    low: z.number(),
+    moderate: z.number(),
+    high: z.number(),
+  }),
+  average_symptom_trend: z.array(z.object({
+    week: z.string(),
+    average_score: z.number(),
+  })),
+  patient_adherence_comparison: z.array(z.object({
+    patient_name: z.string(),
+    adherence_percentage: z.number(),
+  })),
+});
+
+export type ClinicianAnalyticsResponse = z.infer<typeof clinicianAnalyticsResponseSchema>;

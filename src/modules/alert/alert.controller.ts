@@ -26,8 +26,18 @@ export class AlertController {
     try {
       const userId = (req as any).user.userId;
       const { id } = req.params;
+      const { resolution_note } = req.body;
       
-      const result = await alertService.resolveAlert(id as string, userId);
+      if (resolution_note !== undefined && resolution_note !== null) {
+        if (typeof resolution_note !== "string") {
+          throw new Error("RESOLUTION_NOTE_MUST_BE_STRING");
+        }
+        if (resolution_note.length > 500) {
+          throw new Error("RESOLUTION_NOTE_TOO_LONG");
+        }
+      }
+
+      const result = await alertService.resolveAlert(id as string, userId, resolution_note);
 
       await writeAudit(req, {
         action: "ALERT_RESOLVE",

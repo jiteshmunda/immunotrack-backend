@@ -30,7 +30,14 @@ const options: swaggerJsdoc.Options = {
       },
     },
   },
-  apis: [path.join(__dirname, "../docs/*.yaml")], // absolute path for reliability
+  apis: [
+    path.join(__dirname, "../docs/auth.yaml"),
+    path.join(__dirname, "../docs/patient.yaml"),
+    path.join(__dirname, "../docs/medication.yaml"),
+    path.join(__dirname, "../docs/symptoms.yaml"),
+    path.join(__dirname, "../docs/clinician.yaml"),
+    path.join(__dirname, "../docs/alert.yaml"),
+  ],
 };
 
 export const swaggerSpec = swaggerJsdoc(options);

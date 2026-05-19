@@ -10,6 +10,7 @@ export const addMedicationSchema = z.object({
   frequency: z.enum(MEDICATION_FREQUENCIES).optional(),
   startDate: z.string().optional(), // YYYY-MM-DD
   endDate: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 export type AddMedicationRequest = z.infer<typeof addMedicationSchema>;

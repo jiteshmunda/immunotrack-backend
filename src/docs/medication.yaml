@@ -29,7 +29,23 @@ paths:
         - bearerAuth: []
       responses:
         200:
-          description: List of medications
+          description: List of patient's active medications with daily doses count and taken logs.
+          content:
+            application/json:
+              example:
+                - id: "da2b7e1a-79d7-4f07-9d47-9ec7e19af19a"
+                  medicationId: "6c4e2de9-a85b-477e-80f3-21ca55487530"
+                  category: "Antihistamine"
+                  name: "Loratadine"
+                  dose: "5mg"
+                  route: "Oral"
+                  frequency: "Once daily"
+                  startDate: "2026-05-10"
+                  endDate: "2026-05-17"
+                  notes: null
+                  dosesCount: 1
+                  dosesTaken: 1
+                  createdAt: "2026-05-18T09:21:26.131Z"
     
     post:
       summary: Add medication to plan
@@ -63,7 +79,7 @@ paths:
                   type: string
                   example: "Daily"
                   description: "Frequency of medication. Common values: Once daily, Twice daily, Every 4-6 hours, etc."
-                  enum: [Once daily, Once or twice daily, Once daily (evening), Every 4-6 hours, 3-4 times daily, Once daily (empty stomach), Twice daily, Every 10-12 hours (max 3 days), Every 8-10 hours (max 3 days), Every 4 hours, 2-3 times daily, 4x daily (IR) or 2x daily (ER), Twice daily (or once daily for Ellipta), Twice daily (also MART strategy), Every 4-6 hours PRN, Every 4-8 hours PRN, Every 2-4 weeks, Every 4 weeks, Every 4 weeks (IV infusion), Every 4 weeks (loading) then every 8 weeks, Every 2 weeks, Once daily (investigational), 3-6 times daily, 4 times daily, As needed (anaphylaxis emergency), Weekly (build-up), Monthly (maintenance), Once daily (start 4 months before grass season), Once daily (start 12 weeks before ragweed season), Daily (maintenance)]
+                  enum: [Once daily, Once or twice daily, Once daily (evening), Every 4-6 hours, 3-4 times daily, Once daily (empty stomach), Twice daily, Every 10-12 hours (max 3 days), Every 8-10 hours (max 3 days), Every 4 hours, 2-3 times daily, 4x daily (IR) or 2x daily (ER), Twice daily (or once daily for Ellipta), Twice daily (also MART strategy), Every 4-6 hours PRN, Every 4-8 hours PRN, Every 2-4 weeks, Every 4 weeks, Every 4 weeks (IV infusion), Every 4 weeks (loading) then every 8 weeks, Every 2 weeks, Once daily (investigational), 3-6 times daily, 4 times daily, As needed (anaphylaxis emergency), Weekly (build-up), Monthly (maintenance), Once daily (start 4 months before grass season), Once daily (start 12 weeks before ragweed season), Daily (maintenance), As needed (PRN)]
                 route:
                   type: string
                   example: "Oral"
@@ -73,6 +89,10 @@ paths:
                 endDate:
                   type: string
                   format: date
+                notes:
+                  type: string
+                  example: "Take with food"
+                  description: "Optional notes for the medication"
       responses:
         201:
           description: Created
@@ -148,7 +168,7 @@ paths:
         201:
           description: Log created
         400:
-          description: Validation error
+          description: Validation error, max daily limit exceeded (MAX_DAILY_LOG_LIMIT_EXCEEDED), or logged too early for scheduled frequency (MEDICATION_LOGGED_TOO_EARLY)
 
   /medications/adherence:
     get:
@@ -177,18 +197,62 @@ paths:
           content:
             application/json:
               example:
-                overallAdherence: 85.71
-                rangeDays: 7
+                overallAdherence: 33.33
+                rangeDays: "all-time"
+                totalTaken: 4
+                totalDays: 5
+                totalLogged: 3
                 medications:
-                  - id: "..."
-                    name: "Aspirin"
-                    startDate: "2026-05-01"
+                  - id: "f8b4d75f-5825-45ab-96cc-a1e7d1c6fc0a"
+                    name: "Cetirizine"
+                    category: "Antihistamine"
+                    frequency: "Once daily"
+                    startDate: "2026-05-14"
+                    isPrn: false
                     calculationWindow:
-                      start: "2026-05-07"
-                      end: "2026-05-13"
-                      totalDays: 7
-                    daysTaken: 6
-                    adherencePercentage: 85.71
+                      start: "2026-05-14"
+                      end: "2026-05-18"
+                      totalDays: 5
+                    daysTaken: 4
+                    adherencePercentage: 100
+                    rolling7DayAdherence: 100
+                    prnUsageText: null
+                    adherenceLogs30Days:
+                      - date: "2026-05-14"
+                        status: "Taken"
+                      - date: "2026-05-15"
+                        status: "Taken"
+                      - date: "2026-05-16"
+                        status: "No Log"
+                      - date: "2026-05-17"
+                        status: "No Log"
+                      - date: "2026-05-18"
+                        status: "Taken"
+                  - id: "7819e9fd-2959-4ede-9229-4dc831529c3a"
+                    name: "Levalbuterol"
+                    category: "SABA"
+                    frequency: "Every 4-8 hours PRN"
+                    startDate: "2026-05-14"
+                    isPrn: true
+                    calculationWindow:
+                      start: "2026-05-14"
+                      end: "2026-05-18"
+                      totalDays: 5
+                    daysTaken: 2
+                    adherencePercentage: null
+                    rolling7DayAdherence: null
+                    prnUsageText: "Used 2 times in last 7 days"
+                    adherenceLogs30Days:
+                      - date: "2026-05-14"
+                        status: "Missed"
+                      - date: "2026-05-15"
+                        status: "Taken"
+                      - date: "2026-05-16"
+                        status: "No Log"
+                      - date: "2026-05-17"
+                        status: "No Log"
+                      - date: "2026-05-18"
+                        status: "Missed"
         400:
           description: Missing patientId for clinician or invalid parameters
         403:
@@ -248,7 +312,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [medicationId, time]
+              required: [medicationId]
               properties:
                 medicationId:
                   type: string
@@ -256,10 +320,64 @@ paths:
                 time:
                   type: string
                   example: "08:00"
-                  description: Time in HH:mm 24-hour format
+                  description: Time in HH:mm 24-hour format (optional if times array is provided)
+                times:
+                  type: array
+                  items:
+                    type: string
+                  example: ["08:00", "20:00"]
+                  description: List of times for bulk scheduling (optional if time is provided)
                 frequency:
                   type: string
                   example: "DAILY"
+                daysOfWeek:
+                  type: array
+                  items:
+                    type: string
+                  example: ["Monday", "Thursday"]
+                dayOfMonth:
+                  type: integer
+                  example: 15
+                month:
+                  type: integer
+                  example: 5
+                nextDoseDate:
+                  type: string
+                  format: date
+                  example: "2026-05-18"
+                intervalWeeks:
+                  type: integer
+                  enum: [2, 4]
+                  example: 2
+            examples:
+              twiceDailyBulk:
+                summary: Twice daily schedule (bulk times)
+                value:
+                  medicationId: "78b4b75f-5825-45ab-96cc-a1e7d1c6fc0a"
+                  times: ["08:00", "20:00"]
+                  frequency: "Twice daily"
+              weeklyTwiceWeekly:
+                summary: Weekly / Twice weekly schedule
+                value:
+                  medicationId: "78b4b75f-5825-45ab-96cc-a1e7d1c6fc0a"
+                  time: "09:00"
+                  frequency: "Twice weekly"
+                  daysOfWeek: ["Monday", "Thursday"]
+              biweeklyBiologic:
+                summary: Biologic (Every 2-4 weeks) schedule
+                value:
+                  medicationId: "78b4b75f-5825-45ab-96cc-a1e7d1c6fc0a"
+                  time: "10:00"
+                  frequency: "Every 2-4 weeks"
+                  nextDoseDate: "2026-05-25"
+                  intervalWeeks: 2
+              monthlySchedule:
+                summary: Monthly schedule
+                value:
+                  medicationId: "78b4b75f-5825-45ab-96cc-a1e7d1c6fc0a"
+                  time: "08:00"
+                  frequency: "Monthly"
+                  dayOfMonth: 15
       responses:
         201:
           description: Reminder created
@@ -295,6 +413,25 @@ paths:
                   type: string
                   example: "08:30"
                   description: New time for the reminder in HH:mm format
+                daysOfWeek:
+                  type: array
+                  items:
+                    type: string
+                  example: ["Monday", "Thursday"]
+                dayOfMonth:
+                  type: integer
+                  example: 15
+                month:
+                  type: integer
+                  example: 5
+                nextDoseDate:
+                  type: string
+                  format: date
+                  example: "2026-05-18"
+                intervalWeeks:
+                  type: integer
+                  enum: [2, 4]
+                  example: 2
       responses:
         200:
           description: Updated reminder

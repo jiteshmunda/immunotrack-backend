@@ -124,4 +124,27 @@ export class ClinicianController {
       return sendError(res, error, 404);
     }
   }
+
+  // ------------------------------GET /clinicians/analytics-------------------
+
+  async getAnalytics(req: Request, res: Response) {
+    try {
+      const clinicianUserId = (req as AuthenticatedRequest).user.userId;
+      const result = await clinicianService.getClinicianAnalytics(clinicianUserId);
+
+      await writeAudit(req, {
+        action: "VIEW_POPULATION_ANALYTICS",
+        status: "success",
+        userId: clinicianUserId,
+        resourceType: "population",
+      });
+
+      return sendSuccess(res, {
+        message: "Clinician analytics fetched successfully",
+        data: result,
+      });
+    } catch (error: any) {
+      return sendError(res, error, 500);
+    }
+  }
 }

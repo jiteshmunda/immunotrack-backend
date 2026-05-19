@@ -2,11 +2,13 @@ import { db } from "../../db";
 import { medicationCatalog } from "../../db/schema/medication.schema";
 import { patientMedications, medicationLogs, medicationReminders } from "../../db/schema/tracking.schema";
 import { patients, clinicians, patientClinicianAssignments } from "../../db/schema/profile.schema";
+import { users } from "../../db/schema/user.schema";
 import { alerts } from "../../db/schema/ai.schema";
 import { eq, and, desc, between, sql } from "drizzle-orm";
 import { encrypt, decrypt, hashForLookup } from "../../utils/encryption";
 import { LogMedicationInput } from "./medication.validation";
-import { calculateAdherenceWindow, formatAdherencePercentage } from "../../utils/adherence";
+import { calculateAdherenceWindow, formatAdherencePercentage, isPRNMedication, buildChronologicalLogGrid } from "../../utils/adherence";
+import { getDailyFrequency } from "../../common/constants/medication";
 
 export interface AddMedicationInput {
   medicationId?: string; // Optional catalog link
@@ -17,6 +19,7 @@ export interface AddMedicationInput {
   frequency?: string;    // Auto-filled from catalog if ID exists
   startDate?: string;
   endDate?: string;
+  notes?: string;
 }
 
 export class MedicationService {
@@ -55,7 +58,7 @@ export class MedicationService {
     let finalRoute = input.route;
     let finalFrequency = input.frequency;
 
-    // Auto-fill from catalog if ID is provided
+    // Auto-fill from catalog if ID is provided (category & route only, NOT frequency or dose)
     if (input.medicationId) {
       const [catalogItem] = await db.select().from(medicationCatalog)
         .where(eq(medicationCatalog.id, input.medicationId)).limit(1);
@@ -63,13 +66,16 @@ export class MedicationService {
       if (catalogItem) {
         finalCategory = finalCategory || catalogItem.category || undefined;
         finalRoute = finalRoute || catalogItem.route || undefined;
-        finalFrequency = finalFrequency || catalogItem.defaultFrequency || undefined;
       }
     }
 
     if (!finalCategory || !finalFrequency) {
-      throw new Error("CATEGORY_AND_FREQUENCY_REQUIRED_FOR_CUSTOM_MEDICATION");
+      throw new Error("CATEGORY_AND_FREQUENCY_REQUIRED");
     }
+
+    // Default start date to today if not provided
+    const todayStr = new Date().toISOString().split("T")[0];
+    const finalStartDate = input.startDate || todayStr;
 
     // Duplicate check
     const nameHash = hashForLookup(input.name);
@@ -101,15 +107,17 @@ export class MedicationService {
       category: finalCategory as string,
       route: finalRoute || null,
       frequency: finalFrequency as string,
-      startDate: input.startDate,
+      startDate: finalStartDate,
       endDate: input.endDate,
+      notes: input.notes ? encrypt(input.notes) : null,
       active: true
     }).returning();
 
     return {
       ...newMed,
       name: input.name, 
-      dose: input.dose
+      dose: input.dose,
+      notes: input.notes || null
     };
   }
 
@@ -124,17 +132,78 @@ export class MedicationService {
         eq(patientMedications.active, true)
       ));
 
-    return meds.map(m => ({
-      id: m.id,
-      medicationId: m.medicationId,
-      category: m.category,
-      name: decrypt(m.name),
-      dose: decrypt(m.dose),
-      route: m.route,
-      frequency: m.frequency,
-      startDate: m.startDate,
-      endDate: m.endDate,
-      createdAt: m.createdAt
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+
+    return Promise.all(meds.map(async (m) => {
+      const freq = m.frequency || "";
+      const freqLower = freq.toLowerCase();
+      
+      const isWeekly = freqLower.includes("weekly") || freqLower.includes("every week") || freqLower.includes("every 1 week");
+      const isBiWeekly = freqLower.includes("every 2 weeks") || freqLower.includes("every 2-4 weeks");
+      const isMonthly = freqLower.includes("every 4 weeks") || freqLower.includes("monthly") || freqLower.includes("every month");
+
+      let dosesCount = 1;
+      let dosesTaken = 0;
+
+      if (isWeekly || isBiWeekly || isMonthly) {
+        // Low-frequency/Biologics: keep 1/1 until the period closes
+        const lookbackDays = isWeekly ? 7 : isBiWeekly ? 14 : 30;
+        const windowStart = new Date();
+        windowStart.setDate(windowStart.getDate() - lookbackDays);
+        windowStart.setHours(0, 0, 0, 0);
+
+        const pastLogs = await db
+          .select({ status: medicationLogs.status })
+          .from(medicationLogs)
+          .where(and(
+            eq(medicationLogs.medicationId, m.id),
+            sql`${medicationLogs.loggedAt} >= ${windowStart}`
+          ));
+
+        const takenInWindow = pastLogs.filter(l => l.status === "taken").length;
+        dosesCount = 1;
+        dosesTaken = Math.min(1, takenInWindow);
+      } else {
+        // Standard Daily / Hourly: check logs for today only
+        if (freqLower.includes("twice daily") || freqLower.includes("bid")) dosesCount = 2;
+        else if (freqLower.includes("three times") || freqLower.includes("tid") || freqLower.includes("3 times")) dosesCount = 3;
+        else if (freqLower.includes("four times") || freqLower.includes("qid") || freqLower.includes("4 times") || freqLower.includes("4x daily")) dosesCount = 4;
+        else if (freqLower.includes("every 4 hours")) dosesCount = 6;
+        else if (freqLower.includes("every 4-6 hours")) dosesCount = 5;
+        else if (freqLower.includes("every 6 hours")) dosesCount = 4;
+        else if (freqLower.includes("every 8 hours")) dosesCount = 3;
+        else if (freqLower.includes("every 12 hours")) dosesCount = 2;
+        else if (freqLower.includes("as needed") || freqLower.includes("prn")) dosesCount = 1;
+
+        const todaysLogs = await db
+          .select({ status: medicationLogs.status })
+          .from(medicationLogs)
+          .where(and(
+            eq(medicationLogs.medicationId, m.id),
+            between(medicationLogs.loggedAt, startOfToday, endOfToday)
+          ));
+
+        dosesTaken = todaysLogs.filter(l => l.status === "taken").length;
+      }
+
+      return {
+        id: m.id,
+        medicationId: m.medicationId,
+        category: m.category,
+        name: decrypt(m.name),
+        dose: decrypt(m.dose),
+        route: m.route,
+        frequency: m.frequency,
+        startDate: m.startDate,
+        endDate: m.endDate,
+        notes: m.notes ? decrypt(m.notes) : null,
+        dosesCount,
+        dosesTaken,
+        createdAt: m.createdAt
+      };
     }));
   }
 //
@@ -171,25 +240,138 @@ export class MedicationService {
 
     if (!med) throw new Error("MEDICATION_NOT_FOUND_OR_UNAUTHORIZED");
 
-    const [log] = await db.insert(medicationLogs).values({
-      patientId: patient.id,
-      medicationId: input.medicationId,
-      status: input.status,
-      scheduledFor: null,
-      takenTime: input.takenTime ? new Date(input.takenTime) : null,
-      missedReason: input.missedReason || null,
-    }).returning();
+    // Dynamic Daily Log Limit Check
+    const dailyFrequency = getDailyFrequency(med.frequency || "");
+    if (dailyFrequency > 0) {
+      const maxLogsPerDay = Math.ceil(dailyFrequency);
 
-    if (input.status === "missed") {
-      await db.insert(alerts).values({
-        patientId: patient.id,
-        alertType: "Medication Non-Adherence",
-        description: encrypt(`Patient missed medication: ${decrypt(med.name)}`),
-        severity: "medium",
-        status: "active",
-        lastTriggeredAt: new Date(),
-      });
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      const endOfToday = new Date();
+      endOfToday.setHours(23, 59, 59, 999);
+
+      // Count existing logs for this medication today
+      const [existingLogsToday] = await db.select({
+        count: sql<number>`count(*)`
+      })
+      .from(medicationLogs)
+      .where(and(
+        eq(medicationLogs.medicationId, med.id),
+        between(medicationLogs.loggedAt, startOfToday, endOfToday)
+      ));
+
+      const logCount = Number(existingLogsToday?.count || 0);
+
+      if (logCount >= maxLogsPerDay) {
+        throw new Error("MAX_DAILY_LOG_LIMIT_EXCEEDED");
+      }
     }
+
+    // Multi-Day Interval Overdose Protection for low-frequency medications
+    if (input.status === "taken") {
+      let minDaysBetweenLogs = 0;
+      const f = (med.frequency || "").toLowerCase();
+      
+      if (f.includes("weekly") || f.includes("every week")) {
+        minDaysBetweenLogs = 5;
+      } else if (f.includes("every 2 weeks") || f.includes("every two weeks") || f.includes("every 2-4 weeks")) {
+        minDaysBetweenLogs = 10;
+      } else if (f.includes("every 4 weeks") || f.includes("every four weeks") || f.includes("monthly")) {
+        minDaysBetweenLogs = 20;
+      }
+
+      if (minDaysBetweenLogs > 0) {
+        // Find the most recent "taken" log for this medication
+        const [lastTakenLog] = await db.select()
+          .from(medicationLogs)
+          .where(and(
+            eq(medicationLogs.medicationId, med.id),
+            eq(medicationLogs.status, "taken")
+          ))
+          .orderBy(desc(medicationLogs.loggedAt))
+          .limit(1);
+
+        if (lastTakenLog) {
+          const msSinceLastLog = Date.now() - new Date(lastTakenLog.loggedAt).getTime();
+          const daysSinceLastLog = msSinceLastLog / (1000 * 60 * 60 * 24);
+
+          if (daysSinceLastLog < minDaysBetweenLogs) {
+            throw new Error("MEDICATION_LOGGED_TOO_EARLY");
+          }
+        }
+      }
+    }
+
+    const log = await db.transaction(async (tx) => {
+      const [newLog] = await tx.insert(medicationLogs).values({
+        patientId: patient.id,
+        medicationId: input.medicationId,
+        status: input.status,
+        scheduledFor: null,
+        takenTime: input.takenTime ? new Date(input.takenTime) : null,
+        missedReason: input.missedReason || null,
+      }).returning();
+
+      if (input.status === "missed") {
+        // Query the last 3 logs for this medication
+        const lastLogs = await tx
+          .select()
+          .from(medicationLogs)
+          .where(eq(medicationLogs.medicationId, input.medicationId))
+          .orderBy(desc(medicationLogs.loggedAt))
+          .limit(3);
+
+        if (lastLogs.length === 3 && lastLogs.every((l) => l.status === "missed")) {
+          const [patientUser] = await tx
+            .select({ fullName: users.fullName })
+            .from(patients)
+            .innerJoin(users, eq(patients.userId, users.id))
+            .where(eq(patients.id, patient.id))
+            .limit(1);
+
+          const patientName = patientUser?.fullName ? decrypt(patientUser.fullName) : "Patient";
+          const medName = decrypt(med.name);
+
+          const [activeAlert] = await tx
+            .select()
+            .from(alerts)
+            .where(
+              and(
+                eq(alerts.patientId, patient.id),
+                eq(alerts.patientMedicationId, med.id),
+                eq(alerts.alertType, "medication_non_adherence"),
+                eq(alerts.status, "active")
+              )
+            )
+            .limit(1);
+
+          const description = `${patientName} has missed ${medName} for 3 consecutive days.`;
+
+          if (activeAlert) {
+            await tx
+              .update(alerts)
+              .set({
+                lastTriggeredAt: new Date(),
+                description: encrypt(description),
+              })
+              .where(eq(alerts.id, activeAlert.id));
+          } else {
+            await tx.insert(alerts).values({
+              patientId: patient.id,
+              patientMedicationId: med.id,
+              alertType: "medication_non_adherence",
+              severity: "High",
+              status: "active",
+              description: encrypt(description),
+              lastTriggeredAt: new Date(),
+            });
+          }
+        }
+      }
+
+      return newLog;
+    });
 
     const [reminder] = await db.select({ time: medicationReminders.reminderTime })
       .from(medicationReminders)
@@ -239,7 +421,17 @@ export class MedicationService {
   }
 
   // ---------------------------------- POST /medications/reminders -------------------------------------
-  async createReminder(userId: string, data: { medicationId: string, time: string, frequency?: string }) {
+  async createReminder(userId: string, data: { 
+    medicationId: string; 
+    time?: string; 
+    times?: string[]; 
+    frequency?: string; 
+    daysOfWeek?: string[];
+    dayOfMonth?: number;
+    month?: number;
+    nextDoseDate?: string;
+    intervalWeeks?: number;
+  }) {
     const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
 
@@ -253,26 +445,74 @@ export class MedicationService {
 
     if (!medication) throw new Error("MEDICATION_NOT_FOUND_OR_UNAUTHORIZED");
 
-    const [existing] = await db.select()
-      .from(medicationReminders)
-      .where(and(
-        eq(medicationReminders.medicationId, data.medicationId),
-        eq(medicationReminders.reminderTime, data.time)
-      ))
-      .limit(1);
+    // PRN Check: Range or PRN frequencies cannot have scheduled reminders
+    if (isPRNMedication(medication.frequency || "")) {
+      throw new Error("REMINDERS_NOT_ALLOWED_FOR_PRN_OR_RANGE_FREQUENCIES");
+    }
 
-    if (existing) throw new Error("REMINDER_ALREADY_EXISTS");
+    const timesToInsert = data.times && data.times.length > 0 ? data.times : (data.time ? [data.time] : []);
+    if (timesToInsert.length === 0) {
+      throw new Error("TIME_OR_TIMES_REQUIRED");
+    }
 
-    const [newReminder] = await db.insert(medicationReminders)
-      .values({
-        patientId: patient.id,
-        medicationId: data.medicationId,
-        reminderTime: data.time,
-        frequency: data.frequency || "DAILY",
-      })
-      .returning();
+    const insertedReminders: any[] = [];
+    const daysOfWeekStr = data.daysOfWeek ? data.daysOfWeek.join(",") : null;
 
-    return newReminder;
+    await db.transaction(async (tx) => {
+      for (const t of timesToInsert) {
+        const [existing] = await tx.select()
+          .from(medicationReminders)
+          .where(and(
+            eq(medicationReminders.medicationId, data.medicationId),
+            eq(medicationReminders.reminderTime, t),
+            daysOfWeekStr ? eq(medicationReminders.daysOfWeek, daysOfWeekStr) : sql`days_of_week IS NULL`
+          ))
+          .limit(1);
+
+        if (existing) continue; // Skip duplicates
+
+        const [newReminder] = await tx.insert(medicationReminders)
+          .values({
+            patientId: patient.id,
+            medicationId: data.medicationId,
+            reminderTime: t,
+            frequency: data.frequency || medication.frequency || "DAILY",
+            daysOfWeek: daysOfWeekStr,
+            dayOfMonth: data.dayOfMonth || null,
+            month: data.month || null,
+            nextDoseDate: data.nextDoseDate || null,
+            intervalWeeks: data.intervalWeeks || null,
+            isEnabled: true,
+          })
+          .returning();
+
+        insertedReminders.push(newReminder);
+      }
+    });
+
+    if (insertedReminders.length === 0) {
+      throw new Error("REMINDER_ALREADY_EXISTS");
+    }
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    const hasEnded = medication.endDate && todayStr > medication.endDate;
+
+    const mapped = insertedReminders.map(r => ({
+      id: r.id,
+      medicationId: r.medicationId,
+      medicationName: decrypt(medication.name),
+      time: r.reminderTime,
+      active: hasEnded ? false : r.isEnabled,
+      frequency: r.frequency,
+      daysOfWeek: r.daysOfWeek ? r.daysOfWeek.split(",") : null,
+      dayOfMonth: r.dayOfMonth,
+      month: r.month,
+      nextDoseDate: r.nextDoseDate,
+      intervalWeeks: r.intervalWeeks,
+      hasEnded: !!hasEnded,
+    }));
+
+    return mapped.length === 1 ? mapped[0] : mapped;
   }
 
   // ---------------------------------- GET /medications/reminders --------------------------------------
@@ -287,20 +527,53 @@ export class MedicationService {
       time: medicationReminders.reminderTime,
       active: medicationReminders.isEnabled,
       frequency: medicationReminders.frequency,
+      daysOfWeek: medicationReminders.daysOfWeek,
+      dayOfMonth: medicationReminders.dayOfMonth,
+      month: medicationReminders.month,
+      nextDoseDate: medicationReminders.nextDoseDate,
+      intervalWeeks: medicationReminders.intervalWeeks,
+      endDate: patientMedications.endDate,
     })
     .from(medicationReminders)
     .innerJoin(patientMedications, eq(medicationReminders.medicationId, patientMedications.id))
     .where(eq(medicationReminders.patientId, patient.id))
     .orderBy(desc(medicationReminders.createdAt));
 
-    return reminders.map(r => ({
-      ...r,
-      medicationName: decrypt(r.medicationName),
-    }));
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    return reminders.map(r => {
+      // Dynamic course auto-end check:
+      // If medication has an endDate and today is strictly past endDate, the reminder is dynamically inactive.
+      const hasEnded = r.endDate && todayStr > r.endDate;
+      const isCurrentlyActive = hasEnded ? false : r.active;
+
+      return {
+        id: r.id,
+        medicationId: r.medicationId,
+        medicationName: decrypt(r.medicationName),
+        time: r.time,
+        active: isCurrentlyActive,
+        frequency: r.frequency,
+        daysOfWeek: r.daysOfWeek ? r.daysOfWeek.split(",") : null,
+        dayOfMonth: r.dayOfMonth,
+        month: r.month,
+        nextDoseDate: r.nextDoseDate,
+        intervalWeeks: r.intervalWeeks,
+        hasEnded: !!hasEnded,
+      };
+    });
   }
 
   // ---------------------------------- PATCH /medications/reminders/:id --------------------------------
-  async updateReminder(userId: string, reminderId: string, data: { active?: boolean, time?: string }) {
+  async updateReminder(userId: string, reminderId: string, data: { 
+    active?: boolean; 
+    time?: string;
+    daysOfWeek?: string[];
+    dayOfMonth?: number;
+    month?: number;
+    nextDoseDate?: string;
+    intervalWeeks?: number;
+  }) {
     const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
 
@@ -314,12 +587,15 @@ export class MedicationService {
 
     if (!reminder) throw new Error("REMINDER_NOT_FOUND_OR_UNAUTHORIZED");
 
-    if (data.time && data.time !== reminder.reminderTime) {
+    const daysOfWeekStr = data.daysOfWeek ? data.daysOfWeek.join(",") : reminder.daysOfWeek;
+
+    if (data.time && (data.time !== reminder.reminderTime || daysOfWeekStr !== reminder.daysOfWeek)) {
       const [existing] = await db.select()
         .from(medicationReminders)
         .where(and(
           eq(medicationReminders.medicationId, reminder.medicationId),
-          eq(medicationReminders.reminderTime, data.time)
+          eq(medicationReminders.reminderTime, data.time),
+          daysOfWeekStr ? eq(medicationReminders.daysOfWeek, daysOfWeekStr) : sql`days_of_week IS NULL`
         ))
         .limit(1);
       
@@ -330,12 +606,38 @@ export class MedicationService {
       .set({ 
         isEnabled: data.active !== undefined ? data.active : reminder.isEnabled,
         reminderTime: data.time || reminder.reminderTime,
+        daysOfWeek: daysOfWeekStr,
+        dayOfMonth: data.dayOfMonth !== undefined ? data.dayOfMonth : reminder.dayOfMonth,
+        month: data.month !== undefined ? data.month : reminder.month,
+        nextDoseDate: data.nextDoseDate || reminder.nextDoseDate,
+        intervalWeeks: data.intervalWeeks !== undefined ? data.intervalWeeks : reminder.intervalWeeks,
         updatedAt: new Date()
       })
       .where(eq(medicationReminders.id, reminderId))
       .returning();
 
-    return updated;
+    const [medication] = await db.select()
+      .from(patientMedications)
+      .where(eq(patientMedications.id, updated.medicationId))
+      .limit(1);
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    const hasEnded = medication?.endDate && todayStr > medication.endDate;
+
+    return {
+      id: updated.id,
+      medicationId: updated.medicationId,
+      medicationName: medication ? decrypt(medication.name) : "",
+      time: updated.reminderTime,
+      active: hasEnded ? false : updated.isEnabled,
+      frequency: updated.frequency,
+      daysOfWeek: updated.daysOfWeek ? updated.daysOfWeek.split(",") : null,
+      dayOfMonth: updated.dayOfMonth,
+      month: updated.month,
+      nextDoseDate: updated.nextDoseDate,
+      intervalWeeks: updated.intervalWeeks,
+      hasEnded: !!hasEnded,
+    };
   }
 
   // ---------------------------------- DELETE /medications/reminders/:id -------------------------------
@@ -389,55 +691,121 @@ export class MedicationService {
     const today = new Date(targetDate);
 
     const metrics = await Promise.all(meds.map(async (m) => {
-      // 3.1 Calculate Window using common utility
+      const isPrn = isPRNMedication(m.frequency || "");
+
+      // Calculate Window using common utility
       const { windowStartDate, windowEndDate, totalDays } = calculateAdherenceWindow(
         m.startDate || m.createdAt,
         rangeDays,
         today
       );
 
-      // 3.2 Query unique days logged as 'taken' within the window
-      const uniqueDaysTaken = await db
-        .select({
-          logDate: sql<string>`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`
-        })
+      // Query all logs within the overall window
+      const overallLogs = await db
+        .select({ status: medicationLogs.status })
         .from(medicationLogs)
         .where(and(
           eq(medicationLogs.medicationId, m.id),
-          eq(medicationLogs.status, 'taken'),
           between(
             sql`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`, 
             windowStartDate.toISOString().split('T')[0], 
             windowEndDate.toISOString().split('T')[0]
           )
-        ))
-        .groupBy(sql`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`);
+        ));
 
-      const daysTaken = uniqueDaysTaken.length;
-      const adherencePercentage = formatAdherencePercentage(daysTaken, totalDays);
+      const overallTaken = overallLogs.filter(l => l.status === "taken").length;
+      const overallLogged = overallLogs.length;
+      const adherencePercentage = !isPrn && overallLogged > 0 
+        ? formatAdherencePercentage(overallTaken, overallLogged) 
+        : (isPrn ? null : 0);
+
+      //Calculate 7-day rolling adherence
+      const { windowStartDate: start7d, windowEndDate: end7d } = calculateAdherenceWindow(
+        m.startDate || m.createdAt,
+        7,
+        today
+      );
+
+      const logs7d = await db
+        .select({ status: medicationLogs.status })
+        .from(medicationLogs)
+        .where(and(
+          eq(medicationLogs.medicationId, m.id),
+          between(
+            sql`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`, 
+            start7d.toISOString().split('T')[0], 
+            end7d.toISOString().split('T')[0]
+          )
+        ));
+
+      const taken7d = logs7d.filter(l => l.status === "taken").length;
+      const logged7d = logs7d.length;
+      const rolling7DayAdherence = !isPrn && logged7d > 0 
+        ? formatAdherencePercentage(taken7d, logged7d) 
+        : (isPrn ? null : 0);
+
+      //Formulate PRN usage count text
+      let prnUsageText = null;
+      if (isPrn) {
+        prnUsageText = `Used ${taken7d} times in last 7 days`;
+      }
+
+      //Calculate 30-day logs history for the bar chart
+      const logs30d = await db
+        .select({
+          status: medicationLogs.status,
+          logDate: sql<string>`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`
+        })
+        .from(medicationLogs)
+        .where(and(
+          eq(medicationLogs.medicationId, m.id),
+          between(
+            sql`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`, 
+            new Date(today.getTime() - 29 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], 
+            today.toISOString().split('T')[0]
+          )
+        ));
+
+      // Build 30-day chronological array using our clean helper
+      const adherenceLogs30Days = buildChronologicalLogGrid(logs30d, today, 30);
 
       return {
         id: m.id,
         name: decrypt(m.name),
+        category: m.category,
+        frequency: m.frequency,
         startDate: new Date(m.startDate || m.createdAt).toISOString().split('T')[0],
+        isPrn,
         calculationWindow: {
           start: windowStartDate.toISOString().split('T')[0],
           end: windowEndDate.toISOString().split('T')[0],
           totalDays
         },
-        daysTaken,
-        adherencePercentage
+        daysTaken: overallTaken,
+        totalLogged: overallLogged,
+        adherencePercentage,
+        rolling7DayAdherence,
+        prnUsageText,
+        adherenceLogs30Days
       };
     }));
 
-    // 4. Calculate Overall Adherence (Average of all medications)
-    const overallPercentage = metrics.length > 0 
-      ? metrics.reduce((acc, m) => acc + m.adherencePercentage, 0) / metrics.length 
-      : 0;
+    // 4. Calculate Overall Adherence (Average of all active non-PRN medications)
+    const nonPrnMeds = metrics.filter(m => !m.isPrn);
+    const overallPercentage = nonPrnMeds.length > 0 
+      ? nonPrnMeds.reduce((acc, m) => acc + (m.adherencePercentage || 0), 0) / nonPrnMeds.length 
+      : 100;
+
+    const totalTaken = nonPrnMeds.reduce((sum, m) => sum + m.daysTaken, 0);
+    const totalDays = nonPrnMeds.reduce((sum, m) => sum + m.calculationWindow.totalDays, 0);
+    const totalLogged = nonPrnMeds.reduce((sum, m) => sum + m.totalLogged, 0);
 
     return {
       overallAdherence: parseFloat(overallPercentage.toFixed(2)),
       rangeDays: rangeDays || "all-time",
+      totalTaken,
+      totalDays,
+      totalLogged,
       medications: metrics
     };
   }

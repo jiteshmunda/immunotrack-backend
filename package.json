@@ -10,7 +10,9 @@
     "db:push": "drizzle-kit push --config=src/db/drizzle.config.ts",
     "db:migrate": "tsx src/scripts/migrate.ts",
     "db:seed": "tsx src/db/seed/index.ts",
-    "test:secrets": "tsx src/scripts/test-secrets.ts"
+    "test:secrets": "tsx src/scripts/test-secrets.ts",
+    "cron:adherence": "tsx src/scripts/nightly-adherence-check.ts",
+    "cron:adherence:watch": "tsx src/scripts/nightly-adherence-check.ts --watch"
   },
   "keywords": [],
   "author": "",
@@ -30,6 +32,7 @@
     "helmet": "^8.1.0",
     "isomorphic-fetch": "^3.0.0",
     "jsonwebtoken": "^9.0.3",
+    "node-cron": "^4.2.1",
     "pg": "^8.20.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
@@ -44,6 +47,7 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.5.1",
+    "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.20.0",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",

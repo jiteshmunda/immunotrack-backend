@@ -95,7 +95,16 @@ export class PatientService {
       email: decrypt(user.email),
       full_name: decrypt(user.fullName),
       patient_id: patient.id,
-      date_of_birth: patient.dateOfBirth ? decrypt(patient.dateOfBirth) : null,
+      date_of_birth: (() => {
+        if (!patient.dateOfBirth) return null;
+        const rawDob = decrypt(patient.dateOfBirth);
+        const dateObj = new Date(rawDob);
+        if (isNaN(dateObj.getTime())) return rawDob;
+        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const dd = String(dateObj.getDate()).padStart(2, '0');
+        const yyyy = dateObj.getFullYear();
+        return `${mm}/${dd}/${yyyy}`;
+      })(),
       sex: patient.sex,
       phone: patient.phone ? decrypt(patient.phone) : null,
       mrn: patient.mrn ? decrypt(patient.mrn) : null,

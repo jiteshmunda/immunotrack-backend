@@ -2,6 +2,7 @@ import { db } from "../../db";
 import { alerts } from "../../db/schema/ai.schema";
 import { patients, clinicians, patientClinicianAssignments } from "../../db/schema/profile.schema";
 import { users } from "../../db/schema/user.schema";
+import { patientMedications } from "../../db/schema/tracking.schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { decrypt } from "../../utils/encryption";
 
@@ -28,6 +29,8 @@ export class AlertService {
         description: alerts.description,
         created_at: alerts.createdAt,
         last_triggered_at: alerts.lastTriggeredAt,
+        risk_score: alerts.riskScore,
+        medication_name: patientMedications.name,
         patient_name: users.fullName,
       })
       .from(alerts)
@@ -37,6 +40,10 @@ export class AlertService {
         patientClinicianAssignments,
         eq(patients.id, patientClinicianAssignments.patientId)
       )
+      .leftJoin(
+        patientMedications,
+        eq(alerts.patientMedicationId, patientMedications.id)
+      )
       .where(
         and(
           eq(patientClinicianAssignments.clinicianId, clinician.id),
@@ -45,22 +52,30 @@ export class AlertService {
       )
       .orderBy(desc(alerts.lastTriggeredAt));
 
-    return results.map((r) => ({
-      id: r.id,
-      patient_id: r.patient_id,
-      patient_name: decrypt(r.patient_name!),
-      alert_type: r.alert_type,
-      description: r.description ? decrypt(r.description) : null,
-      severity: r.severity,
-      status: r.status,
-      created_at: r.created_at,
-      last_triggered_at: r.last_triggered_at,
-    }));
+    return results.map((r) => {
+      let mappedType = r.alert_type?.toLowerCase() || "";
+      if (mappedType === "symptom deterioration") mappedType = "symptom_deterioration";
+      if (mappedType === "medication non-adherence") mappedType = "medication_non_adherence";
+
+      return {
+        id: r.id,
+        patient_id: r.patient_id,
+        patient_name: decrypt(r.patient_name!),
+        alert_type: mappedType,
+        description: r.description ? decrypt(r.description) : null,
+        severity: r.severity,
+        status: r.status,
+        created_at: r.created_at,
+        lastTriggeredAt: r.last_triggered_at,
+        risk_score: r.risk_score ? parseFloat(r.risk_score) : null,
+        medication_name: r.medication_name ? decrypt(r.medication_name) : null,
+      };
+    });
   }
 
   // -----------------------------PATCH /alerts/:id/resolve------------------------------------------
 
-  async resolveAlert(alertId: string, clinicianUserId: string) {
+  async resolveAlert(alertId: string, clinicianUserId: string, resolutionNote?: string) {
     const [alert] = await db
       .select()
       .from(alerts)
@@ -75,10 +90,15 @@ export class AlertService {
         status: "resolved",
         resolvedAt: new Date(),
         resolvedBy: clinicianUserId,
+        resolutionNote: resolutionNote || null,
       })
       .where(eq(alerts.id, alertId))
       .returning();
 
-    return { success: true, resolved_at: updated.resolvedAt };
+    return { 
+      success: true, 
+      resolved_at: updated.resolvedAt,
+      resolution_note: updated.resolutionNote 
+    };
   }
 }

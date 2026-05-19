@@ -2,7 +2,7 @@ import { db } from "../../db";
 import { dailyLogs } from "../../db/schema/tracking.schema";
 import { patients } from "../../db/schema/profile.schema";
 import { alerts } from "../../db/schema/ai.schema";
-import { eq, and, gte, lte, desc } from "drizzle-orm";
+import { eq, and, or, gte, lte, desc } from "drizzle-orm";
 import { LogSymptomsInput, HistoryFilters } from "./symptoms.schema";
 import { RpmService } from "../rpm/rpm.service";
 import { 
@@ -148,25 +148,35 @@ export class SymptomService {
           .where(
             and(
               eq(alerts.patientId, patient.id),
-              eq(alerts.alertType, "SYMPTOM DETERIORATION"),
+              or(
+                eq(alerts.alertType, "SYMPTOM DETERIORATION"),
+                eq(alerts.alertType, "symptom_deterioration")
+              ),
               eq(alerts.status, "active")
             )
           )
           .limit(1);
 
+        const alertDesc = `Patient's overall risk score has reached ${riskScore}/10.`;
+
         if (activeAlert) {
           await tx
             .update(alerts)
-            .set({ lastTriggeredAt: new Date() })
+            .set({ 
+              lastTriggeredAt: new Date(),
+              riskScore: riskScore.toString(),
+              description: encrypt(alertDesc),
+            })
             .where(eq(alerts.id, activeAlert.id));
         } else {
           await tx.insert(alerts).values({
             patientId: patient.id,
-            alertType: "SYMPTOM DETERIORATION",
+            alertType: "symptom_deterioration",
             severity: "High",
             status: "active",
-            description: encrypt(`Patient's overall risk score has reached ${riskScore}/10.`),
+            description: encrypt(alertDesc),
             lastTriggeredAt: new Date(),
+            riskScore: riskScore.toString(),
           });
         }
       }

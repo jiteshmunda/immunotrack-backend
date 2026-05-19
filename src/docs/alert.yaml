@@ -22,12 +22,14 @@ paths:
                         id: { type: string, format: uuid }
                         patient_id: { type: string, format: uuid }
                         patient_name: { type: string, example: "Michael Chen" }
-                        alert_type: { type: string, example: "SYMPTOM_DETERIORATION" }
+                        alert_type: { type: string, example: "symptom_deterioration" }
                         description: { type: string, example: "Patient's overall risk score has reached 9.5/10." }
-                        severity: { type: string, enum: [low, medium, high, critical], example: "high" }
-                        status: { type: string, enum: [active, resolved, dismissed], example: "active" }
+                        severity: { type: string, example: "High" }
+                        status: { type: string, example: "active" }
                         created_at: { type: string, format: date-time }
-                        last_triggered_at: { type: string, format: date-time }
+                        lastTriggeredAt: { type: string, format: date-time }
+                        risk_score: { type: number, nullable: true, example: 9.5 }
+                        medication_name: { type: string, nullable: true, example: null }
         401: { description: Unauthorized }
         403: { description: Forbidden }
 
@@ -43,6 +45,17 @@ paths:
           required: true
           schema: { type: string, format: uuid }
           description: The ID of the alert to resolve
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resolution_note:
+                  type: string
+                  example: "Clinician adjusted patient controller daily doses and followed up via phone."
+                  maxLength: 500
       responses:
         200:
           description: Alert resolved successfully.
@@ -53,5 +66,6 @@ paths:
                 properties:
                   success: { type: boolean, example: true }
                   resolved_at: { type: string, format: date-time }
+                  resolution_note: { type: string, example: "Clinician adjusted patient controller daily doses and followed up via phone." }
         401: { description: Unauthorized }
         404: { description: Alert not found }

@@ -1,0 +1,124 @@
+paths:
+  /notifications:
+    get:
+      summary: Retrieve in-app notification inbox
+      description: Returns a paginated list of secure, decrypted in-app notifications for the authenticated user along with the total unread count.
+      tags:
+        - Notification
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+          description: Maximum number of notifications to return.
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+          description: Number of notifications to skip for pagination.
+      responses:
+        200:
+          description: Paginated notification inbox retrieved and decrypted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notifications:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                          example: "b2d0e128-f678-4c4c-b2d0-05325a772915"
+                        type:
+                          type: string
+                          example: "medication_reminder"
+                          description: "The notification category (e.g. medication_reminder, patient_deterioration, etc.)"
+                        title:
+                          type: string
+                          example: "Adherence Alert: Salmeterol Inhaler"
+                          description: "Decrypted notification title"
+                        body:
+                          type: string
+                          example: "Hi raj Test, your weekly adherence for Salmeterol Inhaler is at 25%. Please log your doses to keep your clinician updated!"
+                          description: "Decrypted notification message body"
+                        read_at:
+                          type: string
+                          format: date-time
+                          nullable: true
+                          example: null
+                        created_at:
+                          type: string
+                          format: date-time
+                          example: "2026-05-19T06:58:36.131Z"
+                  unread_count:
+                    type: integer
+                    example: 1
+                    description: "Total number of unread notifications remaining in the inbox."
+        401:
+          description: Unauthorized JWT token missing or invalid
+
+  /notifications/read-all:
+    patch:
+      summary: Mark all notifications as read
+      description: Marks all unread notifications inside the authenticated user's inbox as read.
+      tags:
+        - Notification
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Successfully marked all inbox notifications as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        401:
+          description: Unauthorized JWT token missing or invalid
+
+  /notifications/{id}/read:
+    patch:
+      summary: Mark notification as read
+      description: Marks a single, specific notification in the inbox as read by its UUID.
+      tags:
+        - Notification
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The UUID of the notification to mark as read.
+      responses:
+        200:
+          description: Successfully marked the notification as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  read_at:
+                    type: string
+                    format: date-time
+                    example: "2026-05-19T07:05:00.000Z"
+        401:
+          description: Unauthorized JWT token missing or invalid
+        404:
+          description: Notification not found or does not belong to the authenticated user

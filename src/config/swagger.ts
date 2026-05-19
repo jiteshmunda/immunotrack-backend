@@ -37,6 +37,7 @@ const options: swaggerJsdoc.Options = {
     path.join(__dirname, "../docs/symptoms.yaml"),
     path.join(__dirname, "../docs/clinician.yaml"),
     path.join(__dirname, "../docs/alert.yaml"),
+    path.join(__dirname, "../docs/notification.yaml"),
   ],
 };
 

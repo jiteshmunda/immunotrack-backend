@@ -5,6 +5,7 @@ import * as schema from "../db/schema";
 import { eq, and, sql, between } from "drizzle-orm";
 import { decrypt, encrypt } from "../utils/encryption";
 import { calculateAdherenceWindow, isPRNMedication, isControllerMedication } from "../utils/adherence";
+import { NotificationTemplates } from "../modules/notification/notification.templates";
 
 async function run() {
   console.log("Starting Nightly Medication Adherence Check...");
@@ -15,6 +16,10 @@ async function run() {
     console.error("Failed to load environment secrets:", err);
     process.exit(1);
   }
+
+  // Dynamic import to ensure the DB pool evaluates AFTER secrets are loaded!
+  const { NotificationService } = await import("../modules/notification/notification.service");
+  const notificationService = new NotificationService();
 
   const pool = new Pool({
     connectionString: ENV.DATABASE_URL,
@@ -28,6 +33,7 @@ async function run() {
     const activePatients = await db
       .select({
         id: schema.patients.id,
+        userId: schema.patients.userId,
         fullName: schema.users.fullName,
       })
       .from(schema.patients)
@@ -172,6 +178,22 @@ async function run() {
               lastTriggeredAt: new Date(),
             });
           }
+
+          // Trigger dynamic patient notification alert in real-time
+          const template = NotificationTemplates.medication_reminder({
+            patientName,
+            medName,
+            adherence
+          });
+
+          console.log(`✉️  Sending dynamic patient notification for ${patientName} (User ID: ${patient.userId})...`);
+          await notificationService.sendNotification(
+            patient.userId,
+            "medication_reminder",
+            template.title,
+            template.body,
+            template.pushBody
+          );
         }
       }
     }

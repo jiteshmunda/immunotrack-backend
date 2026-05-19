@@ -9,13 +9,13 @@ import { ENV } from "../../config/env";
 let fcmInitialized = false;
 
 // ── Initialize Firebase Admin SDK ───────────────────────────────────
-if (ENV.FIREBASE_PROJECT_ID && ENV.FIREBASE_CLIENT_EMAIL && ENV.FIREBASE_PRIVATE_KEY) {
+if (ENV.project_id && ENV.client_email && ENV.private_key) {
   try {
-    const privateKey = ENV.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n");
+    const privateKey = ENV.private_key.replace(/\\n/g, "\n");
     admin.initializeApp({
       credential: admin.credential.cert({
-        projectId: ENV.FIREBASE_PROJECT_ID,
-        clientEmail: ENV.FIREBASE_CLIENT_EMAIL,
+        projectId: ENV.project_id,
+        clientEmail: ENV.client_email,
         privateKey: privateKey,
       }),
     });
@@ -114,12 +114,12 @@ export class NotificationService {
       }
     } else {
       // Graceful fallback for local development testing
-      console.log(`\n🔔 ────── [MOCK PUSH NOTIFICATION DISPATCHED] ──────`);
-      console.log(`✉️  Recipient Device Token: ${fcmToken}`);
-      console.log(`📌 Public Push Title (HIPAA Safe): ${safeTitle}`);
-      console.log(`📌 Public Push Body (HIPAA Safe): ${safeBody}`);
-      console.log(`🔒 Secure In-App Title (Encrypted): ${title}`);
-      console.log(`🔒 Secure In-App Body (Encrypted): ${body}`);
+      console.log(`\n ────── [MOCK PUSH NOTIFICATION DISPATCHED] ──────`);
+      console.log(` Recipient Device Token: ${fcmToken}`);
+      console.log(` Public Push Title (HIPAA Safe): ${safeTitle}`);
+      console.log(` Public Push Body (HIPAA Safe): ${safeBody}`);
+      console.log(` Secure In-App Title (Encrypted): ${title}`);
+      console.log(` Secure In-App Body (Encrypted): ${body}`);
       console.log(`───────────────────────────────────────────────────\n`);
 
       return { success: true, notificationId: inserted.id, pushSent: true, mode: "mock" };

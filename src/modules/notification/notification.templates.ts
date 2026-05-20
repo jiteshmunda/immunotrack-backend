@@ -35,7 +35,7 @@ export const NotificationTemplates = {
    */
   medication_dose_reminder: (params: MedicationDoseReminderParams) => ({
     title: `Medication Reminder: ${params.medName}`,
-    body: `Hi ${params.patientName}, it's ${params.time}! Time to take your scheduled dose of ${params.medName} (${params.dose}). Tap to log as taken.`,
+    body: `Hi ${params.patientName}, it's ${params.time}! Time to take your scheduled dose of ${params.medName} (${params.dose}). `,
     pushBody: `Time to take your scheduled dose of ${params.medName}. Tap to log securely in ImmunoTrack.`
   }),
 

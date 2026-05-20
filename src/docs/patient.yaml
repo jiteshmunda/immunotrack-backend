@@ -29,6 +29,8 @@ paths:
                       primary_diagnosis: { type: string }
                       location_zip: { type: string }
                       location: { type: string }
+                      latitude: { type: number, format: float, example: 41.8781 }
+                      longitude: { type: number, format: float, example: -87.6298 }
                       icd10_qualifying_code: { type: string }
                       medication_reminders_enabled: { type: boolean }
                       reminder_time_utc: { type: string }
@@ -60,6 +62,8 @@ paths:
                 reminder_time_utc: { type: string, example: "08:00" }
                 fcm_token: { type: string, example: "firebase-token-xyz" }
                 location: { type: string, example: "New York, NY" }
+                latitude: { type: number, format: float, example: 41.8781 }
+                longitude: { type: number, format: float, example: -87.6298 }
       responses:
         200:
           description: Profile fields updated successfully.

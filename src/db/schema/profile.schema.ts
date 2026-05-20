@@ -1,5 +1,5 @@
 import {
-  pgTable, uuid, varchar, text, timestamp, boolean, date
+  pgTable, uuid, varchar, text, timestamp, boolean, date, numeric
 } from "drizzle-orm/pg-core";
 import { users } from "./user.schema";
 import { clinics } from "./clinic.schema";
@@ -22,6 +22,8 @@ export const patients = pgTable("patients", {
   // Location for pollen/AQI API — not encrypted (zip only)
   locationZip:        varchar("location_zip", { length: 20 }),
   location:           text("location"),
+  latitude:           numeric("latitude", { precision: 8, scale: 6 }),
+  longitude:          numeric("longitude", { precision: 9, scale: 6 }),
 
   // RPM eligibility
   icd10QualifyingCode: text("icd10_qualifying_code"), // e.g. J45.20

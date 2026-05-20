@@ -26,42 +26,26 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  notifications:
-                    type: array
-                    items:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    data:
                       type: object
                       properties:
-                        id:
+                        title:
+                          type: string
+                          example: "Adherence Alert: Salmeterol Inhaler"
+                        body:
+                          type: string
+                          example: "Hi raj Test, your weekly adherence for Salmeterol Inhaler is at 25%. Please log your doses to keep your clinician updated!"
+                        notificationId:
                           type: string
                           format: uuid
                           example: "b2d0e128-f678-4c4c-b2d0-05325a772915"
                         type:
                           type: string
                           example: "medication_reminder"
-                          description: "The notification category (e.g. medication_reminder, patient_deterioration, etc.)"
-                        title:
-                          type: string
-                          example: "Adherence Alert: Salmeterol Inhaler"
-                          description: "Decrypted notification title"
-                        body:
-                          type: string
-                          example: "Hi raj Test, your weekly adherence for Salmeterol Inhaler is at 25%. Please log your doses to keep your clinician updated!"
-                          description: "Decrypted notification message body"
-                        read_at:
-                          type: string
-                          format: date-time
-                          nullable: true
-                          example: null
-                        created_at:
-                          type: string
-                          format: date-time
-                          example: "2026-05-19T06:58:36.131Z"
-                  unread_count:
-                    type: integer
-                    example: 1
-                    description: "Total number of unread notifications remaining in the inbox."
         401:
           description: Unauthorized JWT token missing or invalid
 

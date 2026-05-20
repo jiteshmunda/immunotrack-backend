@@ -84,6 +84,6 @@ export async function writeAudit(req: Request, opts: AuditOptions) {
       metadata: safeDetails,
     });
   } catch (error) {
-    auditLogger.error("Failed to write audit log to database", { error });
+    auditLogger.error("Failed to write audit log to database: Database Query Error (Redacted)");
   }
 }

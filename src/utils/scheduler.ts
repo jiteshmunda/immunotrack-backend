@@ -19,4 +19,14 @@ export function startAdherenceScheduler() {
       }
     });
   });
+
+  // Schedule to check medication reminders every minute (* * * * *)
+  cron.schedule("* * * * *", async () => {
+    try {
+      const { checkAndDispatchReminders } = await import("../modules/medication/reminder-scheduler");
+      await checkAndDispatchReminders();
+    } catch (err) {
+      console.error("[Scheduler] Error running background medication reminder check:", err);
+    }
+  });
 }

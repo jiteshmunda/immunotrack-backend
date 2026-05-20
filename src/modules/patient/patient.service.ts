@@ -90,10 +90,16 @@ export class PatientService {
 
     const { user, patient } = result;
 
+    const fullNameDecrypted = decrypt(user.fullName);
+    const parts = fullNameDecrypted.split(" ");
+    const firstName = parts[0] || "";
+    const lastName = parts.slice(1).join(" ") || "";
+
     return {
       user_id: user.id,
       email: decrypt(user.email),
-      full_name: decrypt(user.fullName),
+      first_name: firstName,
+      last_name: lastName,
       patient_id: patient.id,
       date_of_birth: (() => {
         if (!patient.dateOfBirth) return null;

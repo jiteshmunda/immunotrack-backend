@@ -77,6 +77,14 @@ export class MedicationService {
     const todayStr = new Date().toISOString().split("T")[0];
     const finalStartDate = input.startDate || todayStr;
 
+    // Short course auto-stop (max 3 days): Automatically compute and set the endDate if not provided
+    let finalEndDate = input.endDate;
+    if (finalFrequency.toLowerCase().includes("max 3 days")) {
+      const start = new Date(finalStartDate);
+      start.setDate(start.getDate() + 3);
+      finalEndDate = start.toISOString().split("T")[0];
+    }
+
     // Duplicate check
     const nameHash = hashForLookup(input.name);
     const doseHash = hashForLookup(input.dose);
@@ -108,7 +116,7 @@ export class MedicationService {
       route: finalRoute || null,
       frequency: finalFrequency as string,
       startDate: finalStartDate,
-      endDate: input.endDate,
+      endDate: finalEndDate,
       notes: input.notes ? encrypt(input.notes) : null,
       active: true
     }).returning();
@@ -242,7 +250,7 @@ export class MedicationService {
 
     // Dynamic Daily Log Limit Check
     const dailyFrequency = getDailyFrequency(med.frequency || "");
-    if (dailyFrequency > 0) {
+    if (dailyFrequency > 0 && !isPRNMedication(med.frequency || "")) {
       const maxLogsPerDay = Math.ceil(dailyFrequency);
 
       const startOfToday = new Date();
@@ -373,6 +381,30 @@ export class MedicationService {
       return newLog;
     });
 
+    // Check for max-dose warnings (e.g. for "Every 4-6 hours (max 3-4 times/day)")
+    let warning: string | null = null;
+    const freqLower = (med.frequency || "").toLowerCase();
+    
+    if (input.status === "taken" && (freqLower.includes("max 3-4 times") || freqLower.includes("max 3–4 times"))) {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      
+      const [takenLogsLast24h] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(medicationLogs)
+        .where(
+          and(
+            eq(medicationLogs.medicationId, med.id),
+            eq(medicationLogs.status, "taken"),
+            sql`${medicationLogs.loggedAt} >= ${twentyFourHoursAgo}`
+          )
+        );
+
+      const takenCount = Number(takenLogsLast24h?.count || 0);
+      if (takenCount > 4) {
+        warning = `Warning: You have logged this medication ${takenCount} times in the last 24 hours. The maximum recommended dose is 3-4 times daily.`;
+      }
+    }
+
     const [reminder] = await db.select({ time: medicationReminders.reminderTime })
       .from(medicationReminders)
       .where(eq(medicationReminders.medicationId, input.medicationId))
@@ -380,7 +412,8 @@ export class MedicationService {
 
     return {
       ...log,
-      scheduledFor: reminder?.time || null
+      scheduledFor: reminder?.time || null,
+      warning
     };
   }
 

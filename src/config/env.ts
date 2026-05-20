@@ -15,6 +15,13 @@ export const ENV = {
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || "",
   ADMIN_NAME: process.env.ADMIN_NAME || "",
   ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS || "http://localhost:5173,http://localhost:3000",
+  project_id: process.env.project_id || "",
+  client_email: process.env.client_email || "",
+  private_key: process.env.private_key || "",
+  AWS_REGION: process.env.AWS_REGION || "us-east-1",
+  AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || "",
+  AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || "",
+  SES_FROM_EMAIL: process.env.SES_FROM_EMAIL || "",
 };
 
 /**
@@ -71,7 +78,10 @@ export async function loadSecrets(force: boolean = false) {
     "JWT_SECRET", 
     "ADMIN_EMAIL", 
     "ADMIN_PASSWORD", 
-    "ADMIN_NAME"
+    "ADMIN_NAME",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "SES_FROM_EMAIL"
   ] as const;
 
   for (const key of required) {

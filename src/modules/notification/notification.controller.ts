@@ -34,7 +34,7 @@ export class NotificationController {
         details: { limit, offset, count: result.notifications.length }
       });
 
-      return sendSuccess(res, result);
+      return res.status(200).json(result.notifications);
     } catch (error: any) {
       return sendError(res, error, 400);
     }

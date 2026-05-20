@@ -156,12 +156,12 @@ export class NotificationService {
       }
 
       return {
-        id: n.id,
-        type: n.type,
-        title: decryptedTitle,
-        body: decryptedBody,
-        read_at: n.readAt,
-        created_at: n.createdAt,
+        data: {
+          title: decryptedTitle,
+          body: decryptedBody,
+          notificationId: n.id,
+          type: n.type
+        }
       };
     });
 

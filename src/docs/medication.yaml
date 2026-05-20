@@ -45,6 +45,7 @@ paths:
                   notes: null
                   dosesCount: 1
                   dosesTaken: 1
+                  dosesMissed: 0
                   createdAt: "2026-05-18T09:21:26.131Z"
     
     post:

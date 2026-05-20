@@ -1,6 +1,7 @@
 import { Response } from "express";
 import { ZodError } from "zod";
 import { auditLogger } from "./audit";
+import { ERROR_TRANSLATIONS } from "./error-translations";
 
 export const sendSuccess = (res: Response, data: object, status = 200) =>
   res.status(status).json({ success: true, ...data });
@@ -26,35 +27,59 @@ export const sendError = (res: Response, error: any, status = 400) => {
 
 function sanitizeError(error: any) {
   let sanitizedMessage = "An unexpected error occurred";
-  let technicalDetails = error;
+  let technicalDetails: any = { name: "Error" };
 
   if (error instanceof ZodError) {
     sanitizedMessage = error.issues
-      .map((e: any) => `${e.path.join(".")}: ${e.message}`)
+      .map((e: any) => {
+        const pathKey = e.path.join(".");
+        const combined = `${pathKey}: ${e.message}`;
+        return ERROR_TRANSLATIONS[combined] || ERROR_TRANSLATIONS[e.message] || combined;
+      })
       .join(", ");
-    technicalDetails = { type: "ZodError", issues: error.issues };
+    
+    technicalDetails = { 
+      type: "ZodError", 
+      issues: error.issues.map((issue: any) => ({
+        code: issue.code,
+        path: issue.path,
+        message: issue.message.replace(/received\s+['"].*?['"]/gi, "received '[REDACTED]'")
+      }))
+    };
   } else if (error instanceof Error) {
     const rawMessage = error.message;
-    
-    // HIPAA: Never log or store stack traces in production logs
-    technicalDetails = { 
-      message: "Internal Error", 
-      name: error.name 
-    };
+    const errorName = error.name;
 
     const sqlKeywords = ["select", "insert", "update", "delete", "from", "where", "returning", "Failed query:"];
     const isSqlLeaked = sqlKeywords.some(k => rawMessage.toLowerCase().includes(k)) || rawMessage.includes("\"");
 
     if (isSqlLeaked) {
       sanitizedMessage = "Internal processing error. The clinical record could not be updated.";
-      technicalDetails.message = "Database Query Error (Redacted)";
+      technicalDetails = {
+        name: errorName,
+        message: "Database Query Error (Redacted)"
+      };
+    } else if (ERROR_TRANSLATIONS[rawMessage]) {
+      sanitizedMessage = ERROR_TRANSLATIONS[rawMessage];
+      technicalDetails = {
+        name: errorName,
+        message: rawMessage
+      };
     } else {
-      sanitizedMessage = redactData(rawMessage);
-      technicalDetails.message = sanitizedMessage;
+      sanitizedMessage = "An unexpected error occurred while processing your request.";
+      technicalDetails = {
+        name: errorName,
+        message: "Internal Error (Raw message redacted to prevent PHI leakage)"
+      };
     }
   } else if (typeof error === "string") {
-    sanitizedMessage = redactData(error);
-    technicalDetails = { message: sanitizedMessage };
+    if (ERROR_TRANSLATIONS[error]) {
+      sanitizedMessage = ERROR_TRANSLATIONS[error];
+      technicalDetails = { message: error };
+    } else {
+      sanitizedMessage = "An unexpected error occurred.";
+      technicalDetails = { message: "Raw string error redacted to prevent PHI leakage" };
+    }
   }
 
   return { sanitizedMessage, technicalDetails };

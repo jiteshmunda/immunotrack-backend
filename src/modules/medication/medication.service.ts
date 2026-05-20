@@ -155,6 +155,7 @@ export class MedicationService {
 
       let dosesCount = 1;
       let dosesTaken = 0;
+      let dosesMissed = 0;
 
       if (isWeekly || isBiWeekly || isMonthly) {
         // Low-frequency/Biologics: keep 1/1 until the period closes
@@ -172,8 +173,10 @@ export class MedicationService {
           ));
 
         const takenInWindow = pastLogs.filter(l => l.status === "taken").length;
+        const missedInWindow = pastLogs.filter(l => l.status === "missed").length;
         dosesCount = 1;
         dosesTaken = Math.min(1, takenInWindow);
+        dosesMissed = Math.min(1, missedInWindow);
       } else {
         // Standard Daily / Hourly: check logs for today only
         if (freqLower.includes("twice daily") || freqLower.includes("bid")) dosesCount = 2;
@@ -195,6 +198,7 @@ export class MedicationService {
           ));
 
         dosesTaken = todaysLogs.filter(l => l.status === "taken").length;
+        dosesMissed = todaysLogs.filter(l => l.status === "missed").length;
       }
 
       return {
@@ -210,6 +214,7 @@ export class MedicationService {
         notes: m.notes ? decrypt(m.notes) : null,
         dosesCount,
         dosesTaken,
+        dosesMissed,
         createdAt: m.createdAt
       };
     }));

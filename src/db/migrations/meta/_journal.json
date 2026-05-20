@@ -141,6 +141,13 @@
       "when": 1779091279755,
       "tag": "0019_moaning_skrulls",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1779257533749,
+      "tag": "0020_panoramic_iron_patriot",
+      "breakpoints": true
     }
   ]
 }

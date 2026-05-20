@@ -79,7 +79,7 @@ paths:
                   type: string
                   example: "Daily"
                   description: "Frequency of medication. Common values: Once daily, Twice daily, Every 4-6 hours, etc."
-                  enum: [Once daily, Once or twice daily, Once daily (evening), Every 4-6 hours, 3-4 times daily, Once daily (empty stomach), Twice daily, Every 10-12 hours (max 3 days), Every 8-10 hours (max 3 days), Every 4 hours, 2-3 times daily, 4x daily (IR) or 2x daily (ER), Twice daily (or once daily for Ellipta), Twice daily (also MART strategy), Every 4-6 hours PRN, Every 4-8 hours PRN, Every 2-4 weeks, Every 4 weeks, Every 4 weeks (IV infusion), Every 4 weeks (loading) then every 8 weeks, Every 2 weeks, Once daily (investigational), 3-6 times daily, 4 times daily, As needed (anaphylaxis emergency), Weekly (build-up), Monthly (maintenance), Once daily (start 4 months before grass season), Once daily (start 12 weeks before ragweed season), Daily (maintenance), As needed (PRN)]
+                  enum: [Once daily, Twice daily, Three times daily, Four times daily, As needed (PRN), Weekly, Twice weekly, Every 2-4 hours, Every 4-6 hours, Every 4-6 hours (max 3-4 times/day), Every 10-12 hours (max 3 days), Every 2-4 weeks, Monthly, Every 3 months]
                 route:
                   type: string
                   example: "Oral"
@@ -166,7 +166,19 @@ paths:
                   description: Mandatory if status is "missed"
       responses:
         201:
-          description: Log created
+          description: Log created successfully
+          content:
+            application/json:
+              example:
+                id: "b2d0e128-f678-4c4c-b2d0-05325a772915"
+                patientId: "9ae11d72-88ca-435f-a0f8-52cf30e3cfc6"
+                medicationId: "78b4b75f-5825-45ab-96cc-a1e7d1c6fc0a"
+                status: "taken"
+                takenTime: "2026-05-19T13:00:00.000Z"
+                missedReason: null
+                loggedAt: "2026-05-19T13:00:00.000Z"
+                scheduledFor: "13:00"
+                warning: "Warning: You have logged this medication 5 times in the last 24 hours. The maximum recommended dose is 3-4 times daily."
         400:
           description: Validation error, max daily limit exceeded (MAX_DAILY_LOG_LIMIT_EXCEEDED), or logged too early for scheduled frequency (MEDICATION_LOGGED_TOO_EARLY)
 

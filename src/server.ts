@@ -14,12 +14,16 @@ async function startServer() {
       console.log(`Server running on port ${PORT}`);
       
       // Start the background cron scheduler
-      try {
-        const { startAdherenceScheduler } = await import("./utils/scheduler");
-        startAdherenceScheduler();
-      } catch (err) {
-        console.error("Failed to start background scheduler:", err);
-      }
+      if (process.env.ENABLE_REMINDER_SCHEDULER === "true") {
+  try {
+    const { startAdherenceScheduler } = await import("./utils/scheduler");
+    startAdherenceScheduler();
+  } catch (err) {
+    console.error("Failed to start background scheduler:", err);
+  }
+} else {
+  console.log("[Scheduler] Background reminder scheduler is disabled locally via ENABLE_REMINDER_SCHEDULER=false.");
+}
     });
   } catch (error) {
     console.error("Failed to start server:", error);

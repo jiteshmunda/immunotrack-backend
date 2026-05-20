@@ -70,7 +70,18 @@ export function calculateAdherenceWindow(
  */
 export function isPRNMedication(frequency: string): boolean {
   const f = frequency.toLowerCase();
-  return f.includes("prn") || f.includes("as needed") || f.includes("as-needed") || f.includes("range");
+  return (
+    f.includes("prn") ||
+    f.includes("as needed") ||
+    f.includes("as-needed") ||
+    f.includes("range") ||
+    f.includes("2-4 hours") ||
+    f.includes("2–4 hours") ||
+    f.includes("4-6 hours") ||
+    f.includes("4–6 hours") ||
+    f.includes("3-6 times") ||
+    f.includes("3–6 times")
+  );
 }
 
 /**

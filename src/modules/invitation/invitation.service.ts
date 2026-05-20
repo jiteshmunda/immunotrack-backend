@@ -41,10 +41,12 @@ export class InvitationService {
       .select({ 
         clinicId: clinicians.clinicId, 
         fullName: users.fullName,
-        organizationName: clinicians.organizationName 
+        organizationName: clinicians.organizationName,
+        clinicName: clinics.name
       })
       .from(clinicians)
       .innerJoin(users, eq(clinicians.userId, users.id))
+      .leftJoin(clinics, eq(clinicians.clinicId, clinics.id))
       .where(eq(clinicians.id, clinicianId))
       .limit(1);
 
@@ -104,6 +106,7 @@ export class InvitationService {
           body: emailService.getInviteTemplate(
             input.patient_first_name,
             clinician.fullName ? decrypt(clinician.fullName) : 'Your Doctor',
+            clinician.clinicName || 'Your Clinic',
             display,
             expiresAt.toISOString(),
             input.personal_message
@@ -241,19 +244,22 @@ export class InvitationService {
       const patientEmail = decrypt(oldInvite.patientEmail);
       const patientFirstName = decrypt(oldInvite.patientFirstName);
       const [clinician] = await tx.select({ 
-          fullName: users.fullName 
+          fullName: users.fullName,
+          clinicName: clinics.name
         })
         .from(clinicians)
         .innerJoin(users, eq(clinicians.userId, users.id))
+        .leftJoin(clinics, eq(clinicians.clinicId, clinics.id))
         .where(eq(clinicians.id, clinicianId))
         .limit(1);
 
       await emailService.sendEmail({
         to: patientEmail,
-        subject: `New Invitation - ImmunoTrack`,
+        subject: `${clinician?.fullName ? decrypt(clinician.fullName) : 'Your Doctor'} has invited you to ImmunoTrack`,
         body: emailService.getInviteTemplate(
           patientFirstName,
           clinician?.fullName ? decrypt(clinician.fullName) : 'Your Doctor',
+          clinician?.clinicName || 'Your Clinic',
           display,
           expiresAt.toISOString(),
           oldInvite.personalMessage || undefined

@@ -177,7 +177,9 @@ export class NotificationService {
           title: decryptedTitle,
           body: decryptedBody,
           notificationId: n.id,
-          type: n.type
+          type: n.type,
+          createdAt: n.createdAt,
+          readAt: n.readAt
         }
       };
     });
@@ -213,11 +215,12 @@ export class NotificationService {
    * Marks all notifications as read for a specific user.
    */
   async markAllAsRead(userId: string) {
+    const now = new Date();
     await db
       .update(notifications)
-      .set({ readAt: new Date() })
+      .set({ readAt: now })
       .where(and(eq(notifications.userId, userId), sql`${notifications.readAt} IS NULL`));
 
-    return { success: true };
+    return { success: true, read_at: now };
   }
 }

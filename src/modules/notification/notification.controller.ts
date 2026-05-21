@@ -34,7 +34,10 @@ export class NotificationController {
         details: { limit, offset, count: result.notifications.length }
       });
 
-      return res.status(200).json(result.notifications);
+      return res.status(200).json({
+        notifications: result.notifications,
+        unreadCount: result.unread_count
+      });
     } catch (error: any) {
       return sendError(res, error, 400);
     }

@@ -148,6 +148,13 @@
       "when": 1779257533749,
       "tag": "0020_panoramic_iron_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1779364254446,
+      "tag": "0021_sturdy_tigra",
+      "breakpoints": true
     }
   ]
 }

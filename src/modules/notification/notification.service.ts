@@ -76,8 +76,13 @@ export class NotificationService {
 
     // 3. Construct HIPAA-Compliant Generic Push Message
     // Public networks like FCM are NOT secure, so we hide specific details unless they are generic reminders
-    const safeTitle = "ImmunoTrack Update";
-    const safeBody = genericBody || "You have a new update in your dashboard. Tap to view securely.";
+    let safeTitle = "ImmunoTrack Update";
+    let safeBody = genericBody || "You have a new update in your dashboard. Tap to view securely.";
+
+    if (type === "medication_reminder" || type === "medication_dose_reminder") {
+      safeTitle = "Medication Reminder";
+      safeBody = "Open the app to view your scheduled reminder.";
+    }
 
     if (fcmInitialized) {
       try {
@@ -93,8 +98,16 @@ export class NotificationService {
           },
           android: {
             priority: "high",
+            notification: {
+              channelId: "medication_reminders",
+              visibility: "private",
+              priority: "max",
+            },
           },
           apns: {
+            headers: {
+              "apns-priority": "10",
+            },
             payload: {
               aps: {
                 badge: 1,
@@ -120,6 +133,10 @@ export class NotificationService {
       console.log(` Public Push Body (HIPAA Safe): ${safeBody}`);
       console.log(` Secure In-App Title (Encrypted): ${title}`);
       console.log(` Secure In-App Body (Encrypted): ${body}`);
+      console.log(` Android Channel: medication_reminders`);
+      console.log(` Android Priority: max`);
+      console.log(` Android Visibility: private`);
+      console.log(` APNs Priority: 10`);
       console.log(`───────────────────────────────────────────────────\n`);
 
       return { success: true, notificationId: inserted.id, pushSent: true, mode: "mock" };

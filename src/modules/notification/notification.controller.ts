@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { NotificationService } from "./notification.service";
-import { getInboxSchema } from "./notification.schema";
+import { getInboxSchema, deleteSelectiveSchema } from "./notification.schema";
 import { sendSuccess, sendError } from "../../utils/response";
 import { writeAudit } from "../../utils/audit";
 
@@ -8,10 +8,7 @@ const notificationService = new NotificationService();
 
 export class NotificationController {
 
-  /**
-   * GET /api/v1/notifications
-   * Retrieves the notification inbox history for the authenticated user, paginated.
-   */
+//  -------------------------------------- GET /api/v1/notifications --------------------------------------------
   async getInbox(req: Request, res: Response) {
     try {
       const userId = (req as any).user.userId;
@@ -25,7 +22,6 @@ export class NotificationController {
       const { limit, offset } = parsedQuery.data;
       const result = await notificationService.getInbox(userId, limit, offset);
 
-      // HIPAA Audit Log (Audit trail for reading PHI, as notifications contain PHI)
       await writeAudit(req, {
         action: "READ_PHI",
         status: "success",
@@ -43,10 +39,7 @@ export class NotificationController {
     }
   }
 
-  /**
-   * PATCH /api/v1/notifications/:id/read
-   * Marks a single notification as read.
-   */
+// -------------------------------------PATCH /api/v1/notifications/:id/read --------------------------------------------------
   async markAsRead(req: Request, res: Response) {
     try {
       const userId = (req as any).user.userId;
@@ -73,10 +66,7 @@ export class NotificationController {
     }
   }
 
-  /**
-   * PATCH /api/v1/notifications/read-all
-   * Bulk marks all unread notifications for the user as read.
-   */
+// ----------------------------------------PATCH /api/v1/notifications/read-all ------------------------------------------------------
   async markAllAsRead(req: Request, res: Response) {
     try {
       const userId = (req as any).user.userId;
@@ -88,6 +78,54 @@ export class NotificationController {
         userId: userId,
         resourceType: "notifications",
         details: { read_all: true }
+      });
+
+      return sendSuccess(res, result);
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
+
+//  ------------------------------------------DELETE /api/v1/notifications/selective ------------------------------------------------------
+  async deleteSelective(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user.userId;
+      
+      const parsedBody = deleteSelectiveSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        throw new Error("INVALID_BODY_PARAMETERS");
+      }
+      
+      const { ids } = parsedBody.data;
+      const result = await notificationService.deleteSelective(userId, ids);
+
+      await writeAudit(req, {
+        action: "UPDATE_PHI",
+        status: "success",
+        userId: userId,
+        resourceType: "notifications",
+        details: { deleted: true, count: ids.length }
+      });
+
+      return sendSuccess(res, result);
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
+
+//  ------------------------------------------DELETE /api/v1/notifications/all -----------------------------------------------------
+  async deleteAll(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user.userId;
+      
+      const result = await notificationService.deleteAll(userId);
+
+      await writeAudit(req, {
+        action: "UPDATE_PHI",
+        status: "success",
+        userId: userId,
+        resourceType: "notifications",
+        details: { deleted_all: true }
       });
 
       return sendSuccess(res, result);

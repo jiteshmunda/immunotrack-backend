@@ -2,7 +2,7 @@ import * as admin from "firebase-admin";
 import { db } from "../../db";
 import { notifications } from "../../db/schema/compliance.schema";
 import { patients } from "../../db/schema/profile.schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { encrypt, decrypt } from "../../utils/encryption";
 import { ENV } from "../../config/env";
 
@@ -49,7 +49,6 @@ export class NotificationService {
   ) {
     console.log(`[NotificationService] Processing notification of type "${type}" for user: ${userId}`);
 
-    // 1. Insert into database notifications (In-App Inbox) - SECURELY ENCRYPTED
     const [inserted] = await db
       .insert(notifications)
       .values({
@@ -60,7 +59,7 @@ export class NotificationService {
       })
       .returning();
 
-    // 2. Fetch the recipient's FCM token from patients (only patients have fcmToken for now)
+    // Fetch the recipient's FCM token from patients (only patients have fcmToken for now)
     const [patient] = await db
       .select()
       .from(patients)
@@ -74,8 +73,7 @@ export class NotificationService {
       return { success: true, notificationId: inserted.id, pushSent: false, mode: "in-app-only" };
     }
 
-    // 3. Construct HIPAA-Compliant Generic Push Message
-    // Public networks like FCM are NOT secure, so we hide specific details unless they are generic reminders
+    //HIPAA-Compliant Generic Push Message
     let safeTitle = "ImmunoTrack Update";
     let safeBody = genericBody || "You have a new update in your dashboard. Tap to view securely.";
 
@@ -143,9 +141,7 @@ export class NotificationService {
     }
   }
 
-  /**
-   * Retrieves the notification inbox for a specific user, decrypting all content.
-   */
+// -------------------------------------GET /api/v1/notifications --------------------------------------------------
   async getInbox(userId: string, limit: number = 20, offset: number = 0) {
     const results = await db
       .select()
@@ -190,9 +186,7 @@ export class NotificationService {
     };
   }
 
-  /**
-   * Marks a single notification as read by the user.
-   */
+  // --------------------------------------- PATCH /api/v1/notifications/:id/read -----------------------------------------------------
   async markAsRead(notificationId: string, userId: string) {
     const [notification] = await db
       .select()
@@ -211,9 +205,7 @@ export class NotificationService {
     return { success: true, read_at: updated.readAt };
   }
 
-  /**
-   * Marks all notifications as read for a specific user.
-   */
+  // ------------------------------------------ PATCH /api/v1/notifications/read-all --------------------------------------------------
   async markAllAsRead(userId: string) {
     const now = new Date();
     await db
@@ -222,5 +214,25 @@ export class NotificationService {
       .where(and(eq(notifications.userId, userId), sql`${notifications.readAt} IS NULL`));
 
     return { success: true, read_at: now };
+  }
+
+// ---------------------------------------------- DELETE /api/v1/notifications/selective --------------------------------------------------
+  async deleteSelective(userId: string, ids: string[]) {
+    if (!ids.length) return { success: true, deletedAt: new Date() };
+
+    await db
+      .delete(notifications)
+      .where(and(eq(notifications.userId, userId), inArray(notifications.id, ids)));
+
+    return { success: true, deletedAt: new Date() };
+  }
+
+// ---------------------------------------------- DELETE /api/v1/notifications/all --------------------------------------------------------
+  async deleteAll(userId: string) {
+    await db
+      .delete(notifications)
+      .where(eq(notifications.userId, userId));
+
+    return { success: true, deletedAt: new Date() };
   }
 }

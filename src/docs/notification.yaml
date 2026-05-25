@@ -26,26 +26,40 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    data:
+                type: object
+                properties:
+                  notifications:
+                    type: array
+                    items:
                       type: object
                       properties:
-                        title:
-                          type: string
-                          example: "Adherence Alert: Salmeterol Inhaler"
-                        body:
-                          type: string
-                          example: "Hi raj Test, your weekly adherence for Salmeterol Inhaler is at 25%. Please log your doses to keep your clinician updated!"
-                        notificationId:
-                          type: string
-                          format: uuid
-                          example: "b2d0e128-f678-4c4c-b2d0-05325a772915"
-                        type:
-                          type: string
-                          example: "medication_reminder"
+                        data:
+                          type: object
+                          properties:
+                            title:
+                              type: string
+                              example: "Adherence Alert: Salmeterol Inhaler"
+                            body:
+                              type: string
+                              example: "Hi raj Test, your weekly adherence for Salmeterol Inhaler is at 25%. Please log your doses to keep your clinician updated!"
+                            notificationId:
+                              type: string
+                              format: uuid
+                              example: "b2d0e128-f678-4c4c-b2d0-05325a772915"
+                            type:
+                              type: string
+                              example: "medication_reminder"
+                            createdAt:
+                              type: string
+                              format: date-time
+                              example: "2026-05-20T08:00:00.000Z"
+                            readAt:
+                              type: string
+                              format: date-time
+                              example: "2026-05-21T09:00:00.000Z"
+                  unreadCount:
+                    type: integer
+                    example: 2
         401:
           description: Unauthorized JWT token missing or invalid
 
@@ -68,6 +82,16 @@ paths:
                   success:
                     type: boolean
                     example: true
+                  data:
+                    type: object
+                    properties:
+                      success:
+                        type: boolean
+                        example: true
+                      read_at:
+                        type: string
+                        format: date-time
+                        example: "2026-05-21T10:57:36.425Z"
         401:
           description: Unauthorized JWT token missing or invalid
 
@@ -106,3 +130,82 @@ paths:
           description: Unauthorized JWT token missing or invalid
         404:
           description: Notification not found or does not belong to the authenticated user
+
+  /notifications/selective:
+    delete:
+      summary: Selectively delete notifications
+      description: Deletes specific notifications by their UUIDs from the authenticated user's inbox.
+      tags:
+        - Notification
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  example: ["123e4567-e89b-12d3-a456-426614174000", "987e6543-e21b-34d1-b654-426614174111"]
+      responses:
+        200:
+          description: Successfully deleted the notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      success:
+                        type: boolean
+                        example: true
+                      deletedAt:
+                        type: string
+                        format: date-time
+                        example: "2026-05-21T10:57:36.425Z"
+        400:
+          description: Invalid request body or validation error
+        401:
+          description: Unauthorized JWT token missing or invalid
+
+  /notifications/all:
+    delete:
+      summary: Delete all notifications
+      description: Deletes all notifications for the authenticated user.
+      tags:
+        - Notification
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Successfully deleted all notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      success:
+                        type: boolean
+                        example: true
+                      deletedAt:
+                        type: string
+                        format: date-time
+                        example: "2026-05-21T10:57:36.425Z"
+        401:
+          description: Unauthorized JWT token missing or invalid

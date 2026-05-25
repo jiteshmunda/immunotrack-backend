@@ -80,7 +80,7 @@ paths:
               required: [currentPassword, newPassword]
               properties:
                 currentPassword: { type: string, example: "64eb1e9c8e1162ca" }
-                newPassword: { type: string, minLength: 8, example: "StrongPass@2026" }
+                newPassword: { type: string, minLength: 10, example: "StrongPass@2026" }
       responses:
         200:
           description: Password updated
@@ -132,7 +132,7 @@ paths:
               properties:
                 email: { type: string, format: email, example: "user@example.com" }
                 otp: { type: string, minLength: 6, maxLength: 6, example: "123456" }
-                newPassword: { type: string, minLength: 8, example: "NewStrongPass@2026" }
+                newPassword: { type: string, minLength: 10, example: "NewStrongPass@2026" }
       responses:
         200:
           description: Password reset successful
@@ -195,7 +195,7 @@ paths:
               required: [verification_token, password, consent]
               properties:
                 verification_token: { type: string, example: "token_from_verify_step" }
-                password: { type: string, minLength: 8, example: "SecurePass!99" }
+                password: { type: string, minLength: 10, example: "SecurePass!99" }
       responses:
         201:
           description: Account created safely alongside consent records and instantly activated.

@@ -11,5 +11,7 @@ router.use(authenticateJWT);
 router.get("/", notificationController.getInbox);
 router.patch("/read-all", notificationController.markAllAsRead);
 router.patch("/:id/read", notificationController.markAsRead);
+router.delete("/selective", notificationController.deleteSelective);
+router.delete("/all", notificationController.deleteAll);
 
 export default router;

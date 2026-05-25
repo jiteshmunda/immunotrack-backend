@@ -182,22 +182,23 @@ export class PatientService {
     const latestLog = allLogs.length > 0 ? allLogs[0] : null;
     const previousLog = allLogs.length > 1 ? allLogs[1] : null;
 
-    const status = latestLog ? {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const isToday = latestLog?.logDate === todayStr;
+
+    const status = (latestLog && isToday) ? {
       respiratory: {
         score: latestLog.respiratoryScore,
-        score_out_of_10: symptomService.normalizeScore("respiratory", latestLog.respiratoryScore),
         color: symptomService.getStatusColor("respiratory", latestLog.respiratoryScore),
       },
       nasal: {
         score: latestLog.nasalScore,
-        score_out_of_10: symptomService.normalizeScore("nasal", latestLog.nasalScore),
         color: symptomService.getStatusColor("nasal", latestLog.nasalScore),
       },
       skin: {
         score: latestLog.skinScore,
-        score_out_of_10: symptomService.normalizeScore("skin", latestLog.skinScore),
         color: symptomService.getStatusColor("skin", latestLog.skinScore),
       },
+     
       risk_score: symptomService.calculateRiskScore(
         latestLog.respiratoryScore,
         latestLog.nasalScore,

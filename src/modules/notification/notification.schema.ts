@@ -12,3 +12,7 @@ export const getInboxSchema = z.object({
 });
 
 export type GetInboxInput = z.infer<typeof getInboxSchema>;
+
+export const deleteSelectiveSchema = z.object({
+  ids: z.array(z.string().uuid("Invalid notification ID format")),
+});

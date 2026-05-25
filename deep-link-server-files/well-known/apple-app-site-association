@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["9UMQL7TL84.ai.immunotrack.app"],
+        "components": [
+          {
+            "/": "/invite*",
+            "comment": "Matches /invite and /invite?code=… — opens ImmunoTrack"
+          }
+        ]
+      }
+    ]
+  }
+}

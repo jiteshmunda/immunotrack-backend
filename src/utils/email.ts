@@ -72,6 +72,7 @@ export class EmailService {
     clinicianName: string,
     clinicName: string,
     displayCode: string,
+    rawCode: string,
     expiryTimestamp: string,
     personalMessage?: string
   ): string {
@@ -85,7 +86,7 @@ export class EmailService {
         </div>`
       : "";
 
-    const deepLink = `immunotrack://invite?code=${displayCode}`;
+    const deepLink = `https://immunotrack.com/invite?code=${rawCode}`;
 
     // Format exact expiration date and time
     const expiryDate = new Date(expiryTimestamp);
@@ -187,7 +188,7 @@ export class EmailService {
 
             <!-- 10. Manual code entry instruction -->
             <p style="font-size: 13px; color: #64748B; text-align: center; line-height: 1.5; margin-bottom: 35px; max-width: 460px; margin-left: auto; margin-right: auto;">
-              If the button above does not work, download the ImmunoTrack app and enter your invite code manually when prompted.
+              Or enter this code manually in the ImmunoTrack app: <strong>${displayCode}</strong>
             </p>
 
             <hr style="border: 0; border-top: 1px solid #E2E8F0; margin: 35px 0;">

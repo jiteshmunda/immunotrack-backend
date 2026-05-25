@@ -108,6 +108,7 @@ export class InvitationService {
             clinician.fullName ? decrypt(clinician.fullName) : 'Your Doctor',
             clinician.clinicName || 'Your Clinic',
             display,
+            raw,
             expiresAt.toISOString(),
             input.personal_message
           ),
@@ -261,6 +262,7 @@ export class InvitationService {
           clinician?.fullName ? decrypt(clinician.fullName) : 'Your Doctor',
           clinician?.clinicName || 'Your Clinic',
           display,
+          raw,
           expiresAt.toISOString(),
           oldInvite.personalMessage || undefined
         ),

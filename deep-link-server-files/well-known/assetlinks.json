@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "ai.immunotrack.app",
+      "sha256_cert_fingerprints": [
+        "5F:C8:5B:3F:8C:3A:08:0E:F5:D5:23:D4:65:EA:52:B0:1C:77:EA:F5:4A:FC:EF:CB:44:E3:62:42:07:1D:13:B8"
+      ]
+    }
+  }
+]

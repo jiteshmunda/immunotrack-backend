@@ -183,6 +183,27 @@ export const environmentalData = pgTable(
       length: 100,
     }),
 
+    // Weather condition
+weatherCondition: varchar("weather_condition", {
+  length: 100,
+}),
+
+// Source provider
+sourceProvider: varchar("source_provider", {
+  length: 100,
+}),
+
+// Coordinates
+latitude: numeric("latitude", {
+  precision: 9,
+  scale: 6,
+}),
+
+longitude: numeric("longitude", {
+  precision: 9,
+  scale: 6,
+}),
+
     createdAt: timestamp("created_at")
       .defaultNow()
       .notNull(),

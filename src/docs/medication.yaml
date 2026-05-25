@@ -22,14 +22,14 @@ paths:
   /medications:
     get:
       summary: List patient's medication plan
-      description: Returns only active medications assigned to the authenticated patient.
+      description: Returns all medications (active and deleted) assigned to the authenticated patient.
       tags:
         - Medication
       security:
         - bearerAuth: []
       responses:
         200:
-          description: List of patient's active medications with daily doses count and taken logs.
+          description: List of patient's medications with daily doses count, taken logs, and current status.
           content:
             application/json:
               example:
@@ -42,11 +42,13 @@ paths:
                   frequency: "Once daily"
                   startDate: "2026-05-10"
                   endDate: "2026-05-17"
+                  status: "active"
                   notes: null
                   dosesCount: 1
                   dosesTaken: 1
                   dosesMissed: 0
                   createdAt: "2026-05-18T09:21:26.131Z"
+                  deletedAt: null
     
     post:
       summary: Add medication to plan
@@ -290,7 +292,25 @@ paths:
             format: uuid
       responses:
         200:
-          description: Success
+          description: Successfully soft-deleted the medication
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      success:
+                        type: boolean
+                        example: true
+                      deletedAt:
+                        type: string
+                        format: date-time
+                        example: "2026-05-21T12:00:00.000Z"
 
   /medications/reminders:
     get:

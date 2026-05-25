@@ -135,10 +135,9 @@ export class MedicationService {
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
 
     const meds = await db.select().from(patientMedications)
-      .where(and(
-        eq(patientMedications.patientId, patient.id),
-        eq(patientMedications.active, true)
-      ));
+      .where(
+        eq(patientMedications.patientId, patient.id)
+      );
 
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
@@ -211,11 +210,13 @@ export class MedicationService {
         frequency: m.frequency,
         startDate: m.startDate,
         endDate: m.endDate,
+        status: m.deletedAt ? 'deleted' : 'active',
         notes: m.notes ? decrypt(m.notes) : null,
         dosesCount,
         dosesTaken,
         dosesMissed,
-        createdAt: m.createdAt
+        createdAt: m.createdAt,
+        deletedAt: m.deletedAt
       };
     }));
   }
@@ -226,7 +227,7 @@ export class MedicationService {
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
 
     const result = await db.update(patientMedications)
-      .set({ active: false, updatedAt: new Date() })
+      .set({ active: false, deletedAt: new Date(), updatedAt: new Date() })
       .where(and(
         eq(patientMedications.id, id),
         eq(patientMedications.patientId, patient.id)
@@ -237,7 +238,7 @@ export class MedicationService {
     await db.delete(medicationReminders)
       .where(eq(medicationReminders.medicationId, id));
 
-    return { success: true };
+    return { success: true, deletedAt: result[0].deletedAt };
   }
 
   // ---------------------------------- POST /medications/logs ------------------------------------------

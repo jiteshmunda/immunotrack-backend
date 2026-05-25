@@ -1,7 +1,16 @@
 import {
-  pgTable, uuid, varchar, text, timestamp,
-  boolean, date, integer, smallint, numeric,
-  uniqueIndex
+  pgTable,
+  uuid,
+  varchar,
+  text,
+  timestamp,
+  boolean,
+  date,
+  integer,
+  smallint,
+  numeric,
+  uniqueIndex,
+  index,
 } from "drizzle-orm/pg-core";
 import { patients } from "./profile.schema";
 import { medicationCatalog } from "./medication.schema";
@@ -108,6 +117,7 @@ export const patientMedications = pgTable("patient_medications", {
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
 });
 
 // ── Medication Logs ──────────────────────────────────────────
@@ -126,29 +136,83 @@ export const medicationLogs = pgTable("medication_logs", {
 
 // ── Environmental Data ───────────────────────────────────────
 // Pulled from AQI / Pollen / Weather APIs per patient location
-export const environmentalData = pgTable("environmental_data", {
-  id:              uuid("id").primaryKey().defaultRandom(),
-  patientId:       uuid("patient_id").notNull().references(() => patients.id),
-  recordedDate:    date("recorded_date").notNull(),
+export const environmentalData = pgTable(
+  "environmental_data",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
 
-  // AQI
-  aqiValue:        integer("aqi_value"),
-  pm25:            numeric("pm25", { precision: 6, scale: 2 }),
+    patientId: uuid("patient_id")
+      .notNull()
+      .references(() => patients.id),
 
-  // Pollen (grains/m³)
-  grassPollenLevel: integer("grass_pollen_level"),
-  treePollenLevel:  integer("tree_pollen_level"),
-  weedPollenLevel:  integer("weed_pollen_level"),
-  mouldCount:       integer("mould_count"),
+    recordedDate: date("recorded_date").notNull(),
 
-  // Weather
-  temperatureC:   numeric("temperature_c", { precision: 5, scale: 2 }),
-  humidity:       integer("humidity"),               // percentage
-  pressureHpa:    numeric("pressure_hpa", { precision: 7, scale: 2 }),
-  windSpeed:      numeric("wind_speed", { precision: 5, scale: 2 }),
+    // Location
+    zipCode: varchar("zip_code", { length: 20 }),
 
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+    // AQI
+    aqiValue: integer("aqi_value"),
+    aqiCategory: varchar("aqi_category", { length: 50 }),
+
+    // PM2.5 (required by AI Trigger Discovery Engine)
+    pm25: numeric("pm25", {
+      precision: 8,
+      scale: 2,
+    }),
+
+    // Pollen
+    treePollenLevel: integer("tree_pollen_level"),
+    grassPollenLevel: integer("grass_pollen_level"),
+    weedPollenLevel: integer("weed_pollen_level"),
+    pollenTotal: integer("pollen_total"),
+
+    // Mould/Fungal exposure
+    mouldCount: integer("mould_count"),
+
+    // Weather
+    humidity: integer("humidity"),
+
+    // ENV-1 specifies Fahrenheit
+    temperatureF: numeric("temperature_f", {
+      precision: 5,
+      scale: 2,
+    }),
+
+    // Source of environmental data
+    dataSource: varchar("data_source", {
+      length: 100,
+    }),
+
+    // Weather condition
+weatherCondition: varchar("weather_condition", {
+  length: 100,
+}),
+
+// Source provider
+sourceProvider: varchar("source_provider", {
+  length: 100,
+}),
+
+// Coordinates
+latitude: numeric("latitude", {
+  precision: 9,
+  scale: 6,
+}),
+
+longitude: numeric("longitude", {
+  precision: 9,
+  scale: 6,
+}),
+
+    createdAt: timestamp("created_at")
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    patientDateIdx: index("environmental_data_patient_date_idx")
+  .on(table.patientId, table.recordedDate),
+  })
+);
 
 // ── Medication Reminders ─────────────────────────────────────
 export const medicationReminders = pgTable("medication_reminders", {

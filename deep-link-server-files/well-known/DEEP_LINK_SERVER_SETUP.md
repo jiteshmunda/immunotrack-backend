@@ -16,7 +16,7 @@ They must be accessible at these exact URLs — no authentication, no redirects.
 ### Android — Digital Asset Links
 
 ```
-URL:           https://immunotrack.com/.well-known/assetlinks.json
+URL:           https://dev.immunotrack.ai/.well-known/assetlinks.json
 Content-Type:  application/json
 ```
 
@@ -27,7 +27,7 @@ Play Console → App Integrity → App Signing tab. (Get it from flutter dev)
 ### iOS — Apple App Site Association
 
 ```
-URL:           https://immunotrack.com/.well-known/apple-app-site-association
+URL:           https://dev.immunotrack.ai/.well-known/apple-app-site-association
 Content-Type:  application/json   (no .json extension — Apple requires this)
 ```
 
@@ -54,7 +54,7 @@ include the HTTPS deep link URL so:
 
 ```
 Primary button / link:
-  https://immunotrack.com/invite?code=IMMU12345678
+  https://dev.immunotrack.ai/invite?code=IMMU12345678
 
 Fallback text:
   Or enter this code manually in the ImmunoTrack app: IMMU-ABCD-1234
@@ -63,7 +63,7 @@ Fallback text:
 Pass the deep link URL to `getInviteTemplate()` or construct it inside:
 
 ```typescript
-const deepLink = `https://immunotrack.com/invite?code=${raw}`;
+const deepLink = `https://dev.immunotrack.ai/invite?code=${raw}`;
 // raw is the unformatted 12-char code, e.g. "IMMU12345678"
 ```
 
@@ -72,7 +72,7 @@ const deepLink = `https://immunotrack.com/invite?code=${raw}`;
 ## 3. Create the Web Landing Page `/invite`
 
 When a user who doesn't have the app taps the link, the browser loads
-`https://immunotrack.com/invite?code=IMMU12345678`.
+`https://dev.immunotrack.ai/invite?code=IMMU12345678`.
 
 This page should:
 
@@ -130,7 +130,7 @@ app.get('/invite', (req, res) => {
 ```
 
 > **Note:** When the app IS installed, iOS/Android intercepts the
-> `https://immunotrack.com/invite?code=…` URL before the browser even
+> `https://dev.immunotrack.ai/invite?code=…` URL before the browser even
 > loads — so this landing page only appears when the app is not installed.
 
 ---
@@ -138,19 +138,19 @@ app.get('/invite', (req, res) => {
 ## 4. Testing Checklist
 
 ### Android App Links
-- [ ] `https://immunotrack.com/.well-known/assetlinks.json` returns 200
+- [ ] `https://dev.immunotrack.ai/.well-known/assetlinks.json` returns 200
 - [ ] Content-Type is `application/json`
 - [ ] SHA-256 fingerprint matches the signing key used in the Play build
 - [ ] Test with: `adb shell pm get-app-links ai.immunotrack.app` → shows "verified"
-- [ ] Tap `https://immunotrack.com/invite?code=TESTCODE` on device (app installed) → opens app
+- [ ] Tap `https://dev.immunotrack.ai/invite?code=TESTCODE` on device (app installed) → opens app
 - [ ] Tap same link (app not installed) → goes to Play Store
 
 ### iOS Universal Links
-- [ ] `https://immunotrack.com/.well-known/apple-app-site-association` returns 200
+- [ ] `https://dev.immunotrack.ai/.well-known/apple-app-site-association` returns 200
 - [ ] Content-Type is `application/json`
 - [ ] Team ID + bundle ID match exactly
 - [ ] Test with: WWDR's "App Link Validator" or `swcutil display -f` on Mac
-- [ ] Tap `https://immunotrack.com/invite?code=TESTCODE` in iOS Mail (app installed) → opens app
+- [ ] Tap `https://dev.immunotrack.ai/invite?code=TESTCODE` in iOS Mail (app installed) → opens app
 - [ ] Tap same link in Safari (app installed) → smart banner or opens app
 
 ### Deferred — Android

@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { ClinicianService } from "./clinician.service";
-import { createClinicianSchema, addClinicalNoteSchema } from "./clinician.schema";
+import { createClinicianSchema, addClinicalNoteSchema, updateClinicianProfileSchema } from "./clinician.schema";
 
 import { sendSuccess, sendError } from "../../utils/response";
 import { writeAudit } from "../../utils/audit";
@@ -33,6 +33,49 @@ export class ClinicianController {
           temporaryPassword: result.tempPassword, 
         },
       });
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
+
+  // ------------------------------GET /clinicians/profile------------------------------------
+
+  async getProfile(req: Request, res: Response) {
+    try {
+      const userId = (req as AuthenticatedRequest).user.userId;
+      const result = await clinicianService.getProfile(userId);
+
+      await writeAudit(req, {
+        action: "READ_PHI",
+        status: "success",
+        userId: userId,
+        resourceType: "clinician",
+        resourceId: result.clinician_id,
+      });
+
+      return sendSuccess(res, { profile: result });
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
+
+  // ------------------------------PUT /clinicians/profile------------------------------------
+
+  async updateProfile(req: Request, res: Response) {
+    try {
+      const userId = (req as AuthenticatedRequest).user.userId;
+      const validated = updateClinicianProfileSchema.parse(req.body);
+
+      const result = await clinicianService.updateProfile(userId, validated);
+
+      await writeAudit(req, {
+        action: "PROFILE_UPDATED",
+        status: "success",
+        userId: userId,
+        resourceType: "clinician",
+      });
+
+      return sendSuccess(res, result);
     } catch (error: any) {
       return sendError(res, error, 400);
     }

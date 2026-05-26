@@ -162,6 +162,13 @@
       "when": 1779691833308,
       "tag": "0022_short_molten_man",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1779779861344,
+      "tag": "0023_cute_bloodstorm",
+      "breakpoints": true
     }
   ]
 }

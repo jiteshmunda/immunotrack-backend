@@ -1,7 +1,7 @@
 paths:
-  /auth/login:
+  /auth/patient/login:
     post:
-      summary: Authenticate user and issue tokens
+      summary: Authenticate patient and issue tokens
       tags: [Auth]
       requestBody:
         required: true
@@ -12,7 +12,7 @@ paths:
               required: [email, password]
               properties:
                 email: { type: string, format: email, example: "jane.doe@example.com" }
-                password: { type: string, example: "Password123!" }
+                password: { type: string, minLength: 10, example: "Password123!" }
       responses:
         200:
           description: Login successful
@@ -30,7 +30,40 @@ paths:
                       role: { type: string, example: "patient" }
                   resetRequired: { type: boolean, example: false }
         401:
-          description: Authentication failed. May return "You're already logged in on another device. Please log out from that device to continue here." if session was revoked by a newer login.
+          description: Authentication failed.
+
+  /auth/clinician/login:
+    post:
+      summary: Authenticate clinician or admin and issue tokens
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email, example: "dr.smith@example.com" }
+                password: { type: string, minLength: 12, example: "DoctorPass123!@" }
+      responses:
+        200:
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  accessToken: { type: string, example: "eyJhbGciOiJIUzI1Ni..." }
+                  user:
+                    type: object
+                    properties:
+                      user_id: { type: string, format: uuid, example: "b8cffc86-f212-489b-bbf4-7f109570ea39" }
+                      role: { type: string, example: "clinician" }
+                  resetRequired: { type: boolean, example: false }
+        401:
+          description: Authentication failed.
 
   /auth/refresh:
     post:

@@ -146,6 +146,7 @@ paths:
                     properties:
                       total_patient_count: { type: integer, example: 25 }
                       total_high_risk_count: { type: integer, example: 3 }
+                      total_alerts_count: { type: integer, example: 2 }
                       patients:
                         type: array
                         items:
@@ -157,6 +158,7 @@ paths:
                             last_logged_date: { type: string, format: date-time, example: "2026-05-12T13:30:00Z" }
                             risk_score: { type: number, example: 8.5 }
                             risk_level: { type: string, enum: [Low, Moderate, High], example: "Moderate" }
+                            alerts: { type: integer, example: 2 }
         401: { description: Unauthorized }
         403: { description: Forbidden }
 

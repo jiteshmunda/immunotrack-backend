@@ -21,7 +21,7 @@ export class AuthService {
 
 // -----------------POST /auth/login---------------------------
 
-  async login(email: string, password: string, ip?: string, userAgent?: string) {
+  async login(email: string, password: string, allowedRoles: string[], ip?: string, userAgent?: string) {
     const emailHash = hashForLookup(email);
     const [result] = await db
       .select({
@@ -38,6 +38,10 @@ export class AuthService {
     }
 
     const { user, role } = result;
+
+    if (!allowedRoles.includes(role.name)) {
+      throw new Error("Invalid email or password");
+    }
 
     if (!user.passwordHash) {
       throw new Error("Invalid email or password");

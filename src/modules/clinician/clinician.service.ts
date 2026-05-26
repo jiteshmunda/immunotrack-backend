@@ -223,8 +223,25 @@ export class ClinicianService {
     const latestLogs = await db
       .select()
       .from(dailyLogs)
-      .where(sql`${dailyLogs.patientId} IN ${patientIds}`)
+      .where(sql`${dailyLogs.patientId} IN (${sql.join(patientIds.map(id => sql`${id}`), sql`, `)})`)
       .orderBy(dailyLogs.patientId, desc(dailyLogs.logDate), desc(dailyLogs.loggedAt));
+    
+    const patientAlerts = await db
+      .select({
+        patientId: alerts.patientId,
+        count: sql<number>`count(${alerts.id})`.mapWith(Number),
+      })
+      .from(alerts)
+      .where(and(
+        sql`${alerts.patientId} IN (${sql.join(patientIds.map(id => sql`${id}`), sql`, `)})`,
+        eq(alerts.status, "active")
+      ))
+      .groupBy(alerts.patientId);
+
+    const alertsCountMap = patientAlerts.reduce((acc, row) => {
+      acc[row.patientId] = row.count;
+      return acc;
+    }, {} as Record<string, number>);
     
     const latestLogMap = latestLogs.reduce((acc: Record<string, any>, log) => {
       if (!acc[log.patientId]) {
@@ -252,6 +269,8 @@ export class ClinicianService {
         if (riskLevel === "High") highRiskCount++;
       }
 
+      let alertsCount = alertsCountMap[p.id] || 0;
+
       return {
         id: p.id,
         name: decrypt(p.fullName!),
@@ -259,6 +278,7 @@ export class ClinicianService {
         last_logged_date: lastLoggedDate,
         risk_score: riskScore,
         risk_level: riskLevel,
+        alerts: alertsCount,
       };
     });
 
@@ -271,9 +291,12 @@ export class ClinicianService {
       );
     }
 
+    const totalAlertsCount = patientList.reduce((sum, p) => sum + p.alerts, 0);
+
     return {
       total_patient_count: filteredList.length,
       total_high_risk_count: filteredList.filter(p => p.risk_level === "High").length,
+      total_alerts_count: totalAlertsCount,
       patients: filteredList,
     };
   }

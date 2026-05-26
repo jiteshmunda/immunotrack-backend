@@ -8,7 +8,7 @@ const clinicianController = new ClinicianController();
 router.post(
   "/",
   authenticateJWT,
-  requireRole(["admin"]),
+  requireRole(["super admin"]),
   clinicianController.create.bind(clinicianController)
 );
 

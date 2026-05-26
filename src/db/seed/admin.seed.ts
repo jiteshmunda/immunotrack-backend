@@ -13,7 +13,7 @@ export async function seedAdmin() {
   const [adminRole] = await db
     .select()
     .from(roles)
-    .where(eq(roles.name, "super admin"))
+    .where(eq(roles.name, "admin"))
     .limit(1);
 
   if (!adminRole) {

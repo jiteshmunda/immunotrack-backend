@@ -109,20 +109,25 @@ export class EmailService {
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="color-scheme" content="light dark">
+        <meta name="supported-color-schemes" content="light dark">
         <title>ImmunoTrack Invitation</title>
+        <style>
+          @media (prefers-color-scheme: dark) {
+            body { background-color: #111111 !important; color: #f4f6f8 !important; }
+            .email-container { background-color: #1e1e1e !important; border-color: #333333 !important; }
+            .text-primary { color: #f4f6f8 !important; }
+            .text-secondary { color: #a1a1aa !important; }
+            .bg-accent { background-color: #2d3748 !important; border-color: #4a5568 !important; }
+          }
+        </style>
       </head>
       <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1B1E54; margin: 0; padding: 0; background-color: #f4f6f8; -webkit-font-smoothing: antialiased;">
         <div style="max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px rgba(27,30,84,0.05);">
           
           <!-- Branded Logo Header -->
-          <div style="background-color: #1B1E54; padding: 35px 40px; text-align: center; border-bottom: 3px solid #7FE3C5;">
-            <svg width="220" height="40" viewBox="0 0 220 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align: middle; display: inline-block;">
-              <!-- Beautiful inline styled logo representing allergy/lungs and technology -->
-              <circle cx="20" cy="20" r="16" fill="#7FE3C5" fill-opacity="0.2"/>
-              <path d="M20 7C12.8203 7 7 12.8203 7 20C7 27.1797 12.8203 33 20 33C27.1797 33 33 27.1797 33 20C33 12.8203 27.1797 7 20 7ZM15 20H25M20 15V25" stroke="#7FE3C5" stroke-width="3" stroke-linecap="round"/>
-              <text x="45" y="27" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI'" font-size="22" font-weight="800" letter-spacing="1">ImmunoTrack</text>
-              <text x="180" y="27" fill="#7FE3C5" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI'" font-size="22" font-weight="400">AI</text>
-            </svg>
+          <div style="background-color: #1B1E54; padding: 30px; text-align: center;">
+            <h1 style="color: #7FE3C5; margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 28px; font-weight: 800; letter-spacing: 1px;">ImmunoTrack</h1>
           </div>
 
           <!-- Email Content Body -->
@@ -219,7 +224,18 @@ export class EmailService {
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="color-scheme" content="light dark">
+        <meta name="supported-color-schemes" content="light dark">
         <title>ImmunoTrack Verification Code</title>
+        <style>
+          @media (prefers-color-scheme: dark) {
+            body { background-color: #111111 !important; color: #f4f6f8 !important; }
+            .email-container { background-color: #1e1e1e !important; border-color: #333333 !important; }
+            .text-primary { color: #f4f6f8 !important; }
+            .text-secondary { color: #a1a1aa !important; }
+            .bg-accent { background-color: #2d3748 !important; border-color: #4a5568 !important; }
+          }
+        </style>
       </head>
       <body style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1B1E54; margin: 0; padding: 0; background-color: #f9f9f9;">
         <div style="max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e1e1e1; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">

@@ -22,6 +22,13 @@ export const users = pgTable("users", {
   isTempPassword: boolean("is_temp_password").default(false).notNull(),
   passwordChangedAt: timestamp("password_changed_at").defaultNow().notNull(),
 
+  // Email Update (OTP)
+  pendingEmail: text("pending_email"),
+  emailUpdateOtp: varchar("email_update_otp", { length: 64 }),
+  emailUpdateExpires: timestamp("email_update_expires"),
+  emailUpdateAttempts: integer("email_update_attempts").default(0).notNull(),
+  emailUpdateRequestedAt: timestamp("email_update_requested_at"),
+
   // Password Reset (OTP)
   resetPasswordOtp: varchar("reset_password_otp", { length: 64 }),
   resetPasswordExpires: timestamp("reset_password_expires"),

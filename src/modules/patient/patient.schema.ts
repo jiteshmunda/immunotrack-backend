@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 export const updatePatientProfileSchema = z.object({
-  email: z.string().email("Invalid email format").optional(),
   zip_code: z.string().length(5, "Zip code must be 5 digits").optional(),
   first_name: z.string().optional(),
   last_name: z.string().optional(),

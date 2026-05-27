@@ -7,7 +7,9 @@ import {
   refreshSchema, 
   changePasswordSchema,
   forgotPasswordSchema,
-  resetPasswordSchema
+  resetPasswordSchema,
+  requestEmailUpdateSchema,
+  verifyEmailUpdateSchema
 } from "./auth.schema";
 import { 
   verifyInviteSchema, 
@@ -298,6 +300,63 @@ export class AuthController {
         details: { error: safeMessage },
       });
       return sendError(res, safeMessage, 400);
+    }
+  }
+
+  // -------------------------------POST /auth/email/request-otp---------------------------------------
+  async requestEmailUpdate(req: Request, res: Response) {
+    try {
+      const validated = requestEmailUpdateSchema.parse(req.body);
+      const userId = (req as any).user.userId;
+
+      await authService.requestEmailUpdate(userId, validated.newEmail);
+
+      await writeAudit(req, {
+        action: "EMAIL_UPDATE_REQUESTED",
+        status: "success",
+        userId,
+      });
+
+      return sendSuccess(res, { message: "If the email is valid, a verification code has been sent." });
+    } catch (error: any) {
+      await writeAudit(req, {
+        action: "EMAIL_UPDATE_REQUESTED",
+        status: "failure",
+        userId: (req as any).user?.userId,
+        details: { error: error.message },
+      });
+
+      if (error.message === "Please wait before requesting a new code") {
+        return sendError(res, error, 429);
+      }
+      return sendError(res, error, 400);
+    }
+  }
+
+  // -------------------------------POST /auth/email/verify-otp---------------------------------------
+  async verifyEmailUpdate(req: Request, res: Response) {
+    try {
+      const validated = verifyEmailUpdateSchema.parse(req.body);
+      const userId = (req as any).user.userId;
+
+      await authService.verifyEmailUpdate(userId, validated.otp);
+
+      await writeAudit(req, {
+        action: "EMAIL_UPDATE_VERIFIED",
+        status: "success",
+        userId,
+      });
+
+      return sendSuccess(res, { message: "Email has been updated successfully." });
+    } catch (error: any) {
+      await writeAudit(req, {
+        action: "EMAIL_UPDATE_VERIFIED",
+        status: "failure",
+        userId: (req as any).user?.userId,
+        details: { error: error.message },
+      });
+
+      return sendError(res, error, 400);
     }
   }
 }

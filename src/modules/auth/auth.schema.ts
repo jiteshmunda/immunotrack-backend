@@ -45,3 +45,14 @@ export type RefreshInput = z.infer<typeof refreshSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+export const requestEmailUpdateSchema = z.object({
+  newEmail: z.string().email("Invalid email format"),
+});
+
+export const verifyEmailUpdateSchema = z.object({
+  otp: z.string().length(6, "OTP must be 6 digits"),
+});
+
+export type RequestEmailUpdateInput = z.infer<typeof requestEmailUpdateSchema>;
+export type VerifyEmailUpdateInput = z.infer<typeof verifyEmailUpdateSchema>;

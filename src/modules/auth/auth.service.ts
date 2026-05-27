@@ -385,4 +385,117 @@ export class AuthService {
       await tx.delete(userSessions).where(eq(userSessions.userId, user.id));
     });
   }
+
+  // ---------------------------------POST /auth/email/request-otp-----------------------------------------
+  async requestEmailUpdate(userId: string, newEmail: string) {
+    const emailHash = hashForLookup(newEmail);
+    const [existingUser] = await db.select().from(users).where(eq(users.emailHash, emailHash)).limit(1);
+
+    if (existingUser) {
+      if (existingUser.id === userId) {
+        throw new Error("New email cannot be the same as current email");
+      }
+      throw new Error("Email is already taken");
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user) throw new Error("User not found");
+
+    if (user.emailUpdateRequestedAt) {
+      const diff = new Date().getTime() - user.emailUpdateRequestedAt.getTime();
+      if (diff < 2 * 60 * 1000) {
+        throw new Error("Please wait before requesting a new code");
+      }
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpHash = crypto.createHmac("sha256", ENV.ENCRYPTION_KEY).update(otp).digest("hex");
+    
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+
+    await db.update(users)
+      .set({
+        pendingEmail: encrypt(newEmail),
+        emailUpdateOtp: otpHash,
+        emailUpdateExpires: expiresAt,
+        emailUpdateAttempts: 0,
+        emailUpdateRequestedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+
+    await emailService.sendEmail({
+      to: newEmail,
+      subject: "Your ImmunoTrack Email Update Verification Code",
+      body: emailService.getOtpTemplate(
+        otp,
+        "Email Update Verification",
+        "We received a request to update the email address associated with your ImmunoTrack account. Use the verification code below to proceed. This code is valid for 10 minutes.",
+        "If you did not request an email change, please ignore this email or contact support immediately."
+      ),
+    });
+  }
+
+  // ---------------------------------POST /auth/email/verify-otp-----------------------------------------
+  async verifyEmailUpdate(userId: string, otp: string) {
+    return await db.transaction(async (tx) => {
+      const [user] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
+
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      if (!user.emailUpdateOtp || !user.emailUpdateExpires || user.emailUpdateExpires < new Date() || !user.pendingEmail) {
+        throw new Error("Code has expired or is invalid");
+      }
+
+      if (user.emailUpdateAttempts >= 5) {
+        await tx.update(users)
+          .set({ 
+            emailUpdateOtp: null,
+            emailUpdateExpires: null,
+            pendingEmail: null,
+            emailUpdateAttempts: 0 
+          })
+          .where(eq(users.id, userId));
+        throw new Error("Too many failed attempts. Please request a new code.");
+      }
+
+      const otpHash = crypto.createHmac("sha256", ENV.ENCRYPTION_KEY).update(otp).digest("hex");
+      if (user.emailUpdateOtp !== otpHash) {
+        await tx.update(users)
+          .set({ emailUpdateAttempts: user.emailUpdateAttempts + 1 })
+          .where(eq(users.id, userId));
+        
+        throw new Error("Invalid verification code");
+      }
+
+      const newEmailDecrypted = decrypt(user.pendingEmail);
+      const newEmailHash = hashForLookup(newEmailDecrypted);
+      const oldEmailDecrypted = decrypt(user.email);
+
+      await tx.update(users)
+        .set({
+          email: encrypt(newEmailDecrypted),
+          emailHash: newEmailHash,
+          pendingEmail: null,
+          emailUpdateOtp: null,
+          emailUpdateExpires: null,
+          emailUpdateAttempts: 0,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId));
+        
+      // Send security alert to the old email address (no await to prevent blocking the transaction unnecessarily, though usually fine)
+      emailService.sendEmail({
+        to: oldEmailDecrypted,
+        subject: "Security Alert: Your ImmunoTrack Email Has Been Changed",
+        body: emailService.getSecurityNotificationTemplate(
+          "Email Address Changed",
+          "This is a confirmation that the email address associated with your ImmunoTrack account has been successfully updated."
+        ),
+      }).catch(err => console.error("Failed to send security alert to old email:", err));
+    });
+  }
 }

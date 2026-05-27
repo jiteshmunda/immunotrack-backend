@@ -217,7 +217,12 @@ export class EmailService {
   /**
    * Generates a HIPAA-compliant OTP email template
    */
-  getOtpTemplate(otp: string): string {
+  getOtpTemplate(
+    otp: string, 
+    title = "Password Reset Request", 
+    description = "We received a request to reset your password. Use the verification code below to proceed. This code is valid for 10 minutes.",
+    footerWarning = "If you did not request a password reset, please ignore this email or contact support if you have concerns."
+  ): string {
     return `
       <!DOCTYPE html>
       <html>
@@ -247,9 +252,9 @@ export class EmailService {
 
           <!-- Content -->
           <div style="padding: 40px 30px;">
-            <p style="font-size: 18px; font-weight: 600; margin-bottom: 20px;">Password Reset Request</p>
+            <p style="font-size: 18px; font-weight: 600; margin-bottom: 20px;">${title}</p>
             
-            <p style="font-size: 16px; margin-bottom: 20px;">We received a request to reset your password. Use the verification code below to proceed. This code is valid for 10 minutes.</p>
+            <p style="font-size: 16px; margin-bottom: 20px;">${description}</p>
 
             <div style="background-color: #F0F9F7; padding: 30px; border-radius: 8px; text-align: center; border: 1px dashed #7FE3C5; margin: 30px 0;">
               <p style="margin-top: 0; margin-bottom: 10px; font-size: 14px; color: #666; text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">Your Verification Code</p>
@@ -257,7 +262,7 @@ export class EmailService {
             </div>
 
             <p style="font-size: 14px; color: #666; font-style: italic;">
-               If you did not request a password reset, please ignore this email or contact support if you have concerns.
+               ${footerWarning}
             </p>
 
             <hr style="border: 0; border-top: 1px solid #eee; margin: 40px 0;">
@@ -266,6 +271,52 @@ export class EmailService {
             <div style="font-size: 12px; color: #999; text-align: center;">
               <p>This is an automated security notification. ImmunoTrack handles your health information in accordance with HIPAA.</p>
               <p style="margin-top: 15px;">Questions? Contact us at support@immunotrack.ai</p>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  /**
+   * Generates a HIPAA-compliant security notification email template
+   */
+  getSecurityNotificationTemplate(
+    title: string,
+    message: string,
+    supportEmail = "support@immunotrack.ai"
+  ): string {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ImmunoTrack Security Alert</title>
+        <style>
+          body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1B1E54; margin: 0; padding: 0; background-color: #f9f9f9; }
+          .container { max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e1e1e1; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+          .header { background-color: #1B1E54; padding: 30px; text-align: center; }
+          .header h1 { color: #7FE3C5; margin: 0; font-size: 28px; letter-spacing: 1px; }
+          .content { padding: 40px 30px; }
+          .title { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: #e11d48; }
+          .message { font-size: 16px; margin-bottom: 20px; }
+          .footer { font-size: 12px; color: #999; text-align: center; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>ImmunoTrack</h1>
+          </div>
+          <div class="content">
+            <p class="title">${title}</p>
+            <p class="message">${message}</p>
+            <p class="message">If this was you, no further action is required.</p>
+            <p class="message"><strong>If you did not authorize this change, please contact us immediately at <a href="mailto:${supportEmail}">${supportEmail}</a>.</strong></p>
+            <div class="footer">
+              <p>This is an automated security notification. ImmunoTrack handles your health information in accordance with HIPAA.</p>
             </div>
           </div>
         </div>

@@ -409,8 +409,22 @@ export class ClinicianService {
     // 6. Final Assembly
     const lastLogDate = logs[0] ? new Date(logs[0].loggedAt).toLocaleString('en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : "No logs yet";
     
+    let riskScore = 0;
+    let riskLevel = "Low";
+    if (logs[0]) {
+      riskScore = calculateRiskScore(
+        parseFloat(logs[0].respiratoryComposite),
+        logs[0].nasalComposite,
+        logs[0].skinComposite
+      );
+      riskLevel = getSeverityLevel(riskScore);
+    }
+
     return {
       header: formatPatientHeader(patientData, decrypt(authData.fullName!), lastLogDate, decrypt),
+      risk_score: riskScore,
+      risk_level: riskLevel,
+      alerts_count: activeAlerts.length,
       composite_summary,
       symptom_trends,
       medication_adherence,

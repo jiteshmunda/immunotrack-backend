@@ -1,10 +1,11 @@
 import { db } from "../../db";
 import { patients, clinicians, patientClinicianAssignments } from "../../db/schema/profile.schema";
 import { users } from "../../db/schema/user.schema";
+import { clinics } from "../../db/schema/clinic.schema";
 import { patientConsents, onboardingSessions, notifications } from "../../db/schema/compliance.schema";
 import { eq, and } from "drizzle-orm";
 import { UpdatePatientProfileInput, PatientConsentInput } from "./patient.schema";
-import { decrypt, encrypt } from "../../utils/encryption";
+import { decrypt, encrypt, hashForLookup } from "../../utils/encryption";
 import { RpmService } from "../rpm/rpm.service";
 import { SymptomService } from "../symptoms/symptoms.service";
 import { MedicationService } from "../medication/medication.service";
@@ -24,14 +25,22 @@ export class PatientService {
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
 
     return await db.transaction(async (tx) => {
-      if (input.first_name || input.last_name) {
+      if (input.first_name || input.last_name || input.email) {
         const [user] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
-        if (user && user.fullName) {
-            const currentFullName = decrypt(user.fullName);
-            const parts = currentFullName.split(" ");
-            const first = input.first_name || parts[0];
-            const last = input.last_name || parts.slice(1).join(" ");
-            await tx.update(users).set({ fullName: encrypt(`${first} ${last}`), updatedAt: new Date() }).where(eq(users.id, userId));
+        if (user) {
+            const userUpdates: any = { updatedAt: new Date() };
+            if (input.first_name || input.last_name) {
+                const currentFullName = user.fullName ? decrypt(user.fullName) : "";
+                const parts = currentFullName.split(" ");
+                const first = input.first_name || parts[0];
+                const last = input.last_name || parts.slice(1).join(" ");
+                userUpdates.fullName = encrypt(`${first} ${last}`);
+            }
+            if (input.email) {
+                userUpdates.email = encrypt(input.email);
+                userUpdates.emailHash = hashForLookup(input.email);
+            }
+            await tx.update(users).set(userUpdates).where(eq(users.id, userId));
         }
       }
 
@@ -97,11 +106,25 @@ export class PatientService {
     const firstName = parts[0] || "";
     const lastName = parts.slice(1).join(" ") || "";
 
+    const [assignment] = await db
+      .select({
+         clinicianName: users.fullName,
+         clinicName: clinics.name
+      })
+      .from(patientClinicianAssignments)
+      .innerJoin(clinicians, eq(patientClinicianAssignments.clinicianId, clinicians.id))
+      .innerJoin(users, eq(clinicians.userId, users.id))
+      .leftJoin(clinics, eq(clinicians.clinicId, clinics.id))
+      .where(eq(patientClinicianAssignments.patientId, patient.id))
+      .limit(1);
+
     return {
       user_id: user.id,
       email: decrypt(user.email),
       first_name: firstName,
       last_name: lastName,
+      clinician_name: assignment?.clinicianName ? decrypt(assignment.clinicianName) : null,
+      clinic_name: assignment?.clinicName || null,
       patient_id: patient.id,
       date_of_birth: (() => {
         if (!patient.dateOfBirth) return null;

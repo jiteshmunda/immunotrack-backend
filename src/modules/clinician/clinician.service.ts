@@ -155,15 +155,23 @@ export class ClinicianService {
     if (!clinician) throw new Error("CLINICIAN_NOT_FOUND");
 
     return await db.transaction(async (tx) => {
-      // 1. Update User (Full Name)
-      if (input.first_name || input.last_name) {
+      // 1. Update User (Full Name, Email)
+      if (input.first_name || input.last_name || input.email) {
         const [user] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
-        if (user && user.fullName) {
-            const currentFullName = decrypt(user.fullName);
-            const parts = currentFullName.split(" ");
-            const first = input.first_name || parts[0];
-            const last = input.last_name || parts.slice(1).join(" ");
-            await tx.update(users).set({ fullName: encrypt(`${first} ${last}`), updatedAt: new Date() }).where(eq(users.id, userId));
+        if (user) {
+            const userUpdates: any = { updatedAt: new Date() };
+            if (input.first_name || input.last_name) {
+                const currentFullName = user.fullName ? decrypt(user.fullName) : "";
+                const parts = currentFullName.split(" ");
+                const first = input.first_name || parts[0];
+                const last = input.last_name || parts.slice(1).join(" ");
+                userUpdates.fullName = encrypt(`${first} ${last}`);
+            }
+            if (input.email) {
+                userUpdates.email = encrypt(input.email);
+                userUpdates.emailHash = hashForLookup(input.email);
+            }
+            await tx.update(users).set(userUpdates).where(eq(users.id, userId));
         }
       }
 
@@ -177,9 +185,11 @@ export class ClinicianService {
       if (input.npiNumber !== undefined) updates.npiNumber = input.npiNumber ? encrypt(input.npiNumber) : null;
       if (input.notifications_enabled !== undefined) updates.notificationsEnabled = input.notifications_enabled;
 
-      await tx.update(clinicians)
-        .set(updates)
-        .where(eq(clinicians.id, clinician.id));
+      if (Object.keys(updates).length > 0) {
+        await tx.update(clinicians)
+          .set(updates)
+          .where(eq(clinicians.id, clinician.id));
+      }
 
       return { success: true, updated_fields: Object.keys(input) };
     });

@@ -43,6 +43,7 @@ export const createClinicianSchema = z.object({
 export type CreateClinicianInput = z.infer<typeof createClinicianSchema>;
 
 export const updateClinicianProfileSchema = z.object({
+  email: z.string().email("Invalid email format").optional(),
   first_name: z
     .string()
     .regex(/^[a-zA-Z\s]+$/, "First name must only contain letters and spaces")

@@ -17,6 +17,15 @@ router.post(
   (req, res) => controller.invitePatient(req, res)
 );
 
+router.get(
+  "/clinician/invite",
+  requireHttps,
+  authenticateJWT,
+  requireRole(["clinician"]),
+  resolveClinicianProfile,
+  (req, res) => controller.getInvitations(req, res)
+);
+
 
 router.post(
   "/clinician/invite/:invite_id/resend",

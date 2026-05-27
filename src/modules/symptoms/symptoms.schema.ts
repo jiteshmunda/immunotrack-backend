@@ -11,12 +11,14 @@ export const LogSymptomsSchema = z.object({
   acq5_wheeze:             z.number().min(0).max(6),
   acq6_reliever_use:        z.number().min(0).max(6),
 
-  // SNOT-6 (0-5)
+  // SNOT-8 (0-5)
+  sn_need_to_blow:    z.number().min(0).max(5),
   sn1_nasal_blockage: z.number().min(0).max(5),
   sn2_runny_nose:     z.number().min(0).max(5),
   sn3_sneezing:      z.number().min(0).max(5),
   sn4_smell_taste:    z.number().min(0).max(5),
   sn5_post_nasal_drip: z.number().min(0).max(5),
+  sn_thick_discharge: z.number().min(0).max(5),
   sn6_facial_pain:    z.number().min(0).max(5),
 
   // POEM (0-4)

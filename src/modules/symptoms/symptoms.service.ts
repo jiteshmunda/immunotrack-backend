@@ -32,11 +32,13 @@ export class SymptomService {
     ).toFixed(2);
 
     const nasalComposite =
+      input.sn_need_to_blow +
       input.sn1_nasal_blockage +
       input.sn2_runny_nose +
       input.sn3_sneezing +
       input.sn4_smell_taste +
       input.sn5_post_nasal_drip +
+      input.sn_thick_discharge +
       input.sn6_facial_pain;
 
     const skinComposite =
@@ -74,11 +76,13 @@ export class SymptomService {
           acq5Wheeze: input.acq5_wheeze,
           acq6RelieverUse: input.acq6_reliever_use,
           respiratoryComposite: respiratoryComposite.toString(),
+          snNeedToBlow: input.sn_need_to_blow,
           sn1NasalBlockage: input.sn1_nasal_blockage,
           sn2RunnyNose: input.sn2_runny_nose,
           sn3Sneezing: input.sn3_sneezing,
           sn4SmellTaste: input.sn4_smell_taste,
           sn5PostNasalDrip: input.sn5_post_nasal_drip,
+          snThickDischarge: input.sn_thick_discharge,
           sn6FacialPain: input.sn6_facial_pain,
           nasalComposite: nasalComposite,
           sk1Itch: input.sk1_itch,
@@ -104,11 +108,13 @@ export class SymptomService {
             acq5Wheeze: input.acq5_wheeze,
             acq6RelieverUse: input.acq6_reliever_use,
             respiratoryComposite: respiratoryComposite.toString(),
+            snNeedToBlow: input.sn_need_to_blow,
             sn1NasalBlockage: input.sn1_nasal_blockage,
             sn2RunnyNose: input.sn2_runny_nose,
             sn3Sneezing: input.sn3_sneezing,
             sn4SmellTaste: input.sn4_smell_taste,
             sn5PostNasalDrip: input.sn5_post_nasal_drip,
+            snThickDischarge: input.sn_thick_discharge,
             sn6FacialPain: input.sn6_facial_pain,
             nasalComposite: nasalComposite,
             sk1Itch: input.sk1_itch,

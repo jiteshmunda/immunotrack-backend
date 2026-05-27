@@ -34,14 +34,16 @@ export const dailyLogs = pgTable("daily_logs", {
   respiratoryComposite:   numeric("respiratory_composite", { precision: 3, scale: 2 }).notNull(),
 
   // ── SNOT-22 Nasal sub-items (0–5 each) ──────────────────
-  // Composite = sum of all 6 items. Range: 0–30
+  // Composite = sum of all 8 items. Range: 0–40
+  snNeedToBlow:     smallint("sn_need_to_blow").default(0).notNull(),
   sn1NasalBlockage: smallint("sn1_nasal_blockage").notNull(),
   sn2RunnyNose:     smallint("sn2_runny_nose").notNull(),
   sn3Sneezing:      smallint("sn3_sneezing").notNull(),
   sn4SmellTaste:    smallint("sn4_smell_taste").notNull(),
   sn5PostNasalDrip: smallint("sn5_post_nasal_drip").notNull(),
+  snThickDischarge: smallint("sn_thick_discharge").default(0).notNull(),
   sn6FacialPain:    smallint("sn6_facial_pain").notNull(),
-  // sum of sn1–sn6. Green 0–7 | Amber 8–17 | Red 18–30
+  // sum of the 8 sn items. Green 0–9 | Amber 10–21 | Red 22–40
   nasalComposite:   smallint("nasal_composite").notNull(),
 
   // ── POEM Skin sub-items (0–4 each, frequency) ───────────

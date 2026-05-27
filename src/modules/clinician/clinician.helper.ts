@@ -64,8 +64,9 @@ export function formatSymptomTrends(logs: any[]) {
         mean: parseFloat(l.respiratoryComposite),
       },
       snot: {
-        sn1: l.sn1NasalBlockage, sn2: l.sn2RunnyNose, sn3: l.sn3Sneezing,
-        sn4: l.sn4SmellTaste, sn5: l.sn5PostNasalDrip, sn6: l.sn6FacialPain,
+        sn1_need_to_blow: l.snNeedToBlow, sn2: l.sn2RunnyNose, sn3: l.sn3Sneezing,
+        sn1: l.sn1NasalBlockage, sn4: l.sn4SmellTaste, sn5: l.sn5PostNasalDrip, 
+        sn7_thick_discharge: l.snThickDischarge, sn6: l.sn6FacialPain,
         sum: l.nasalComposite,
       },
       poem: {

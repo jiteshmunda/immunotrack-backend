@@ -176,6 +176,13 @@
       "when": 1779862110303,
       "tag": "0024_real_jane_foster",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1779871781850,
+      "tag": "0025_demonic_triathlon",
+      "breakpoints": true
     }
   ]
 }

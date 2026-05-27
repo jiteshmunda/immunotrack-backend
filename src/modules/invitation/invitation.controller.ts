@@ -91,4 +91,21 @@ export class InvitationController {
       return sendError(res, error, 500);
     }
   }
+// -------------------------------------------GET /clinician/invite-------------------------------------------
+
+  async getInvitations(req: Request, res: Response) {
+    try {
+      const clinicianReq = req as unknown as ClinicianRequest;
+      const status = req.query.status as string | undefined;
+
+      const result = await invitationService.getInvitations(
+        clinicianReq.clinicianId,
+        status
+      );
+
+      return sendSuccess(res, result);
+    } catch (error: any) {
+      return sendError(res, error, 500);
+    }
+  }
 }

@@ -12,8 +12,10 @@ import {
   getStatusColor 
 } from "./utils/symptom-scores";
 import { encrypt } from "../../utils/encryption";
+import { NotificationService } from "../notification/notification.service";
 
 const rpmService = new RpmService();
+const notificationService = new NotificationService();
 
 export class SymptomService {
   async logSymptoms(userId: string, input: LogSymptomsInput) {
@@ -139,7 +141,7 @@ export class SymptomService {
         await rpmService.recordTransmission(patient.id, input.log_date);
       }
 
-      // 5. Check for Symptom Deterioration Alert
+      // 5. Check for Declining Composite Scores (Type A Alerts)
       const riskScore = calculateRiskScore(
         parseFloat(respiratoryComposite),
         nasalComposite,
@@ -147,43 +149,137 @@ export class SymptomService {
       );
       const severity = getSeverityLevel(riskScore);
 
-      if (severity === "High") {
+      const recentLogs = await tx
+        .select()
+        .from(dailyLogs)
+        .where(eq(dailyLogs.patientId, patient.id))
+        .orderBy(desc(dailyLogs.logDate), desc(dailyLogs.loggedAt))
+        .limit(2);
+      
+      const prevLog = recentLogs.length > 1 ? recentLogs[1] : null;
+
+      const domains = [
+        { 
+          name: "respiratory", 
+          currentScore: parseFloat(respiratoryComposite), 
+          prevScore: prevLog ? parseFloat(prevLog.respiratoryComposite) : null,
+          getColor: (s: number) => getStatusColor("respiratory", s)
+        },
+        { 
+          name: "nasal", 
+          currentScore: nasalComposite, 
+          prevScore: prevLog ? prevLog.nasalComposite : null,
+          getColor: (s: number) => getStatusColor("nasal", s)
+        },
+        { 
+          name: "skin", 
+          currentScore: skinComposite, 
+          prevScore: prevLog ? prevLog.skinComposite : null,
+          getColor: (s: number) => getStatusColor("skin", s)
+        }
+      ];
+
+      // We need clinician info for notifications (getting primary clinician)
+      // We will skip actual FCM logic here and let NotificationService handle it if needed.
+      // But we just need to send a push to the clinician, so we find the clinician assignment.
+      const { patientClinicianAssignments } = await import("../../db/schema/profile.schema");
+      const [assignment] = await tx
+        .select()
+        .from(patientClinicianAssignments)
+        .where(
+          and(
+            eq(patientClinicianAssignments.patientId, patient.id),
+            eq(patientClinicianAssignments.isPrimary, true)
+          )
+        )
+        .limit(1);
+
+      for (const d of domains) {
+        if (d.prevScore === null) continue;
+
+        const prevColor = d.getColor(d.prevScore);
+        const currColor = d.getColor(d.currentScore);
+
+        let subtype: string | null = null;
+        let priority: string | null = null;
+
+        if (prevColor === "green" && currColor === "amber") {
+          subtype = "threshold_crossing"; priority = "High";
+        } else if (prevColor === "amber" && currColor === "red") {
+          subtype = "threshold_crossing"; priority = "High";
+        } else if (prevColor === "green" && currColor === "red") {
+          subtype = "rapid_escalation"; priority = "Critical";
+        }
+
         const [activeAlert] = await tx
           .select()
           .from(alerts)
           .where(
             and(
               eq(alerts.patientId, patient.id),
-              or(
-                eq(alerts.alertType, "SYMPTOM DETERIORATION"),
-                eq(alerts.alertType, "symptom_deterioration")
-              ),
+              eq(alerts.alertType, "declining_composite"),
+              eq(alerts.domain, d.name),
               eq(alerts.status, "active")
             )
           )
           .limit(1);
 
-        const alertDesc = `Patient's overall risk score has reached ${riskScore}/10.`;
+        if (subtype && priority) {
+          const alertDesc = `Patient's ${d.name} score has worsened.`;
 
-        if (activeAlert) {
-          await tx
-            .update(alerts)
-            .set({ 
+          if (activeAlert) {
+            await tx
+              .update(alerts)
+              .set({
+                lastTriggeredAt: new Date(),
+                compositeScoreCurrent: d.currentScore.toString(),
+                description: encrypt(alertDesc),
+                riskScore: riskScore.toString(),
+              })
+              .where(eq(alerts.id, activeAlert.id));
+          } else {
+            await tx.insert(alerts).values({
+              patientId: patient.id,
+              alertType: "declining_composite",
+              domain: d.name,
+              alertSubtype: subtype,
+              severityFrom: prevColor,
+              severityTo: currColor,
+              severity: priority,
+              status: "active",
+              compositeScoreAtTrigger: d.currentScore.toString(),
+              compositeScoreCurrent: d.currentScore.toString(),
+              description: encrypt(alertDesc),
               lastTriggeredAt: new Date(),
               riskScore: riskScore.toString(),
-              description: encrypt(alertDesc),
-            })
-            .where(eq(alerts.id, activeAlert.id));
-        } else {
-          await tx.insert(alerts).values({
-            patientId: patient.id,
-            alertType: "symptom_deterioration",
-            severity: "High",
-            status: "active",
-            description: encrypt(alertDesc),
-            lastTriggeredAt: new Date(),
-            riskScore: riskScore.toString(),
-          });
+            });
+          }
+
+          if (assignment) {
+            // Send notification to primary clinician
+            // We get clinician's userId
+            const { clinicians } = await import("../../db/schema/profile.schema");
+            const [clinician] = await tx.select().from(clinicians).where(eq(clinicians.id, assignment.clinicianId)).limit(1);
+            if (clinician) {
+               notificationService.sendNotification(
+                 clinician.userId,
+                 "patient_deterioration",
+                 `Alert: ${d.name} Declining`,
+                 alertDesc
+               ).catch(e => console.error(e));
+            }
+          }
+        } else if (d.currentScore > d.prevScore) {
+            if (activeAlert) {
+               await tx
+              .update(alerts)
+              .set({
+                lastTriggeredAt: new Date(),
+                compositeScoreCurrent: d.currentScore.toString(),
+                riskScore: riskScore.toString(),
+              })
+              .where(eq(alerts.id, activeAlert.id));
+            }
         }
       }
 

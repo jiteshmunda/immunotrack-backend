@@ -183,6 +183,13 @@
       "when": 1779871781850,
       "tag": "0025_demonic_triathlon",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1779880128186,
+      "tag": "0026_flat_mandrill",
+      "breakpoints": true
     }
   ]
 }

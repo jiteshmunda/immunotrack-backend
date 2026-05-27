@@ -5,7 +5,8 @@
       "namespace": "android_app",
       "package_name": "ai.immunotrack.app",
       "sha256_cert_fingerprints": [
-        "5F:C8:5B:3F:8C:3A:08:0E:F5:D5:23:D4:65:EA:52:B0:1C:77:EA:F5:4A:FC:EF:CB:44:E3:62:42:07:1D:13:B8"
+        "5F:C8:5B:3F:8C:3A:08:0E:F5:D5:23:D4:65:EA:52:B0:1C:77:EA:F5:4A:FC:EF:CB:44:E3:62:42:07:1D:13:B8", 
+        "D8:00:2D:34:F4:8C:00:FE:EE:61:34:79:FA:B1:98:F2:A3:C1:A2:09:D7:8B:C0:FE:F9:79:35:E4:65:BE:86:D4"
       ]
     }
   }

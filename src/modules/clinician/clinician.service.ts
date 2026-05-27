@@ -9,9 +9,10 @@ import { hashForLookup, encrypt, decrypt } from "../../utils/encryption";
 import { hashPassword } from "../../utils/hash";
 import { eq, desc, and, sql, between } from "drizzle-orm";
 import crypto from "crypto";
-import { CreateClinicianInput, ClinicianAnalyticsResponse } from "./clinician.schema";
+import { CreateClinicianInput, ClinicianAnalyticsResponse, UpdateClinicianProfileInput } from "./clinician.schema";
 import { calculateRiskScore, getSeverityLevel, getStatusColor } from "../symptoms/utils/symptom-scores";
 import { alerts } from "../../db/schema/ai.schema";
+import { notifications } from "../../db/schema/compliance.schema";
 import { MedicationService } from "../medication/medication.service";
 import { getDailyFrequency } from "../../common/constants/medication";
 import { 
@@ -107,6 +108,85 @@ export class ClinicianService {
     });
   }
 
+  // ---------------------------------------------------- GET /clinician/profile ---------------------------------------------------
+  async getProfile(userId: string) {
+    const [result] = await db
+      .select({
+        user: users,
+        clinician: clinicians,
+        clinic: clinics,
+      })
+      .from(users)
+      .innerJoin(clinicians, eq(users.id, clinicians.userId))
+      .leftJoin(clinics, eq(clinicians.clinicId, clinics.id))
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!result) throw new Error("CLINICIAN_NOT_FOUND");
+
+    const { user, clinician, clinic } = result;
+
+    const fullNameDecrypted = decrypt(user.fullName!);
+    const parts = fullNameDecrypted.split(" ");
+    const firstName = parts[0] || "";
+    const lastName = parts.slice(1).join(" ") || "";
+
+    return {
+      user_id: user.id,
+      email: decrypt(user.email!),
+      first_name: firstName,
+      last_name: lastName,
+      clinician_id: clinician.id,
+      clinic_name: clinic ? clinic.name : clinician.organizationName,
+      specialty: clinician.specialty,
+      license_number: clinician.licenseNumber ? decrypt(clinician.licenseNumber) : null,
+      npi_number: clinician.npiNumber ? decrypt(clinician.npiNumber) : null,
+      phone: clinician.phone ? decrypt(clinician.phone) : null,
+      state_of_licensure: clinician.stateOfLicensure,
+      role: clinician.clinicalRole,
+      notifications_enabled: clinician.notificationsEnabled,
+      created_at: clinician.createdAt,
+    };
+  }
+
+  // ---------------------------------------------------- PUT /clinician/profile ---------------------------------------------------
+  async updateProfile(userId: string, input: UpdateClinicianProfileInput) {
+    const [clinician] = await db.select().from(clinicians).where(eq(clinicians.userId, userId)).limit(1);
+    if (!clinician) throw new Error("CLINICIAN_NOT_FOUND");
+
+    return await db.transaction(async (tx) => {
+      // 1. Update User (Full Name)
+      if (input.first_name || input.last_name) {
+        const [user] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
+        if (user && user.fullName) {
+            const currentFullName = decrypt(user.fullName);
+            const parts = currentFullName.split(" ");
+            const first = input.first_name || parts[0];
+            const last = input.last_name || parts.slice(1).join(" ");
+            await tx.update(users).set({ fullName: encrypt(`${first} ${last}`), updatedAt: new Date() }).where(eq(users.id, userId));
+        }
+      }
+
+      // 2. Update Clinician Profile
+      const updates: any = {};
+      if (input.specialty !== undefined) updates.specialty = input.specialty;
+      if (input.stateOfLicensure !== undefined) updates.stateOfLicensure = input.stateOfLicensure;
+      if (input.role !== undefined) updates.clinicalRole = input.role;
+      if (input.phone !== undefined) updates.phone = input.phone ? encrypt(input.phone) : null;
+      if (input.licenseNumber !== undefined) updates.licenseNumber = input.licenseNumber ? encrypt(input.licenseNumber) : null;
+      if (input.npiNumber !== undefined) updates.npiNumber = input.npiNumber ? encrypt(input.npiNumber) : null;
+      if (input.notifications_enabled !== undefined) updates.notificationsEnabled = input.notifications_enabled;
+
+      if (Object.keys(updates).length > 0) {
+        await tx.update(clinicians)
+          .set(updates)
+          .where(eq(clinicians.id, clinician.id));
+      }
+
+      return { success: true, updated_fields: Object.keys(input) };
+    });
+  }
+
   // ---------------------------------------------------- GET Assigned Patients with Risk Calculation ---------------------------------------------------
 
   async getAssignedPatients(userId: string, search?: string) {
@@ -145,8 +225,25 @@ export class ClinicianService {
     const latestLogs = await db
       .select()
       .from(dailyLogs)
-      .where(sql`${dailyLogs.patientId} IN ${patientIds}`)
+      .where(sql`${dailyLogs.patientId} IN (${sql.join(patientIds.map(id => sql`${id}`), sql`, `)})`)
       .orderBy(dailyLogs.patientId, desc(dailyLogs.logDate), desc(dailyLogs.loggedAt));
+    
+    const patientAlerts = await db
+      .select({
+        patientId: alerts.patientId,
+        count: sql<number>`count(${alerts.id})`.mapWith(Number),
+      })
+      .from(alerts)
+      .where(and(
+        sql`${alerts.patientId} IN (${sql.join(patientIds.map(id => sql`${id}`), sql`, `)})`,
+        eq(alerts.status, "active")
+      ))
+      .groupBy(alerts.patientId);
+
+    const alertsCountMap = patientAlerts.reduce((acc, row) => {
+      acc[row.patientId] = row.count;
+      return acc;
+    }, {} as Record<string, number>);
     
     const latestLogMap = latestLogs.reduce((acc: Record<string, any>, log) => {
       if (!acc[log.patientId]) {
@@ -174,6 +271,8 @@ export class ClinicianService {
         if (riskLevel === "High") highRiskCount++;
       }
 
+      let alertsCount = alertsCountMap[p.id] || 0;
+
       return {
         id: p.id,
         name: decrypt(p.fullName!),
@@ -181,6 +280,7 @@ export class ClinicianService {
         last_logged_date: lastLoggedDate,
         risk_score: riskScore,
         risk_level: riskLevel,
+        alerts: alertsCount,
       };
     });
 
@@ -193,9 +293,12 @@ export class ClinicianService {
       );
     }
 
+    const totalAlertsCount = patientList.reduce((sum, p) => sum + p.alerts, 0);
+
     return {
       total_patient_count: filteredList.length,
       total_high_risk_count: filteredList.filter(p => p.risk_level === "High").length,
+      total_alerts_count: totalAlertsCount,
       patients: filteredList,
     };
   }

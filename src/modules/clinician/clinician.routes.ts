@@ -13,6 +13,21 @@ router.post(
 );
 
 router.get(
+  "/profile",
+  authenticateJWT,
+  requireRole(["clinician"]),
+  clinicianController.getProfile.bind(clinicianController)
+);
+
+router.put(
+  "/profile",
+  authenticateJWT,
+  requireRole(["clinician"]),
+  clinicianController.updateProfile.bind(clinicianController)
+);
+
+
+router.get(
   "/patients",
   authenticateJWT,
   requireRole(["clinician"]),

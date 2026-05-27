@@ -11,6 +11,10 @@ const defaultRoles = [
 export async function seedRoles() {
   console.log(" Seeding roles...");
 
+  // Revert 'super admin' or 'system admin' to 'admin' if it exists to preserve existing records
+  await db.update(roles).set({ name: "admin" }).where(eq(roles.name, "super admin"));
+  await db.update(roles).set({ name: "admin" }).where(eq(roles.name, "system admin"));
+
   for (const role of defaultRoles) {
     const existing = await db
       .select()

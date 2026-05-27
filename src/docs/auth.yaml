@@ -1,7 +1,7 @@
 paths:
-  /auth/login:
+  /auth/patient/login:
     post:
-      summary: Authenticate user and issue tokens
+      summary: Authenticate patient and issue tokens
       tags: [Auth]
       requestBody:
         required: true
@@ -12,7 +12,7 @@ paths:
               required: [email, password]
               properties:
                 email: { type: string, format: email, example: "jane.doe@example.com" }
-                password: { type: string, example: "Password123!" }
+                password: { type: string, minLength: 10, example: "Password123!" }
       responses:
         200:
           description: Login successful
@@ -30,7 +30,40 @@ paths:
                       role: { type: string, example: "patient" }
                   resetRequired: { type: boolean, example: false }
         401:
-          description: Authentication failed. May return "You're already logged in on another device. Please log out from that device to continue here." if session was revoked by a newer login.
+          description: Authentication failed.
+
+  /auth/clinician/login:
+    post:
+      summary: Authenticate clinician or admin and issue tokens
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email, example: "dr.smith@example.com" }
+                password: { type: string, minLength: 12, example: "DoctorPass123!@" }
+      responses:
+        200:
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  accessToken: { type: string, example: "eyJhbGciOiJIUzI1Ni..." }
+                  user:
+                    type: object
+                    properties:
+                      user_id: { type: string, format: uuid, example: "b8cffc86-f212-489b-bbf4-7f109570ea39" }
+                      role: { type: string, example: "clinician" }
+                  resetRequired: { type: boolean, example: false }
+        401:
+          description: Authentication failed.
 
   /auth/refresh:
     post:
@@ -210,3 +243,61 @@ paths:
                   onboarding_step: { type: string, example: "consent_platform" }
         400:
           description: Registration failed (token expired or user already exists)
+
+  /auth/email/request-otp:
+    post:
+      summary: Request an OTP to update the user's email address
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [newEmail]
+              properties:
+                newEmail: { type: string, format: email, example: "new.email@example.com" }
+      responses:
+        200:
+          description: OTP successfully generated and sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "If the email is valid, a verification code has been sent." }
+        400:
+          description: Invalid request, new email same as current, or email already taken
+        429:
+          description: Request cooldown (wait 2 minutes)
+
+  /auth/email/verify-otp:
+    post:
+      summary: Verify the OTP to finalize email address update
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [otp]
+              properties:
+                otp: { type: string, minLength: 6, maxLength: 6, example: "123456" }
+      responses:
+        200:
+          description: Email successfully updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Email has been updated successfully." }
+        400:
+          description: Invalid OTP, expired OTP, or too many failed attempts

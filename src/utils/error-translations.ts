@@ -21,6 +21,8 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   "Too many failed attempts. Please request a new code.": "Too many failed attempts. Please request a new verification code.",
   "Invalid verification code": "The verification code you entered is incorrect.",
   "New password cannot be the same as your old password": "Your new password must be different from your old password.",
+  "New email cannot be the same as current email": "The new email address cannot be the same as your current email.",
+  "Email is already taken": "This email address is already in use by another account.",
 
   // --- Medication Plan Modules ---
   "PATIENT_NOT_FOUND": "We couldn't find your profile. Please complete your registration.",

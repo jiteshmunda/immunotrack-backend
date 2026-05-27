@@ -1,6 +1,7 @@
 import { db } from "../../db";
 import { patients, clinicians, patientClinicianAssignments } from "../../db/schema/profile.schema";
 import { users } from "../../db/schema/user.schema";
+import { clinics } from "../../db/schema/clinic.schema";
 import { patientConsents, onboardingSessions, notifications } from "../../db/schema/compliance.schema";
 import { eq, and } from "drizzle-orm";
 import { UpdatePatientProfileInput, PatientConsentInput } from "./patient.schema";
@@ -97,11 +98,25 @@ export class PatientService {
     const firstName = parts[0] || "";
     const lastName = parts.slice(1).join(" ") || "";
 
+    const [assignment] = await db
+      .select({
+         clinicianName: users.fullName,
+         clinicName: clinics.name
+      })
+      .from(patientClinicianAssignments)
+      .innerJoin(clinicians, eq(patientClinicianAssignments.clinicianId, clinicians.id))
+      .innerJoin(users, eq(clinicians.userId, users.id))
+      .leftJoin(clinics, eq(clinicians.clinicId, clinics.id))
+      .where(eq(patientClinicianAssignments.patientId, patient.id))
+      .limit(1);
+
     return {
       user_id: user.id,
       email: decrypt(user.email),
       first_name: firstName,
       last_name: lastName,
+      clinician_name: assignment?.clinicianName ? decrypt(assignment.clinicianName) : null,
+      clinic_name: assignment?.clinicName || null,
       patient_id: patient.id,
       date_of_birth: (() => {
         if (!patient.dateOfBirth) return null;

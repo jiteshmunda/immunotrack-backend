@@ -92,7 +92,7 @@ export class InvitationService {
           patientDiagnosis: encryptedDiagnosis,
           icd10Code: encryptedIcd10,
           rpmEnrolled: String(input.rpm_enrolled),
-          personalMessage: input.personal_message,
+          personalMessage: input.personal_message || "Welcome to the ImmunoTrack Monitoring Program",
           status: "pending",
           expiresAt,
         })
@@ -108,10 +108,10 @@ export class InvitationService {
             clinician.fullName ? decrypt(clinician.fullName) : 'Your Doctor',
             clinician.clinicName || 'Your Clinic',
             display,
+            raw,
             expiresAt.toISOString(),
-            input.personal_message
-          ),
-        });
+            input.personal_message || "Welcome to the ImmunoTrack Monitoring Program"
+    )});
         
         await tx.update(invitations).set({ emailSentAt: new Date() }).where(eq(invitations.id, invitation.id));
       } catch (error) {
@@ -261,6 +261,7 @@ export class InvitationService {
           clinician?.fullName ? decrypt(clinician.fullName) : 'Your Doctor',
           clinician?.clinicName || 'Your Clinic',
           display,
+          raw,
           expiresAt.toISOString(),
           oldInvite.personalMessage || undefined
         ),

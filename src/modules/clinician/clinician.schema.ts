@@ -42,6 +42,44 @@ export const createClinicianSchema = z.object({
 
 export type CreateClinicianInput = z.infer<typeof createClinicianSchema>;
 
+export const updateClinicianProfileSchema = z.object({
+  first_name: z
+    .string()
+    .regex(/^[a-zA-Z\s]+$/, "First name must only contain letters and spaces")
+    .optional(),
+  last_name: z
+    .string()
+    .regex(/^[a-zA-Z\s]+$/, "Last name must only contain letters and spaces")
+    .optional(),
+  specialty: z
+    .string()
+    .regex(/^[a-zA-Z\s]*$/, "Specialty must only contain letters and spaces")
+    .optional(),
+  licenseNumber: z
+    .string()
+    .regex(/^[a-zA-Z0-9]+$/, "License number must be alphanumeric")
+    .optional(),
+  npiNumber: z
+    .string()
+    .length(10, "NPI number must be exactly 10 digits")
+    .regex(/^\d+$/, "NPI number must only contain digits")
+    .optional(),
+  phone: z.string().optional(),
+  stateOfLicensure: z.string().optional(),
+  role: z.enum([
+    "Allergist",
+    "Immunologist",
+    "Primary Care",
+    "Nurse Practitioner",
+    "Other",
+  ], {
+    message: "Please select a valid clinical role",
+  }).optional(),
+  notifications_enabled: z.boolean().optional(),
+});
+
+export type UpdateClinicianProfileInput = z.infer<typeof updateClinicianProfileSchema>;
+
 export const addClinicalNoteSchema = z.object({
   note_type: z.string().min(1, "Note type is required"),
   notes: z.string().min(10, "Notes must be at least 10 characters long").max(5000, "Notes cannot exceed 5000 characters"),

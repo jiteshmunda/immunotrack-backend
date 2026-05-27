@@ -45,6 +45,79 @@ paths:
         401: { description: Unauthorized }
         403: { description: Forbidden }
   
+  /clinicians/profile:
+    get:
+      summary: Get the logged-in clinician's profile
+      description: Returns the profile details of the clinician currently authenticated.
+      tags: [Clinician]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  profile:
+                    type: object
+                    properties:
+                      user_id: { type: string, format: uuid }
+                      email: { type: string, format: email }
+                      first_name: { type: string }
+                      last_name: { type: string }
+                      clinician_id: { type: string, format: uuid }
+                      clinic_name: { type: string }
+                      specialty: { type: string }
+                      license_number: { type: string, nullable: true }
+                      npi_number: { type: string, nullable: true }
+                      phone: { type: string, nullable: true }
+                      state_of_licensure: { type: string, nullable: true }
+                      role: { type: string, nullable: true }
+                      notifications_enabled: { type: boolean }
+                      created_at: { type: string, format: date-time }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
+    put:
+      summary: Update the logged-in clinician's profile
+      description: Updates editable fields for the clinician. Email and clinic name are read-only.
+      tags: [Clinician]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                first_name: { type: string, example: "Jane" }
+                last_name: { type: string, example: "Doe" }
+                specialty: { type: string, example: "Immunology" }
+                licenseNumber: { type: string, example: "LIC998877" }
+                npiNumber: { type: string, example: "1234567890" }
+                phone: { type: string, example: "5559876543" }
+                stateOfLicensure: { type: string, example: "NY" }
+                role: { type: string, enum: [Allergist, Immunologist, Primary Care, Nurse Practitioner, Other] }
+                notifications_enabled: { type: boolean, example: false }
+      responses:
+        200:
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  updated_fields:
+                    type: array
+                    items: { type: string }
+        400: { description: Bad Request }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
+
   /clinicians/patients:
     get:
       summary: List all patients assigned to the clinician
@@ -73,6 +146,7 @@ paths:
                     properties:
                       total_patient_count: { type: integer, example: 25 }
                       total_high_risk_count: { type: integer, example: 3 }
+                      total_alerts_count: { type: integer, example: 2 }
                       patients:
                         type: array
                         items:
@@ -84,6 +158,7 @@ paths:
                             last_logged_date: { type: string, format: date-time, example: "2026-05-12T13:30:00Z" }
                             risk_score: { type: number, example: 8.5 }
                             risk_level: { type: string, enum: [Low, Moderate, High], example: "Moderate" }
+                            alerts: { type: integer, example: 2 }
         401: { description: Unauthorized }
         403: { description: Forbidden }
 

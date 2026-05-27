@@ -7,10 +7,15 @@ const router = Router();
 const authController = new AuthController();
 
 // Standard Auth
-router.post("/login", authController.login.bind(authController));
+router.post("/patient/login", authController.patientLogin.bind(authController));
+router.post("/clinician/login", authController.clinicianLogin.bind(authController));
 router.post("/refresh", authController.refresh.bind(authController));
 router.post("/logout", authController.logout.bind(authController));
 router.post("/change-password", authenticateJWT, authController.changePassword.bind(authController));
+
+// Email Update (OTP)
+router.post("/email/request-otp", authenticateJWT, authController.requestEmailUpdate.bind(authController));
+router.post("/email/verify-otp", authenticateJWT, authController.verifyEmailUpdate.bind(authController));
 
 // Password Reset
 router.post("/forgot-password", requireHttps, authController.forgotPassword.bind(authController));

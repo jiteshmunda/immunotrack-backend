@@ -8,26 +8,27 @@ export const sendSuccess = (res: Response, data: object, status = 200) =>
 
 
 export const sendError = (res: Response, error: any, status = 400) => {
-  const { sanitizedMessage, technicalDetails } = sanitizeError(error);
+  const { sanitizedMessage, technicalDetails, statusCode } = sanitizeError(error, status);
   
   const redactedTechnicalDetails = redactData(technicalDetails);
 
   auditLogger.error("API_ERROR_LOG", { 
-    status,
+    status: statusCode,
     technicalDetails: redactedTechnicalDetails,
     timestamp: new Date().toISOString()
   });
 
-  return res.status(status).json({ 
+  return res.status(statusCode).json({ 
     success: false, 
     message: sanitizedMessage 
   });
 };
 
 
-function sanitizeError(error: any) {
+function sanitizeError(error: any, defaultStatus: number) {
   let sanitizedMessage = "An unexpected error occurred";
   let technicalDetails: any = { name: "Error" };
+  let statusCode = defaultStatus;
 
   if (error instanceof ZodError) {
     sanitizedMessage = error.issues
@@ -54,11 +55,12 @@ function sanitizeError(error: any) {
     const isSqlLeaked = sqlKeywords.some(k => rawMessage.toLowerCase().includes(k)) || rawMessage.includes("\"");
 
     if (isSqlLeaked) {
-      sanitizedMessage = "Internal processing error. The clinical record could not be updated.";
+      sanitizedMessage = "An internal database error occurred.";
       technicalDetails = {
         name: errorName,
         message: "Database Query Error (Redacted)"
       };
+      statusCode = 500; // Force 500 for unhandled DB errors
     } else if (ERROR_TRANSLATIONS[rawMessage]) {
       sanitizedMessage = ERROR_TRANSLATIONS[rawMessage];
       technicalDetails = {
@@ -71,6 +73,7 @@ function sanitizeError(error: any) {
         name: errorName,
         message: "Internal Error (Raw message redacted to prevent PHI leakage)"
       };
+      statusCode = 500;
     }
   } else if (typeof error === "string") {
     if (ERROR_TRANSLATIONS[error]) {
@@ -79,10 +82,11 @@ function sanitizeError(error: any) {
     } else {
       sanitizedMessage = "An unexpected error occurred.";
       technicalDetails = { message: "Raw string error redacted to prevent PHI leakage" };
+      statusCode = 500;
     }
   }
 
-  return { sanitizedMessage, technicalDetails };
+  return { sanitizedMessage, technicalDetails, statusCode };
 }
 
 

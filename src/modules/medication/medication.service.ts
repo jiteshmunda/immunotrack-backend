@@ -700,7 +700,10 @@ export class MedicationService {
   async getAdherenceMetrics(userId: string, role: string, patientId?: string, rangeDays?: number, targetDate: Date = new Date()) {
     let targetPatientId: string;
 
-    if (role === "clinician") {
+    if (role === "admin" || role === "super admin") {
+      if (!patientId) throw new Error("PATIENT_ID_REQUIRED_FOR_ADMIN");
+      targetPatientId = patientId;
+    } else if (role === "clinician") {
       if (!patientId) throw new Error("PATIENT_ID_REQUIRED_FOR_CLINICIANS");
       
       const [clinician] = await db.select().from(clinicians).where(eq(clinicians.userId, userId)).limit(1);

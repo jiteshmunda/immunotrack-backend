@@ -86,7 +86,7 @@ export class EmailService {
         </div>`
       : "";
 
-    const deepLink = `dev-api.immunotrack.ai/invite?code=${rawCode}`;
+    const deepLink = `https://dev-api.immunotrack.ai/invite?code=${rawCode}`;
 
     // Format exact expiration date and time
     const expiryDate = new Date(expiryTimestamp);

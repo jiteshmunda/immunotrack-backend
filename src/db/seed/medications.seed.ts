@@ -13,9 +13,7 @@ export async function seedMedications() {
 
   if (existingCount > 0) {
     console.warn(`Skipping seed: ${existingCount} medications already exist in the catalog.`);
-    // As per user request: throw error if it exists (or skip)
-    // We will throw a specific message to indicate it's already seeded
-    throw new Error("Medication catalog is already seeded. Please clear the table manually if you want to re-run.");
+    return;
   }
 
   // 2. Insert the data

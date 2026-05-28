@@ -7,8 +7,12 @@ import path from "path";
 import { swaggerSpec } from "./config/swagger";
 import { ENV } from "./config/env"
 import router from "./routes";
+import { trackMetrics } from "./common/middleware/metrics.middleware";
 
 const app = express();
+
+// Track API Metrics globally
+app.use(trackMetrics);
 
 app.use(
   helmet({

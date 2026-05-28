@@ -15,8 +15,9 @@ export class ClinicianController {
   async create(req: Request, res: Response) {
     try {
       const validated = createClinicianSchema.parse(req.body);
+      const creatorId = (req as AuthenticatedRequest).user.userId;
       
-      const result = await clinicianService.createClinician(validated);
+      const result = await clinicianService.createClinician(validated, creatorId);
 
       await writeAudit(req, {
         action: "CREATE_CLINICIAN",

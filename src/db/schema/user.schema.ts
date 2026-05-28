@@ -16,6 +16,10 @@ export const users = pgTable("users", {
   // active | invited | suspended | archived
   status: varchar("status", { length: 20 }).notNull().default("active"),
 
+  // Account Lockout
+  failedLoginAttempts: integer("failed_login_attempts").default(0).notNull(),
+  lockedUntil: timestamp("locked_until"),
+
   lastLoginAt: timestamp("last_login_at"),
 
   // Security flags
@@ -37,4 +41,11 @@ export const users = pgTable("users", {
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const passwordHistory = pgTable("password_history", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });

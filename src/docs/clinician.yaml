@@ -163,6 +163,39 @@ paths:
         403: { description: Forbidden }
 
   /clinician/invite:
+    get:
+      summary: Get clinician invitations list
+      description: Returns a list of invitations sent by the clinician, with optional status filtering.
+      tags: [Clinician]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+          description: Comma-separated statuses to filter by (e.g., pending,accepted,expired)
+      responses:
+        200:
+          description: List of invitations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        patient_name: { type: string }
+                        patient_email: { type: string, format: email }
+                        status: { type: string }
+                        expires_at: { type: string, format: date-time }
+                        created_at: { type: string, format: date-time }
+        401: { description: Unauthorized }
     post:
       summary: Clinician invites a patient to join (HIPAA-Compliant)
       tags: [Clinician]

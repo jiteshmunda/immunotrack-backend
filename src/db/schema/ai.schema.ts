@@ -1,6 +1,6 @@
 import {
   pgTable, uuid, varchar, text, timestamp,
-  boolean, date, numeric
+  boolean, date, numeric, smallint
 } from "drizzle-orm/pg-core";
 import { patients } from "./profile.schema";
 import { users } from "./user.schema";
@@ -117,6 +117,16 @@ export const alerts = pgTable("alerts", {
   resolutionNote: varchar("resolution_note", { length: 500 }),
   riskScore: numeric("risk_score", { precision: 5, scale: 2 }),
   patientMedicationId: uuid("patient_medication_id").references(() => patientMedications.id),
+
+  // Declining Composite Score fields
+  domain: varchar("domain", { length: 20 }), // respiratory | nasal | skin
+  alertSubtype: varchar("alert_subtype", { length: 30 }), // threshold_crossing | consecutive_streak | weekly_trend | rapid_escalation
+  severityFrom: varchar("severity_from", { length: 20 }), // green | amber | red
+  severityTo: varchar("severity_to", { length: 20 }), // green | amber | red
+  compositeScoreAtTrigger: numeric("composite_score_at_trigger", { precision: 5, scale: 2 }),
+  compositeScoreCurrent: numeric("composite_score_current", { precision: 5, scale: 2 }),
+  streakDays: smallint("streak_days"),
+  weeklyChangePct: numeric("weekly_change_pct", { precision: 5, scale: 2 }),
 });
 
 // ── Flare History ────────────────────────────────────────────

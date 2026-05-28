@@ -29,6 +29,14 @@ paths:
                         created_at: { type: string, format: date-time }
                         lastTriggeredAt: { type: string, format: date-time }
                         risk_score: { type: number, nullable: true, example: 9.5 }
+                        domain: { type: string, nullable: true, example: "nasal" }
+                        alert_subtype: { type: string, nullable: true, example: "consecutive_streak" }
+                        severity_from: { type: string, nullable: true, example: "amber" }
+                        severity_to: { type: string, nullable: true, example: "red" }
+                        composite_score_at_trigger: { type: number, nullable: true, example: 29 }
+                        composite_score_current: { type: number, nullable: true, example: 29 }
+                        streak_days: { type: integer, nullable: true, example: 5 }
+                        weekly_change_pct: { type: number, nullable: true, example: 45 }
                         medication_name: { type: string, nullable: true, example: null }
         401: { description: Unauthorized }
         403: { description: Forbidden }

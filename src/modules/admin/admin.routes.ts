@@ -54,4 +54,11 @@ router.get(
   adminController.getAuditLogs.bind(adminController)
 );
 
+router.delete(
+  "/clinicians/:id",
+  authenticateJWT,
+  requireRole(["admin", "super admin"]),
+  adminController.deleteClinician.bind(adminController)
+);
+
 export default router;

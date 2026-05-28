@@ -896,5 +896,37 @@ export class AdminService {
       logs
     };
   }
+
+  async deleteClinician(adminId: string, clinicianId: string) {
+    const targetClinicians = await db
+      .select({
+        id: clinicians.id,
+        userId: clinicians.userId,
+        createdBy: clinicians.createdBy
+      })
+      .from(clinicians)
+      .where(eq(clinicians.id, clinicianId));
+
+    if (targetClinicians.length === 0) {
+      throw new Error("Clinician not found");
+    }
+
+    const clinician = targetClinicians[0];
+
+    if (clinician.createdBy !== adminId) {
+      throw new Error("Forbidden: You do not have permission to delete this clinician");
+    }
+
+    await db
+      .update(users)
+      .set({ status: "archived", updatedAt: new Date() })
+      .where(eq(users.id, clinician.userId!));
+
+    await db
+      .delete(patientClinicianAssignments)
+      .where(eq(patientClinicianAssignments.clinicianId, clinicianId));
+
+    return { message: "Clinician successfully deleted!!" };
+  }
 }
 

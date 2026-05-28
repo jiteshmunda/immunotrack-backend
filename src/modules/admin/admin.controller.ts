@@ -126,4 +126,26 @@ export class AdminController {
       return sendError(res, error, 400);
     }
   }
+
+  async deleteClinician(req: Request, res: Response) {
+    try {
+      const adminId = (req as any).user.userId;
+      const clinicianId = req.params.id as string;
+
+      if (!clinicianId) {
+        throw new Error("Clinician ID is required");
+      }
+
+      const result = await adminService.deleteClinician(adminId, clinicianId);
+
+      return sendSuccess(res, {
+        message: result.message,
+      });
+    } catch (error: any) {
+      if (error.message.includes("Forbidden")) {
+        return sendError(res, error, 403);
+      }
+      return sendError(res, error, 400);
+    }
+  }
 }

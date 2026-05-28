@@ -80,6 +80,36 @@ paths:
         401: { description: Unauthorized }
         403: { description: Forbidden }
 
+  /admins/clinicians/{id}:
+    delete:
+      summary: Delete a clinician
+      description: Soft deletes a clinician (archives user) and unassigns all their patients. Can only be performed by the admin who created the clinician.
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the clinician to delete
+      responses:
+        200:
+          description: Clinician successfully deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Clinician successfully deleted!!" }
+        400: { description: Bad Request }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
+        404: { description: Not Found }
+
   /admins/dashboard/population:
     get:
       summary: Get Population Dashboard metrics

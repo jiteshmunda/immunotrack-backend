@@ -93,7 +93,28 @@ export class AdminService {
     });
   }
 
-  async getClinicians(adminId: string) {
+  async getClinicians(adminId: string, filters?: { status?: string; role?: string; clinical_role?: string; search?: string }) {
+    let roleId: string | undefined = undefined;
+    if (filters?.role) {
+      const [roleData] = await db.select({ id: roles.id }).from(roles).where(eq(roles.name, filters.role)).limit(1);
+      if (roleData) {
+        roleId = roleData.id;
+      } else {
+        return []; // If they asked for a role that doesn't exist, return empty
+      }
+    }
+
+    const queryConditions = [eq(clinicians.createdBy, adminId)];
+    if (filters?.status) {
+      queryConditions.push(eq(users.status, filters.status));
+    }
+    if (filters?.clinical_role) {
+      queryConditions.push(eq(clinicians.clinicalRole, filters.clinical_role));
+    }
+    if (roleId) {
+      queryConditions.push(eq(users.roleId, roleId));
+    }
+
     const adminClinicians = await db
       .select({
         id: clinicians.id,
@@ -109,14 +130,25 @@ export class AdminService {
       })
       .from(clinicians)
       .innerJoin(users, eq(clinicians.userId, users.id))
-      .where(eq(clinicians.createdBy, adminId));
+      .where(and(...queryConditions));
 
-    return adminClinicians.map((clinician) => ({
+    let result = adminClinicians.map((clinician) => ({
       ...clinician,
       full_name: decrypt(clinician.full_name!),
       email: decrypt(clinician.email!),
       npi_number: clinician.npi_number ? decrypt(clinician.npi_number) : null,
     }));
+
+    if (filters?.search) {
+      const searchLower = filters.search.toLowerCase();
+      result = result.filter(c => 
+        (c.full_name && c.full_name.toLowerCase().includes(searchLower)) ||
+        (c.email && c.email.toLowerCase().includes(searchLower)) ||
+        (c.specialty && c.specialty.toLowerCase().includes(searchLower))
+      );
+    }
+
+    return result;
   }
 
   async getPopulationDashboard(adminId: string) {
@@ -926,7 +958,181 @@ export class AdminService {
       .delete(patientClinicianAssignments)
       .where(eq(patientClinicianAssignments.clinicianId, clinicianId));
 
-    return { message: "Clinician successfully deleted!!" };
+    return { message: "Clinician successfully deleted and assigned patients have been unassigned." };
+  }
+
+  async getClinicianDetails(adminId: string, clinicianId: string) {
+    const clinicianData = await db
+      .select({
+        id: clinicians.id,
+        user_id: users.id,
+        full_name: users.fullName,
+        email: users.email,
+        status: users.status,
+        clinical_role: clinicians.clinicalRole,
+        specialty: clinicians.specialty,
+        npi_number: clinicians.npiNumber,
+        state_of_licensure: clinicians.stateOfLicensure,
+        created_at: clinicians.createdAt,
+        createdBy: clinicians.createdBy
+      })
+      .from(clinicians)
+      .innerJoin(users, eq(clinicians.userId, users.id))
+      .where(eq(clinicians.id, clinicianId));
+
+    if (clinicianData.length === 0) {
+      throw new Error("Clinician not found");
+    }
+
+    const clinician = clinicianData[0];
+    if (clinician.createdBy !== adminId) {
+      throw new Error("Forbidden: You do not have permission to view this clinician");
+    }
+
+    return {
+      ...clinician,
+      full_name: decrypt(clinician.full_name!),
+      email: decrypt(clinician.email!),
+      npi_number: clinician.npi_number ? decrypt(clinician.npi_number) : null,
+      createdBy: undefined,
+    };
+  }
+
+  async updateClinicianRole(adminId: string, clinicianId: string, newRoleName: string) {
+    const validRoles = ["admin", "super admin", "clinician"];
+    if (!validRoles.includes(newRoleName)) {
+      throw new Error("Invalid role name");
+    }
+
+    const targetClinicians = await db
+      .select({
+        id: clinicians.id,
+        userId: clinicians.userId,
+        createdBy: clinicians.createdBy
+      })
+      .from(clinicians)
+      .where(eq(clinicians.id, clinicianId));
+
+    if (targetClinicians.length === 0) {
+      throw new Error("Clinician not found");
+    }
+
+    if (targetClinicians[0].createdBy !== adminId) {
+      throw new Error("Forbidden: You do not have permission to modify this clinician");
+    }
+
+    const roleData = await db
+      .select({ id: roles.id })
+      .from(roles)
+      .where(eq(roles.name, newRoleName));
+
+    if (roleData.length === 0) {
+      throw new Error("Role not found in system");
+    }
+
+    await db
+      .update(users)
+      .set({ roleId: roleData[0].id, updatedAt: new Date() })
+      .where(eq(users.id, targetClinicians[0].userId!));
+
+    return { message: `Clinician role successfully updated to ${newRoleName}` };
+  }
+
+  async transferPatients(adminId: string, toClinicianId: string, patientIds: string[]) {
+    if (!patientIds || patientIds.length === 0) {
+      throw new Error("patient_ids array is required and cannot be empty");
+    }
+
+    const targetClinicians = await db
+      .select({
+        id: clinicians.id,
+        createdBy: clinicians.createdBy,
+        userId: clinicians.userId
+      })
+      .from(clinicians)
+      .where(eq(clinicians.id, toClinicianId));
+
+    if (targetClinicians.length === 0) {
+      throw new Error("Target clinician not found");
+    }
+
+    if (targetClinicians[0].createdBy !== adminId && targetClinicians[0].userId !== adminId) {
+      throw new Error("Forbidden: You do not have permission to assign patients to this clinician");
+    }
+
+    for (const patientId of patientIds) {
+      // Delete any existing assignment for this patient
+      await db
+        .delete(patientClinicianAssignments)
+        .where(eq(patientClinicianAssignments.patientId, patientId));
+
+      // Create the new assignment
+      await db
+        .insert(patientClinicianAssignments)
+        .values({
+          patientId,
+          clinicianId: toClinicianId,
+          isPrimary: true,
+        });
+    }
+
+    return { message: "Patients successfully transferred" };
+  }
+
+  async getClinicianPatients(adminId: string, clinicianId: string, filters?: { status?: string; search?: string }) {
+    const targetClinicians = await db
+      .select({
+        id: clinicians.id,
+        createdBy: clinicians.createdBy
+      })
+      .from(clinicians)
+      .where(eq(clinicians.id, clinicianId));
+
+    if (targetClinicians.length === 0) {
+      throw new Error("Clinician not found");
+    }
+
+    if (targetClinicians[0].createdBy !== adminId) {
+      throw new Error("Forbidden: You do not have permission to view this clinician's patients");
+    }
+
+    const queryConditions = [eq(patientClinicianAssignments.clinicianId, clinicianId)];
+    if (filters?.status) {
+      queryConditions.push(eq(users.status, filters.status));
+    }
+
+    const assignedPatientsResult = await db
+      .select({
+        id: patients.id,
+        user_id: users.id,
+        full_name: users.fullName,
+        email: users.email,
+        date_of_birth: patients.dateOfBirth,
+        mrn: patients.mrn,
+        status: users.status,
+      })
+      .from(patients)
+      .innerJoin(users, eq(patients.userId, users.id))
+      .innerJoin(patientClinicianAssignments, eq(patients.id, patientClinicianAssignments.patientId))
+      .where(and(...queryConditions));
+
+    let result = assignedPatientsResult.map(p => ({
+      ...p,
+      full_name: decrypt(p.full_name!),
+      email: decrypt(p.email!),
+      date_of_birth: p.date_of_birth ? decrypt(p.date_of_birth) : null,
+      mrn: p.mrn ? decrypt(p.mrn) : null,
+    }));
+
+    if (filters?.search) {
+      const searchLower = filters.search.toLowerCase();
+      result = result.filter(p => 
+        (p.full_name && p.full_name.toLowerCase().includes(searchLower)) ||
+        (p.email && p.email.toLowerCase().includes(searchLower)) ||
+        (p.mrn && p.mrn.toLowerCase().includes(searchLower))
+      );
+    }
+
+    return result;
   }
 }
-

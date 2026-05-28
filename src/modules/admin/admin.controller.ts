@@ -37,7 +37,14 @@ export class AdminController {
   async getClinicians(req: Request, res: Response) {
     try {
       const adminId = (req as AuthenticatedRequest).user.userId;
-      const clinicians = await adminService.getClinicians(adminId);
+      const filters = {
+        status: req.query.status as string,
+        role: req.query.role as string,
+        clinical_role: req.query.clinical_role as string,
+        search: req.query.search as string,
+      };
+      
+      const clinicians = await adminService.getClinicians(adminId, filters);
       
       return sendSuccess(res, {
         message: "Clinicians fetched successfully",
@@ -138,12 +145,162 @@ export class AdminController {
 
       const result = await adminService.deleteClinician(adminId, clinicianId);
 
+      await writeAudit(req, {
+        action: "CLINICIAN_DELETED",
+        status: "success",
+        userId: adminId,
+        resourceType: "clinician",
+        resourceId: clinicianId,
+      });
+
       return sendSuccess(res, {
         message: result.message,
       });
     } catch (error: any) {
       if (error.message.includes("Forbidden")) {
         return sendError(res, error, 403);
+      }
+      return sendError(res, error, 400);
+    }
+  }
+
+  async getClinicianDetails(req: Request, res: Response) {
+    try {
+      const adminId = (req as any).user.userId;
+      const clinicianId = req.params.id as string;
+
+      if (!clinicianId) {
+        throw new Error("Clinician ID is required");
+      }
+
+      const clinician = await adminService.getClinicianDetails(adminId, clinicianId);
+
+      await writeAudit(req, {
+        action: "CLINICIAN_DETAILS_ACCESSED",
+        status: "success",
+        userId: adminId,
+        resourceType: "clinician",
+        resourceId: clinicianId,
+      });
+
+      return sendSuccess(res, {
+        message: "Clinician details fetched successfully",
+        data: clinician
+      });
+    } catch (error: any) {
+      if (error.message.includes("Forbidden")) {
+        return sendError(res, error, 403);
+      }
+      if (error.message.includes("not found")) {
+        return sendError(res, error, 404);
+      }
+      return sendError(res, error, 400);
+    }
+  }
+
+  async updateClinicianRole(req: Request, res: Response) {
+    try {
+      const adminId = (req as any).user.userId;
+      const clinicianId = req.params.id as string;
+      const { new_role_name } = req.body;
+
+      if (!clinicianId) {
+        throw new Error("Clinician ID is required");
+      }
+      if (!new_role_name) {
+        throw new Error("new_role_name is required");
+      }
+
+      const result = await adminService.updateClinicianRole(adminId, clinicianId, new_role_name);
+
+      await writeAudit(req, {
+        action: "CLINICIAN_ROLE_UPDATED",
+        status: "success",
+        userId: adminId,
+        resourceType: "clinician",
+        resourceId: clinicianId,
+        details: { new_role_name }
+      });
+
+      return sendSuccess(res, {
+        message: result.message
+      });
+    } catch (error: any) {
+      if (error.message.includes("Forbidden")) {
+        return sendError(res, error, 403);
+      }
+      if (error.message.includes("not found")) {
+        return sendError(res, error, 404);
+      }
+      return sendError(res, error, 400);
+    }
+  }
+
+  async transferPatients(req: Request, res: Response) {
+    try {
+      const adminId = (req as any).user.userId;
+      const { to_clinician_id, patient_ids } = req.body;
+
+      if (!to_clinician_id) {
+        throw new Error("to_clinician_id is required");
+      }
+
+      const result = await adminService.transferPatients(adminId, to_clinician_id, patient_ids);
+
+      await writeAudit(req, {
+        action: "PATIENTS_TRANSFERRED",
+        status: "success",
+        userId: adminId,
+        resourceType: "clinician",
+        resourceId: to_clinician_id,
+        details: { patient_ids }
+      });
+
+      return sendSuccess(res, {
+        message: result.message
+      });
+    } catch (error: any) {
+      if (error.message.includes("Forbidden")) {
+        return sendError(res, error, 403);
+      }
+      return sendError(res, error, 400);
+    }
+  }
+
+  async getClinicianPatients(req: Request, res: Response) {
+    try {
+      const adminId = (req as any).user.userId;
+      const clinicianId = req.params.id as string;
+
+      if (!clinicianId) {
+        throw new Error("Clinician ID is required");
+      }
+
+      const filters = {
+        status: req.query.status as string,
+        search: req.query.search as string,
+      };
+
+      const patientsList = await adminService.getClinicianPatients(adminId, clinicianId, filters);
+
+      await writeAudit(req, {
+        action: "CLINICIAN_ROSTER_ACCESSED",
+        status: "success",
+        userId: adminId,
+        resourceType: "clinician",
+        resourceId: clinicianId,
+      });
+
+      return sendSuccess(res, {
+        message: "Patients fetched successfully",
+        data: patientsList
+      });
+    } catch (error: any) {
+      if (error.message.includes("Forbidden")) {
+        return sendError(res, error, 403);
+      }
+      if (error.message.includes("not found")) {
+        return sendError(res, error, 404);
       }
       return sendError(res, error, 400);
     }

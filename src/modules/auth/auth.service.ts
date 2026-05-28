@@ -266,8 +266,20 @@ export class AuthService {
 
   // --------------------------------PUT /auth/change-password------------------------------------------------
   async changePassword(userId: string, currentPassword: string, newPassword: string) {
-    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-    if (!user) throw new Error("User not found");
+    const [result] = await db
+      .select({ user: users, role: roles })
+      .from(users)
+      .innerJoin(roles, eq(users.roleId, roles.id))
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!result) throw new Error("User not found");
+    const { user, role } = result;
+
+    if (role.name !== "patient" && newPassword.length < 12) {
+      throw new Error("Password must be at least 12 characters for this role");
+    }
+
     if (!user.passwordHash) throw new Error("Password not set. Please complete enrollment.");
 
     const isCurrentValid = await verifyPassword(currentPassword, user.passwordHash!);
@@ -336,10 +348,21 @@ export class AuthService {
     const emailHash = hashForLookup(email);
     
     return await db.transaction(async (tx) => {
-      const [user] = await tx.select().from(users).where(eq(users.emailHash, emailHash)).limit(1);
+      const [result] = await tx
+        .select({ user: users, role: roles })
+        .from(users)
+        .innerJoin(roles, eq(users.roleId, roles.id))
+        .where(eq(users.emailHash, emailHash))
+        .limit(1);
 
-      if (!user || user.status !== "active") {
+      if (!result || result.user.status !== "active") {
         throw new Error("Invalid request");
+      }
+      
+      const { user, role } = result;
+
+      if (role.name !== "patient" && newPassword.length < 12) {
+        throw new Error("Password must be at least 12 characters for this role");
       }
 
       if (!user.resetPasswordOtp || !user.resetPasswordExpires || user.resetPasswordExpires < new Date()) {

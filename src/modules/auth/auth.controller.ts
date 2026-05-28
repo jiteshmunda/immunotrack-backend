@@ -73,7 +73,7 @@ export class AuthController {
       const { accessToken, refreshToken, user, resetRequired } = await authService.login(
         validated.email,
         validated.password,
-        ["clinician", "admin"],
+        ["clinician", "super admin"],
         req.ip,
         req.headers["user-agent"]
       );

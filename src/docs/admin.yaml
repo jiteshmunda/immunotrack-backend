@@ -173,3 +173,75 @@ paths:
                             adherence_percentage: { type: integer, example: 84 }
         401: { description: Unauthorized }
         403: { description: Forbidden }
+
+  /admins/analytics/symptoms:
+    get:
+      summary: Get Symptom Trends Analytics metrics
+      description: Returns population-level symptom analysis and trends for the admin's entire assigned patient base.
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Symptom Trends Analytics metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Symptom analytics fetched successfully" }
+                  data:
+                    type: object
+                    properties:
+                      top_kpis:
+                        type: object
+                        properties:
+                          respiratory:
+                            type: object
+                            properties:
+                              avg_score: { type: number, format: float, example: 4.0 }
+                              percentage_change: { type: integer, example: -17 }
+                          nasal:
+                            type: object
+                            properties:
+                              avg_score: { type: number, format: float, example: 4.2 }
+                              percentage_change: { type: integer, example: -18 }
+                          skin:
+                            type: object
+                            properties:
+                              avg_score: { type: number, format: float, example: 2.7 }
+                              percentage_change: { type: integer, example: -15 }
+                      trends_14_day:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            date: { type: string, format: date, example: "2026-05-14" }
+                            respiratory: { type: number, format: float, example: 4.1 }
+                            nasal: { type: number, format: float, example: 4.3 }
+                            skin: { type: number, format: float, example: 2.8 }
+                      current_symptom_distribution:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            severity_range: { type: string, example: "0-2" }
+                            count: { type: integer, example: 78 }
+                      month_over_month_comparison:
+                        type: object
+                        properties:
+                          current_month:
+                            type: object
+                            properties:
+                              respiratory: { type: number, format: float, example: 4.0 }
+                              nasal: { type: number, format: float, example: 4.2 }
+                              skin: { type: number, format: float, example: 2.7 }
+                          previous_month:
+                            type: object
+                            properties:
+                              respiratory: { type: number, format: float, example: 4.8 }
+                              nasal: { type: number, format: float, example: 5.1 }
+                              skin: { type: number, format: float, example: 3.2 }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }

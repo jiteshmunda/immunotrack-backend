@@ -33,4 +33,11 @@ router.get(
   adminController.getAdherenceAnalytics.bind(adminController)
 );
 
+router.get(
+  "/analytics/symptoms",
+  authenticateJWT,
+  requireRole(["admin", "super admin"]),
+  adminController.getSymptomAnalytics.bind(adminController)
+);
+
 export default router;

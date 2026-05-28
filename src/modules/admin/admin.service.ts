@@ -456,5 +456,184 @@ export class AdminService {
       weekly_adherence_trend: []
     };
   }
+
+  async getSymptomAnalytics(adminId: string) {
+    // 1. Get Patients
+    const adminClinicians = await db
+      .select({ id: clinicians.id })
+      .from(clinicians)
+      .where(or(
+        eq(clinicians.createdBy, adminId),
+        eq(clinicians.userId, adminId)
+      ));
+
+    if (adminClinicians.length === 0) return this.emptySymptomAnalytics();
+
+    const clinicianIds = adminClinicians.map(c => c.id);
+
+    const assignedPatientsResult = await db
+      .select({ id: patients.id })
+      .from(patients)
+      .innerJoin(users, eq(patients.userId, users.id))
+      .innerJoin(patientClinicianAssignments, eq(patients.id, patientClinicianAssignments.patientId))
+      .where(and(
+        inArray(patientClinicianAssignments.clinicianId, clinicianIds),
+        eq(users.status, "active")
+      ));
+
+    const uniquePatientsMap = new Map();
+    assignedPatientsResult.forEach(p => uniquePatientsMap.set(p.id, p));
+    const uniquePatients = Array.from(uniquePatientsMap.values());
+    if (uniquePatients.length === 0) return this.emptySymptomAnalytics();
+    const patientIds = uniquePatients.map(p => p.id);
+
+    // 2. Fetch logs for 60 days
+    const endOfToday = new Date();
+    endOfToday.setUTCHours(23, 59, 59, 999);
+    
+    const startOfCurrentMonth = new Date(endOfToday.getTime() - 30 * 24 * 60 * 60 * 1000);
+    startOfCurrentMonth.setUTCHours(0, 0, 0, 0);
+
+    const startOfPreviousMonth = new Date(startOfCurrentMonth.getTime() - 30 * 24 * 60 * 60 * 1000);
+    startOfPreviousMonth.setUTCHours(0, 0, 0, 0);
+
+    const logs60Days = await db.select({
+       patientId: dailyLogs.patientId,
+       loggedAt: dailyLogs.loggedAt,
+       respiratoryComposite: dailyLogs.respiratoryComposite,
+       nasalComposite: dailyLogs.nasalComposite,
+       skinComposite: dailyLogs.skinComposite
+    })
+    .from(dailyLogs)
+    .where(and(
+        inArray(dailyLogs.patientId, patientIds),
+        between(dailyLogs.loggedAt, startOfPreviousMonth, endOfToday)
+    ));
+
+    const logsCurrentMonth = logs60Days.filter(l => new Date(l.loggedAt) >= startOfCurrentMonth);
+    const logsPreviousMonth = logs60Days.filter(l => new Date(l.loggedAt) < startOfCurrentMonth);
+
+    // Helpers
+    const calcAvg = (logs: any[], key: string) => {
+        if (logs.length === 0) return 0;
+        const sum = logs.reduce((acc, l) => acc + Number(l[key] || 0), 0);
+        return Math.round((sum / logs.length) * 10) / 10;
+    };
+    
+    const calcPercentageChange = (current: number, previous: number) => {
+        if (previous === 0) return current > 0 ? 100 : 0;
+        return Math.round(((current - previous) / previous) * 100);
+    };
+
+    // 3. Top KPIs
+    const avgRespiratoryScore = calcAvg(logsCurrentMonth, "respiratoryComposite");
+    const avgNasalScore = calcAvg(logsCurrentMonth, "nasalComposite");
+    const avgSkinScore = calcAvg(logsCurrentMonth, "skinComposite");
+
+    const prevAvgRespiratoryScore = calcAvg(logsPreviousMonth, "respiratoryComposite");
+    const prevAvgNasalScore = calcAvg(logsPreviousMonth, "nasalComposite");
+    const prevAvgSkinScore = calcAvg(logsPreviousMonth, "skinComposite");
+
+    const respChange = calcPercentageChange(avgRespiratoryScore, prevAvgRespiratoryScore);
+    const nasalChange = calcPercentageChange(avgNasalScore, prevAvgNasalScore);
+    const skinChange = calcPercentageChange(avgSkinScore, prevAvgSkinScore);
+
+    // 4. 14-Day Trends
+    const trends_14_day: any[] = [];
+    for (let i = 13; i >= 0; i--) {
+       const d = new Date(endOfToday.getTime() - i * 24 * 60 * 60 * 1000);
+       const dStr = d.toISOString().split("T")[0];
+       const dayLogs = logsCurrentMonth.filter(l => {
+          const ld = new Date(l.loggedAt).toISOString().split("T")[0];
+          return ld === dStr;
+       });
+       trends_14_day.push({
+          date: dStr,
+          respiratory: calcAvg(dayLogs, "respiratoryComposite"),
+          nasal: calcAvg(dayLogs, "nasalComposite"),
+          skin: calcAvg(dayLogs, "skinComposite")
+       });
+    }
+
+    // 5. Patient Distribution (Normalized to 0-10)
+    let bucket0to2 = 0;
+    let bucket3to5 = 0;
+    let bucket6to8 = 0;
+    let bucket9to10 = 0;
+
+    uniquePatients.forEach(p => {
+       const pLogs = logsCurrentMonth.filter(l => l.patientId === p.id);
+       if (pLogs.length > 0) {
+           const pRespAvg = calcAvg(pLogs, "respiratoryComposite");
+           const pNasalAvg = calcAvg(pLogs, "nasalComposite");
+           const pSkinAvg = calcAvg(pLogs, "skinComposite");
+           
+           // Normalize to 10
+           const normResp = (pRespAvg / 6) * 10;
+           const normNasal = (pNasalAvg / 40) * 10;
+           const normSkin = (pSkinAvg / 28) * 10;
+
+           const overallAvg = (normResp + normNasal + normSkin) / 3;
+           
+           if (overallAvg <= 2.99) bucket0to2++;
+           else if (overallAvg <= 5.99) bucket3to5++;
+           else if (overallAvg <= 8.99) bucket6to8++;
+           else bucket9to10++;
+       }
+    });
+
+    const current_symptom_distribution = [
+        { severity_range: "0-2", count: bucket0to2 },
+        { severity_range: "3-5", count: bucket3to5 },
+        { severity_range: "6-8", count: bucket6to8 },
+        { severity_range: "9-10", count: bucket9to10 }
+    ];
+
+    // 6. MoM comparison
+    const month_over_month_comparison = {
+       current_month: {
+          respiratory: avgRespiratoryScore,
+          nasal: avgNasalScore,
+          skin: avgSkinScore
+       },
+       previous_month: {
+          respiratory: prevAvgRespiratoryScore,
+          nasal: prevAvgNasalScore,
+          skin: prevAvgSkinScore
+       }
+    };
+
+    return {
+        top_kpis: {
+           respiratory: { avg_score: avgRespiratoryScore, percentage_change: respChange },
+           nasal: { avg_score: avgNasalScore, percentage_change: nasalChange },
+           skin: { avg_score: avgSkinScore, percentage_change: skinChange }
+        },
+        trends_14_day,
+        current_symptom_distribution,
+        month_over_month_comparison
+    };
+  }
+
+  private emptySymptomAnalytics() {
+      return {
+        top_kpis: {
+           respiratory: { avg_score: 0, percentage_change: 0 },
+           nasal: { avg_score: 0, percentage_change: 0 },
+           skin: { avg_score: 0, percentage_change: 0 }
+        },
+        trends_14_day: [],
+        current_symptom_distribution: [
+            { severity_range: "0-2", count: 0 },
+            { severity_range: "3-5", count: 0 },
+            { severity_range: "6-8", count: 0 },
+            { severity_range: "9-10", count: 0 }
+        ],
+        month_over_month_comparison: {
+           current_month: { respiratory: 0, nasal: 0, skin: 0 },
+           previous_month: { respiratory: 0, nasal: 0, skin: 0 }
+        }
+    };
+  }
 }
 

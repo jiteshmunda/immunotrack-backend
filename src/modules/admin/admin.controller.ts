@@ -75,4 +75,18 @@ export class AdminController {
       return sendError(res, error, 400);
     }
   }
+
+  async getSymptomAnalytics(req: Request, res: Response) {
+    try {
+      const adminId = (req as AuthenticatedRequest).user.userId;
+      const data = await adminService.getSymptomAnalytics(adminId);
+      
+      return sendSuccess(res, {
+        message: "Symptom analytics fetched successfully",
+        data,
+      });
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
 }

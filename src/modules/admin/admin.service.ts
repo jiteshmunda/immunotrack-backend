@@ -5,9 +5,10 @@ import { clinics } from "../../db/schema/clinic.schema";
 import { roles } from "../../db/schema/role.schema";
 import { dailyLogs, patientMedications, medicationLogs } from "../../db/schema/tracking.schema";
 import { alerts } from "../../db/schema/ai.schema";
+import { auditLogs } from "../../db/schema/compliance.schema";
 import { hashForLookup, encrypt, decrypt } from "../../utils/encryption";
 import { hashPassword, generateTempPassword } from "../../utils/hash";
-import { eq, sql, and, or, between, inArray } from "drizzle-orm";
+import { eq, sql, and, or, between, inArray, gte, lte, desc } from "drizzle-orm";
 import { CreateClinicianInput } from "../clinician/clinician.schema";
 import { MedicationService } from "../medication/medication.service";
 import { calculateRiskScore, getSeverityLevel } from "../symptoms/utils/symptom-scores";
@@ -839,6 +840,61 @@ export class AdminService {
           moderate_risk: { poor_adherence: 0, missed_check_ins: 0 },
           escalations_trending_7_days: { low_to_moderate: 0, moderate_to_high: 0, total_escalations: 0 }
       };
+  }
+
+  async getAuditLogs(filters: {
+    patient_id?: string;
+    user_id?: string;
+    action_type?: string;
+    date_from?: string;
+    date_to?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const conditions = [];
+
+    if (filters.user_id) {
+      conditions.push(eq(auditLogs.userId, filters.user_id));
+    }
+    if (filters.action_type) {
+      conditions.push(eq(auditLogs.action, filters.action_type));
+    }
+    if (filters.patient_id) {
+      conditions.push(eq(auditLogs.resourceId, filters.patient_id));
+    }
+    if (filters.date_from) {
+      conditions.push(gte(auditLogs.createdAt, new Date(filters.date_from)));
+    }
+    if (filters.date_to) {
+      conditions.push(lte(auditLogs.createdAt, new Date(filters.date_to)));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    
+    const limit = filters.limit ? Number(filters.limit) : 50;
+    const offset = filters.offset ? Number(filters.offset) : 0;
+
+    const totalCountResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(auditLogs)
+      .where(whereClause);
+    
+    const total = Number(totalCountResult[0]?.count || 0);
+
+    const logs = await db
+      .select()
+      .from(auditLogs)
+      .where(whereClause)
+      .orderBy(desc(auditLogs.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return {
+      total,
+      limit,
+      offset,
+      logs
+    };
   }
 }
 

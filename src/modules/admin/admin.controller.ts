@@ -103,4 +103,27 @@ export class AdminController {
       return sendError(res, error, 400);
     }
   }
+
+  async getAuditLogs(req: Request, res: Response) {
+    try {
+      const filters = {
+        patient_id: req.query.patient_id as string,
+        user_id: req.query.user_id as string,
+        action_type: req.query.action_type as string,
+        date_from: req.query.date_from as string,
+        date_to: req.query.date_to as string,
+        limit: req.query.limit ? parseInt(req.query.limit as string) : 50,
+        offset: req.query.offset ? parseInt(req.query.offset as string) : 0,
+      };
+
+      const data = await adminService.getAuditLogs(filters);
+
+      return sendSuccess(res, {
+        message: "Audit logs fetched successfully",
+        data,
+      });
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
 }

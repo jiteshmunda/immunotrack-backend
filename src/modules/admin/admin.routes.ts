@@ -47,4 +47,11 @@ router.get(
   adminController.getRiskClusterAnalytics.bind(adminController)
 );
 
+router.get(
+  "/audit-logs",
+  authenticateJWT,
+  requireRole(["admin", "super admin"]),
+  adminController.getAuditLogs.bind(adminController)
+);
+
 export default router;

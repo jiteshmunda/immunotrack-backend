@@ -317,3 +317,73 @@ paths:
                           total_escalations: { type: integer, example: 7 }
         401: { description: Unauthorized }
         403: { description: Forbidden }
+
+  /admins/audit-logs:
+    get:
+      summary: Get Audit Logs
+      description: Returns paginated audit log entries with full action metadata.
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: patient_id
+          schema: { type: string, format: uuid }
+          description: Filter by patient ID
+        - in: query
+          name: user_id
+          schema: { type: string, format: uuid }
+          description: Filter by user ID
+        - in: query
+          name: action_type
+          schema: { type: string }
+          description: Filter by action type (e.g., READ_PHI)
+        - in: query
+          name: date_from
+          schema: { type: string, format: date-time }
+          description: Filter from this date (UTC ISO string)
+        - in: query
+          name: date_to
+          schema: { type: string, format: date-time }
+          description: Filter up to this date (UTC ISO string)
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50 }
+          description: Limit number of records per page
+        - in: query
+          name: offset
+          schema: { type: integer, default: 0 }
+          description: Offset for pagination
+      responses:
+        200:
+          description: Audit logs fetched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Audit logs fetched successfully" }
+                  data:
+                    type: object
+                    properties:
+                      total: { type: integer, example: 120 }
+                      limit: { type: integer, example: 50 }
+                      offset: { type: integer, example: 0 }
+                      logs:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string, format: uuid, example: "b52d9b68-80f0-4c3e-8c6c-8f3a3d548325" }
+                            userId: { type: string, format: uuid, example: "8e0e7cf2-763d-4c36-bc21-2a1496a7d5eb" }
+                            action: { type: string, example: "READ_PHI" }
+                            resourceType: { type: string, example: "patient" }
+                            resourceId: { type: string, format: uuid, example: "a43e4fc2-50d4-4a5f-9e7b-8c6c1d538102" }
+                            ipAddress: { type: string, example: "192.168.1.100" }
+                            userAgent: { type: string, example: "Mozilla/5.0..." }
+                            status: { type: string, example: "success" }
+                            metadata: { type: object, additionalProperties: true, example: { role: "admin" } }
+                            createdAt: { type: string, format: date-time, example: "2026-05-28T12:00:00Z" }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }

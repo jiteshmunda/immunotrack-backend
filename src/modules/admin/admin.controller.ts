@@ -47,4 +47,32 @@ export class AdminController {
       return sendError(res, error, 400);
     }
   }
+
+  async getPopulationDashboard(req: Request, res: Response) {
+    try {
+      const adminId = (req as AuthenticatedRequest).user.userId;
+      const data = await adminService.getPopulationDashboard(adminId);
+      
+      return sendSuccess(res, {
+        message: "Population dashboard fetched successfully",
+        data,
+      });
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
+
+  async getAdherenceAnalytics(req: Request, res: Response) {
+    try {
+      const adminId = (req as AuthenticatedRequest).user.userId;
+      const data = await adminService.getAdherenceAnalytics(adminId);
+      
+      return sendSuccess(res, {
+        message: "Adherence analytics fetched successfully",
+        data,
+      });
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
 }

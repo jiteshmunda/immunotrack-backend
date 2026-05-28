@@ -19,4 +19,18 @@ router.get(
   adminController.getClinicians.bind(adminController)
 );
 
+router.get(
+  "/dashboard/population",
+  authenticateJWT,
+  requireRole(["admin", "super admin"]),
+  adminController.getPopulationDashboard.bind(adminController)
+);
+
+router.get(
+  "/analytics/adherence",
+  authenticateJWT,
+  requireRole(["admin", "super admin"]),
+  adminController.getAdherenceAnalytics.bind(adminController)
+);
+
 export default router;

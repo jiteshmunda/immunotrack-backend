@@ -40,6 +40,12 @@ export function calculateAdherenceWindow(
   const diffTimeSinceStart = todayUTC.getTime() - startUTC.getTime();
   let daysSinceStart = Math.floor(diffTimeSinceStart / (1000 * 60 * 60 * 24)) + 1;
   if (daysSinceStart < 0) daysSinceStart = 0;
+  
+  // Guard against highly corrupt database dates (e.g. year 34534) that break Postgres boundaries
+  if (startUTC.getUTCFullYear() > 3000 || startUTC.getUTCFullYear() < 1900 || Number.isNaN(startUTC.getTime())) {
+    startUTC = new Date(Date.UTC(2024, 0, 1)); // Default fallback
+    daysSinceStart = Math.floor((todayUTC.getTime() - startUTC.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  }
 
   let totalDays = daysSinceStart;
   let windowStartDate = startUTC;

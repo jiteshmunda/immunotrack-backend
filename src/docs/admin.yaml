@@ -79,3 +79,97 @@ paths:
                         created_at: { type: string, format: date-time, example: "2026-05-12T13:30:00Z" }
         401: { description: Unauthorized }
         403: { description: Forbidden }
+
+  /admins/dashboard/population:
+    get:
+      summary: Get Population Dashboard metrics
+      description: Returns aggregated metrics for the admin's entire assigned patient population.
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Population dashboard metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Population dashboard fetched successfully" }
+                  data:
+                    type: object
+                    properties:
+                      active_users: { type: integer, example: 247 }
+                      daily_logs: { type: integer, example: 189 }
+                      adherence_rate: { type: integer, example: 87 }
+                      avg_symptom_score: { type: number, format: float, example: 4.2 }
+                      alerts_today: { type: integer, example: 12 }
+                      user_engagement:
+                        type: object
+                        properties:
+                          daily_active_users: { type: integer, example: 76 }
+                          weekly_active_users: { type: integer, example: 89 }
+                          logging_compliance: { type: integer, example: 82 }
+                      system_health:
+                        type: object
+                        properties:
+                          api_response_time: { type: string, example: "125ms" }
+                          system_uptime: { type: string, example: "99.9%" }
+                          data_sync_status: { type: string, example: "Healthy" }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
+
+  /admins/analytics/adherence:
+    get:
+      summary: Get Adherence Analytics metrics
+      description: Returns aggregated adherence metrics for the admin's entire assigned patient population.
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Adherence Analytics metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Adherence analytics fetched successfully" }
+                  data:
+                    type: object
+                    properties:
+                      average_adherence_percentage: { type: integer, example: 87 }
+                      active_medication_plans: { type: integer, example: 470 }
+                      missed_doses_today: { type: integer, example: 32 }
+                      aggregated_adherence_percentage: { type: integer, example: 85 }
+                      adherence_distribution:
+                        type: object
+                        properties:
+                          excellent_count: { type: integer, example: 185 }
+                          moderate_count: { type: integer, example: 48 }
+                          needs_support_count: { type: integer, example: 14 }
+                      adherence_by_medication_type:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            type: { type: string, example: "Nasal Sprays" }
+                            count: { type: integer, example: 145 }
+                      missed_reasons_breakdown:
+                        type: object
+                        properties:
+                          forgot_percentage: { type: integer, example: 45 }
+                          side_effects_percentage: { type: integer, example: 18 }
+                          unavailable_percentage: { type: integer, example: 12 }
+                          other_percentage: { type: integer, example: 25 }
+                      weekly_adherence_trend:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            week: { type: string, example: "Week 1" }
+                            adherence_percentage: { type: integer, example: 84 }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }

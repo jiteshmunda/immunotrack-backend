@@ -6,7 +6,7 @@
 export function normalizeScore(category: "respiratory" | "nasal" | "skin", score: number): number {
   let max = 1;
   if (category === "respiratory") max = 6;
-  if (category === "nasal") max = 30;
+  if (category === "nasal") max = 40;
   if (category === "skin") max = 28;
   return parseFloat(((score / max) * 10).toFixed(1));
 }
@@ -40,8 +40,8 @@ export function getStatusColor(category: "respiratory" | "nasal" | "skin", score
     return "red";
   }
   if (category === "nasal") {
-    if (score <= 7) return "green";
-    if (score <= 17) return "amber";
+    if (score <= 9) return "green";
+    if (score <= 21) return "amber";
     return "red";
   }
   if (category === "skin") {

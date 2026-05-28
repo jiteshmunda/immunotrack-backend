@@ -10,13 +10,13 @@ export function startAdherenceScheduler() {
     
     // Executes the single-run version of the check script cleanly
     exec("npx tsx src/scripts/nightly-adherence-check.ts", (error, stdout, stderr) => {
-      if (error) {
-        console.error("[Scheduler] Error executing nightly check:", error);
-        return;
-      }
-      if (stdout) {
-        console.log("[Scheduler] Nightly check output:\n", stdout);
-      }
+      if (error) console.error("[Scheduler] Error executing nightly adherence check:", error);
+      if (stdout) console.log("[Scheduler] Nightly check output:\n", stdout);
+    });
+
+    exec("npx tsx src/scripts/nightly-declining-composite.ts", (error, stdout, stderr) => {
+      if (error) console.error("[Scheduler] Error executing nightly declining composite script:", error);
+      if (stdout) console.log("[Scheduler] Nightly declining composite output:\n", stdout);
     });
   });
 

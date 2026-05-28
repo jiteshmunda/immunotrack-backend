@@ -19,11 +19,13 @@ paths:
                 - acq4_shortness_of_breath
                 - acq5_wheeze
                 - acq6_reliever_use
+                - sn_need_to_blow
                 - sn1_nasal_blockage
                 - sn2_runny_nose
                 - sn3_sneezing
                 - sn4_smell_taste
                 - sn5_post_nasal_drip
+                - sn_thick_discharge
                 - sn6_facial_pain
                 - sk1_itch
                 - sk2_sleep_disturbance
@@ -40,11 +42,13 @@ paths:
                 acq4_shortness_of_breath: { type: integer, minimum: 0, maximum: 6 }
                 acq5_wheeze: { type: integer, minimum: 0, maximum: 6 }
                 acq6_reliever_use: { type: integer, minimum: 0, maximum: 6 }
+                sn_need_to_blow: { type: integer, minimum: 0, maximum: 5 }
                 sn1_nasal_blockage: { type: integer, minimum: 0, maximum: 5 }
                 sn2_runny_nose: { type: integer, minimum: 0, maximum: 5 }
                 sn3_sneezing: { type: integer, minimum: 0, maximum: 5 }
                 sn4_smell_taste: { type: integer, minimum: 0, maximum: 5 }
                 sn5_post_nasal_drip: { type: integer, minimum: 0, maximum: 5 }
+                sn_thick_discharge: { type: integer, minimum: 0, maximum: 5 }
                 sn6_facial_pain: { type: integer, minimum: 0, maximum: 5 }
                 sk1_itch: { type: integer, minimum: 0, maximum: 4 }
                 sk2_sleep_disturbance: { type: integer, minimum: 0, maximum: 4 }

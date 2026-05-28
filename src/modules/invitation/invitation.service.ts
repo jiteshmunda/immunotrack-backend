@@ -3,7 +3,7 @@ import { clinicians, patients } from "../../db/schema/profile.schema";
 import { users } from "../../db/schema/user.schema";
 import { clinics } from "../../db/schema/clinic.schema";
 import { invitations } from "../../db/schema/invitation.schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { encrypt, hashForLookup, decrypt } from "../../utils/encryption";
 import { EmailService } from "../../utils/email";
 import crypto from "crypto";
@@ -284,5 +284,31 @@ export class InvitationService {
       .where(and(eq(invitations.id, inviteId), eq(invitations.clinicianId, clinicianId)));
     
     return { success: true };
+  }
+//  --------------------------------------GET /clinician/invite------------------------------------------
+
+  async getInvitations(clinicianId: string, status?: string) {
+    let conditions = [eq(invitations.clinicianId, clinicianId)];
+
+    if (status) {
+      const statuses = status.split(",").map(s => s.trim().toLowerCase());
+      const mappedStatuses = statuses.map(s => (s === "accepted" ? "redeemed" : s));
+      conditions.push(inArray(invitations.status, mappedStatuses));
+    }
+
+    const inviteRecords = await db
+      .select()
+      .from(invitations)
+      .where(and(...conditions))
+      .orderBy(sql`${invitations.createdAt} DESC`);
+
+    return inviteRecords.map(inv => ({
+      id: inv.id,
+      patient_name: `${decrypt(inv.patientFirstName)} ${decrypt(inv.patientLastName)}`,
+      patient_email: decrypt(inv.patientEmail),
+      status: inv.status === "redeemed" ? "accepted" : inv.status,
+      expires_at: inv.expiresAt,
+      created_at: inv.createdAt,
+    }));
   }
 }

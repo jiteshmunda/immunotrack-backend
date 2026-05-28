@@ -55,7 +55,7 @@ export async function loadSecrets(force: boolean = false) {
     const dbname = (ENV as any).dbname || (ENV as any).database || (ENV as any).dbInstanceIdentifier || "";
     const port = (ENV as any).port || 5432;
 
-    if (!ENV.DATABASE_URL && host && user && pass) {
+    if ((!ENV.DATABASE_URL || force) && host && user && pass) {
       let cleanHost = host.replace(/^postgresql?:\/\//, "").split(":")[0].split("/")[0];
       ENV.DATABASE_URL = `postgresql://${user}:${encodeURIComponent(pass)}@${cleanHost}:${port}/${dbname}`;
     }

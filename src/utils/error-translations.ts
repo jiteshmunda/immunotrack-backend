@@ -23,6 +23,9 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   "New password cannot be the same as your old password": "Your new password must be different from your old password.",
   "New email cannot be the same as current email": "The new email address cannot be the same as your current email.",
   "Email is already taken": "This email address is already in use by another account.",
+  "Too many failed attempts. Please wait 15 minutes before trying again.": "Too many failed attempts. Please wait 15 minutes before trying again.",
+  "Password has been used recently. Please choose a new password.": "Password has been used recently. Please choose a new password.",
+  "Password must be at least 12 characters for this role": "Password must be at least 12 characters for this role",
 
   // --- Medication Plan Modules ---
   "PATIENT_NOT_FOUND": "We couldn't find your profile. Please complete your registration.",

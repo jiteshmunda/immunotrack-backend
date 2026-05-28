@@ -1,11 +1,11 @@
 import { db } from "../../db";
-import { users } from "../../db/schema/user.schema";
+import { users, passwordHistory } from "../../db/schema/user.schema";
 import { userSessions } from "../../db/schema/session.schema";
 import { roles } from "../../db/schema/role.schema";
 import { patients, patientClinicianAssignments, clinicians } from "../../db/schema/profile.schema";
 import { invitations } from "../../db/schema/invitation.schema";
 import { onboardingSessions, patientConsents, notifications } from "../../db/schema/compliance.schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { verifyPassword, hashPassword } from "../../utils/hash";
 import { hashForLookup, decrypt, encrypt } from "../../utils/encryption";
 import { generateAccessToken, generateRefreshToken } from "../../utils/jwt";
@@ -43,18 +43,45 @@ export class AuthService {
       throw new Error("Invalid email or password");
     }
 
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      throw new Error("Too many failed attempts. Please wait 15 minutes before trying again.");
+    }
+
+    if (user.lockedUntil && user.lockedUntil <= new Date()) {
+      // Lockout expired, give a fresh start
+      user.failedLoginAttempts = 0;
+      user.lockedUntil = null;
+      await db.update(users)
+        .set({ failedLoginAttempts: 0, lockedUntil: null })
+        .where(eq(users.id, user.id));
+    }
+
     if (!user.passwordHash) {
       throw new Error("Invalid email or password");
     }
 
     const isPasswordValid = await verifyPassword(password, user.passwordHash);
     if (!isPasswordValid) {
+      const newAttempts = (user.failedLoginAttempts || 0) + 1;
+      let lockedUntil = null;
+      
+      if (newAttempts >= 5) {
+        lockedUntil = new Date(Date.now() + 15 * 60 * 1000);
+      }
+      
+      await db.update(users)
+        .set({ failedLoginAttempts: newAttempts, lockedUntil })
+        .where(eq(users.id, user.id));
+
+      if (lockedUntil) {
+        throw new Error("Too many failed attempts. Please wait 15 minutes before trying again.");
+      }
       throw new Error("Invalid email or password");
     }
 
     await db
       .update(users)
-      .set({ lastLoginAt: new Date(), updatedAt: new Date() })
+      .set({ lastLoginAt: new Date(), updatedAt: new Date(), failedLoginAttempts: 0, lockedUntil: null })
       .where(eq(users.id, user.id));
 
     await db.delete(userSessions).where(eq(userSessions.userId, user.id));
@@ -285,15 +312,40 @@ export class AuthService {
     const isCurrentValid = await verifyPassword(currentPassword, user.passwordHash!);
     if (!isCurrentValid) throw new Error("Current password is incorrect");
 
+    // Prevent Password Reuse (Current)
+    const isSameAsCurrent = await verifyPassword(newPassword, user.passwordHash);
+    if (isSameAsCurrent) throw new Error("Password has been used recently. Please choose a new password.");
+
+    // Prevent Password Reuse (History)
+    const recentPasswords = await db.select().from(passwordHistory)
+      .where(eq(passwordHistory.userId, userId))
+      .orderBy(desc(passwordHistory.createdAt))
+      .limit(5);
+      
+    for (const history of recentPasswords) {
+      const isReused = await verifyPassword(newPassword, history.passwordHash);
+      if (isReused) {
+        throw new Error("Password has been used recently. Please choose a new password.");
+      }
+    }
+
     const passwordHash = await hashPassword(newPassword);
-    await db.update(users)
-      .set({
+    
+    await db.transaction(async (tx) => {
+      await tx.update(users)
+        .set({
+          passwordHash,
+          isTempPassword: false,
+          passwordChangedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId));
+        
+      await tx.insert(passwordHistory).values({
+        userId,
         passwordHash,
-        isTempPassword: false,
-        passwordChangedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, userId));
+      });
+    });
   }
 
 
@@ -386,7 +438,19 @@ export class AuthService {
       if (user.passwordHash) {
         const isSame = await verifyPassword(newPassword, user.passwordHash);
         if (isSame) {
-          throw new Error("New password cannot be the same as your old password");
+          throw new Error("Password has been used recently. Please choose a new password.");
+        }
+      }
+
+      const recentPasswords = await tx.select().from(passwordHistory)
+        .where(eq(passwordHistory.userId, user.id))
+        .orderBy(desc(passwordHistory.createdAt))
+        .limit(5);
+        
+      for (const history of recentPasswords) {
+        const isReused = await verifyPassword(newPassword, history.passwordHash);
+        if (isReused) {
+          throw new Error("Password has been used recently. Please choose a new password.");
         }
       }
 
@@ -403,6 +467,11 @@ export class AuthService {
           updatedAt: new Date(),
         })
         .where(eq(users.id, user.id));
+        
+      await tx.insert(passwordHistory).values({
+        userId: user.id,
+        passwordHash: newPasswordHash,
+      });
 
       // Revoke all sessions for security
       await tx.delete(userSessions).where(eq(userSessions.userId, user.id));

@@ -8,8 +8,11 @@ import medicationRoutes from "../modules/medication/medication.routes";
 import alertRoutes from "../modules/alert/alert.routes";
 import notificationRoutes from "../modules/notification/notification.routes";
 
+import adminRoutes from "../modules/admin/admin.routes";
+
 const router = Router();
 
+router.use("/admins", adminRoutes);
 router.use("/auth", authRoutes);
 router.use("/clinicians", clinicianRoutes);
 router.use("/patients", patientRoutes);

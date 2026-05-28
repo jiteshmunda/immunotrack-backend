@@ -197,6 +197,13 @@
       "when": 1779953639808,
       "tag": "0027_yielding_risque",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1779958852474,
+      "tag": "0028_concerned_wolfpack",
+      "breakpoints": true
     }
   ]
 }

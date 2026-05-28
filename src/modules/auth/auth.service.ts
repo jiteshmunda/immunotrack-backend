@@ -34,16 +34,19 @@ export class AuthService {
       .limit(1);
 
     if (!result) {
+      console.log("Login failed: result not found for emailHash", emailHash);
       throw new Error("Invalid email or password");
     }
 
     const { user, role } = result;
 
     if (!allowedRoles.includes(role.name)) {
+      console.log("Login failed: role not allowed. Role:", role.name, "Allowed:", allowedRoles);
       throw new Error("Invalid email or password");
     }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
+      console.log("Login failed: user locked");
       throw new Error("Too many failed attempts. Please wait 15 minutes before trying again.");
     }
 
@@ -57,11 +60,13 @@ export class AuthService {
     }
 
     if (!user.passwordHash) {
+      console.log("Login failed: no password hash in DB");
       throw new Error("Invalid email or password");
     }
 
     const isPasswordValid = await verifyPassword(password, user.passwordHash);
     if (!isPasswordValid) {
+      console.log("Login failed: password does not match");
       const newAttempts = (user.failedLoginAttempts || 0) + 1;
       let lockedUntil = null;
       

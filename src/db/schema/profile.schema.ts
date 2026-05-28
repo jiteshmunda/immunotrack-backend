@@ -46,6 +46,7 @@ export const clinicians = pgTable("clinicians", {
   id:               uuid("id").primaryKey().defaultRandom(),
   userId:           uuid("user_id").notNull().references(() => users.id),
   clinicId:         uuid("clinic_id").references(() => clinics.id),
+  createdBy:        uuid("created_by").references(() => users.id),
 
   // PHI — AES-256 encrypted
 

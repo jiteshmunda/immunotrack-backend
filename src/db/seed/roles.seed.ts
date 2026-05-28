@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 
 const defaultRoles = [
   { name: "super admin", description: "System administrator with full access" },
+  { name: "admin", description: "Clinic administrator managing clinicians" },
   { name: "clinician", description: "Healthcare professional managing patients" },
   { name: "patient", description: "User receiving care and tracking symptoms" },
 ];
@@ -11,9 +12,7 @@ const defaultRoles = [
 export async function seedRoles() {
   console.log(" Seeding roles...");
 
-  // Revert 'admin' or 'system admin' to 'super admin' if it exists to preserve existing records
-  await db.update(roles).set({ name: "super admin" }).where(eq(roles.name, "admin"));
-  await db.update(roles).set({ name: "super admin" }).where(eq(roles.name, "system admin"));
+  // Removed legacy conversion logic as 'admin' is now its own independent role
 
   for (const role of defaultRoles) {
     const existing = await db

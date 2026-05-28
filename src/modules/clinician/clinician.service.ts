@@ -6,7 +6,7 @@ import { clinics } from "../../db/schema/clinic.schema";
 import { roles } from "../../db/schema/role.schema";
 import { patientClinicalNotes } from "../../db/schema/clinical-note.schema";
 import { hashForLookup, encrypt, decrypt } from "../../utils/encryption";
-import { hashPassword } from "../../utils/hash";
+import { hashPassword, generateTempPassword } from "../../utils/hash";
 import { eq, desc, and, sql, between } from "drizzle-orm";
 import crypto from "crypto";
 import { CreateClinicianInput, ClinicianAnalyticsResponse, UpdateClinicianProfileInput } from "./clinician.schema";
@@ -29,9 +29,9 @@ const medicationService = new MedicationService();
 export class ClinicianService {
 
 // -----------------------------------------------------POST /clinician/create--------------------------------------------------
-  async createClinician(input: CreateClinicianInput) {
+  async createClinician(input: CreateClinicianInput, creatorId: string) {
     // 1. Generate secure random 16-character temporary password
-    const tempPassword = crypto.randomBytes(8).toString("hex");
+    const tempPassword = generateTempPassword();
     
     const emailHash = hashForLookup(input.email);
     const encryptedEmail = encrypt(input.email);
@@ -64,24 +64,18 @@ export class ClinicianService {
         })
         .returning();
 
-      // 4. Handle Clinic linking or creation
+      // 4. Inherit Clinic from the creating Admin
       let clinicId: string | null = null;
-      if (input.organizationName) {
-        const [existingClinic] = await tx
-          .select({ id: clinics.id })
-          .from(clinics)
-          .where(eq(clinics.name, input.organizationName))
-          .limit(1);
+      
+      const [adminRecord] = await tx
+        .select({ clinicId: clinicians.clinicId })
+        .from(clinicians)
+        .innerJoin(users, eq(clinicians.userId, users.id))
+        .where(and(eq(clinicians.userId, creatorId), eq(users.roleId, (await tx.select().from(roles).where(eq(roles.name, "admin")).limit(1))[0]?.id)))
+        .limit(1);
 
-        if (existingClinic) {
-          clinicId = existingClinic.id;
-        } else {
-          const [newClinic] = await tx
-            .insert(clinics)
-            .values({ name: input.organizationName })
-            .returning({ id: clinics.id });
-          clinicId = newClinic.id;
-        }
+      if (adminRecord && adminRecord.clinicId) {
+        clinicId = adminRecord.clinicId;
       }
 
       // 5. Create Clinician Profile
@@ -92,6 +86,7 @@ export class ClinicianService {
       await tx.insert(clinicians).values({
         userId: newUser.id,
         clinicId: clinicId,
+        createdBy: creatorId,
         licenseNumber: encryptedLicense,
         npiNumber: encryptedNpi,
         phone: encryptedPhone,

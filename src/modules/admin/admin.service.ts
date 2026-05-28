@@ -10,7 +10,7 @@ import { hashPassword, generateTempPassword } from "../../utils/hash";
 import { eq, sql, and, or, between, inArray } from "drizzle-orm";
 import { CreateClinicianInput } from "../clinician/clinician.schema";
 import { MedicationService } from "../medication/medication.service";
-import { calculateRiskScore } from "../symptoms/utils/symptom-scores";
+import { calculateRiskScore, getSeverityLevel } from "../symptoms/utils/symptom-scores";
 import { getAverageResponseTime } from "../../common/middleware/metrics.middleware";
 
 const medicationService = new MedicationService();
@@ -634,6 +634,211 @@ export class AdminService {
            previous_month: { respiratory: 0, nasal: 0, skin: 0 }
         }
     };
+  }
+
+  async getRiskClusterAnalytics(adminId: string) {
+    // 1. Get unique assigned patients
+    const adminClinicians = await db
+      .select({ id: clinicians.id })
+      .from(clinicians)
+      .where(or(
+        eq(clinicians.createdBy, adminId),
+        eq(clinicians.userId, adminId)
+      ));
+
+    if (adminClinicians.length === 0) return this.emptyRiskAnalytics();
+    const clinicianIds = adminClinicians.map(c => c.id);
+
+    const assignedPatientsResult = await db
+      .select({ id: patients.id })
+      .from(patients)
+      .innerJoin(users, eq(patients.userId, users.id))
+      .innerJoin(patientClinicianAssignments, eq(patients.id, patientClinicianAssignments.patientId))
+      .where(and(
+        inArray(patientClinicianAssignments.clinicianId, clinicianIds),
+        eq(users.status, "active")
+      ));
+
+    const uniquePatientsMap = new Map();
+    assignedPatientsResult.forEach(p => uniquePatientsMap.set(p.id, p));
+    const uniquePatients = Array.from(uniquePatientsMap.values());
+    if (uniquePatients.length === 0) return this.emptyRiskAnalytics();
+    const patientIds = uniquePatients.map(p => p.id);
+    const totalPatients = patientIds.length;
+
+    // Fetch daily logs up to 30 days ago
+    const endOfToday = new Date();
+    endOfToday.setUTCHours(23, 59, 59, 999);
+    
+    const startOf30DaysAgo = new Date(endOfToday.getTime() - 30 * 24 * 60 * 60 * 1000);
+    startOf30DaysAgo.setUTCHours(0, 0, 0, 0);
+
+    const dLogs = await db.select({
+       patientId: dailyLogs.patientId,
+       loggedAt: dailyLogs.loggedAt,
+       respiratoryComposite: dailyLogs.respiratoryComposite,
+       nasalComposite: dailyLogs.nasalComposite,
+       skinComposite: dailyLogs.skinComposite
+    })
+    .from(dailyLogs)
+    .where(and(
+        inArray(dailyLogs.patientId, patientIds),
+        between(dailyLogs.loggedAt, startOf30DaysAgo, endOfToday)
+    ));
+
+    const medLogs = await db.select({
+       patientId: medicationLogs.patientId,
+       status: medicationLogs.status,
+       loggedAt: medicationLogs.loggedAt
+    })
+    .from(medicationLogs)
+    .where(and(
+        inArray(medicationLogs.patientId, patientIds),
+        between(medicationLogs.loggedAt, startOf30DaysAgo, endOfToday)
+    ));
+
+    // Helpers
+    const getScoreForPatientOnDay = (pId: string, dEnd: Date) => {
+        const past = dLogs.filter(l => l.patientId === pId && new Date(l.loggedAt) <= dEnd)
+            .sort((a,b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime());
+        if (past.length === 0) return 0;
+        return calculateRiskScore(Number(past[0].respiratoryComposite), Number(past[0].nasalComposite), Number(past[0].skinComposite));
+    };
+
+    const getRiskForPatientOnDay = (pId: string, dEnd: Date) => {
+        return getSeverityLevel(getScoreForPatientOnDay(pId, dEnd));
+    };
+
+    let lowCount = 0;
+    let modCount = 0;
+    let highCount = 0;
+
+    let poorAdherenceCount = 0;
+    let missedCheckinsCount = 0;
+
+    let severeSymptomCount = 0;
+    let symptomDeteriorationCount = 0;
+
+    const dayEnds: Date[] = [];
+    for(let i=0; i<=8; i++) {
+        const d = new Date(endOfToday.getTime() - i * 24 * 60 * 60 * 1000);
+        d.setUTCHours(23, 59, 59, 999);
+        dayEnds.push(d);
+    }
+
+    const escalationsPast7Days = { lowToMod: 0, modToHigh: 0, total: 0 };
+    const escalationsPerDayCount = Array(8).fill(0);
+    const threeDaysAgo = new Date(endOfToday.getTime() - 3 * 24 * 60 * 60 * 1000);
+
+    for (const pId of patientIds) {
+        // Today's Risk
+        const scoreToday = getScoreForPatientOnDay(pId, dayEnds[0]);
+        const riskToday = getSeverityLevel(scoreToday);
+
+        if (riskToday === "Low") lowCount++;
+        else if (riskToday === "Moderate") modCount++;
+        else highCount++;
+
+        if (scoreToday > 8) severeSymptomCount++;
+
+        // Missed check-ins: No log in the last 3 days
+        const recentLogs = dLogs.filter(l => l.patientId === pId && new Date(l.loggedAt) >= threeDaysAgo);
+        if (recentLogs.length === 0) missedCheckinsCount++;
+
+        // Deterioration
+        const scoreDayMinus1 = getScoreForPatientOnDay(pId, dayEnds[1]);
+        const scoreDayMinus2 = getScoreForPatientOnDay(pId, dayEnds[2]);
+        if (scoreToday > scoreDayMinus1 && scoreDayMinus1 > scoreDayMinus2) {
+            symptomDeteriorationCount++;
+        }
+
+        // Adherence
+        const pMeds = medLogs.filter(l => l.patientId === pId);
+        if (pMeds.length > 0) {
+            const taken = pMeds.filter(l => l.status === "taken").length;
+            const adherence = taken / pMeds.length;
+            if (adherence < 0.7) poorAdherenceCount++;
+        }
+
+        // 8-day Risk Array
+        const pRiskLevels = dayEnds.map(d => getRiskForPatientOnDay(pId, d));
+        let pEscalatedLast7DaysLowToMod = false;
+        let pEscalatedLast7DaysModToHigh = false;
+
+        for (let i = 0; i < 8; i++) {
+            const riskTodayOrPast = pRiskLevels[i];
+            const riskYesterdayForThatDay = pRiskLevels[i+1];
+
+            if (riskYesterdayForThatDay === "Low" && riskTodayOrPast === "Moderate") {
+                escalationsPerDayCount[i]++;
+                if (i < 7) pEscalatedLast7DaysLowToMod = true;
+            } else if (riskYesterdayForThatDay === "Moderate" && riskTodayOrPast === "High") {
+                escalationsPerDayCount[i]++;
+                if (i < 7) pEscalatedLast7DaysModToHigh = true;
+            } else if (riskYesterdayForThatDay === "Low" && riskTodayOrPast === "High") {
+                escalationsPerDayCount[i]++;
+                if (i < 7) {
+                    pEscalatedLast7DaysLowToMod = true;
+                    pEscalatedLast7DaysModToHigh = true;
+                }
+            }
+        }
+
+        if (pEscalatedLast7DaysLowToMod) escalationsPast7Days.lowToMod++;
+        if (pEscalatedLast7DaysModToHigh) escalationsPast7Days.modToHigh++;
+    }
+
+    escalationsPast7Days.total = escalationsPast7Days.lowToMod + escalationsPast7Days.modToHigh;
+
+    const calcPct = (count: number) => totalPatients === 0 ? 0 : Math.round((count / totalPatients) * 100);
+
+    const risk_escalations_8_days = [];
+    for (let i = 7; i >= 0; i--) {
+        const dStr = dayEnds[i].toISOString().split("T")[0];
+        risk_escalations_8_days.push({
+            date: dStr,
+            escalations: escalationsPerDayCount[i]
+        });
+    }
+
+    return {
+        top_kpis: {
+            total_patients: totalPatients,
+            low_risk: { count: lowCount, percentage: calcPct(lowCount) },
+            moderate_risk: { count: modCount, percentage: calcPct(modCount) },
+            high_risk: { count: highCount, percentage: calcPct(highCount) }
+        },
+        risk_distribution: [
+            { category: "Low Risk", percentage: calcPct(lowCount) },
+            { category: "Moderate Risk", percentage: calcPct(modCount) },
+            { category: "High Risk", percentage: calcPct(highCount) }
+        ],
+        risk_escalations_8_days,
+        critical_risk: {
+            declining_composite_score: symptomDeteriorationCount,
+            severe_symptom_scores: severeSymptomCount
+        },
+        moderate_risk: {
+            poor_adherence: poorAdherenceCount,
+            missed_check_ins: missedCheckinsCount
+        },
+        escalations_trending_7_days: {
+            low_to_moderate: escalationsPast7Days.lowToMod,
+            moderate_to_high: escalationsPast7Days.modToHigh,
+            total_escalations: escalationsPast7Days.total
+        }
+    };
+  }
+
+  private emptyRiskAnalytics() {
+      return {
+          top_kpis: { total_patients: 0, low_risk: { count: 0, percentage: 0 }, moderate_risk: { count: 0, percentage: 0 }, high_risk: { count: 0, percentage: 0 } },
+          risk_distribution: [ { category: "Low Risk", percentage: 0 }, { category: "Moderate Risk", percentage: 0 }, { category: "High Risk", percentage: 0 } ],
+          risk_escalations_8_days: [],
+          critical_risk: { declining_composite_score: 0, severe_symptom_scores: 0 },
+          moderate_risk: { poor_adherence: 0, missed_check_ins: 0 },
+          escalations_trending_7_days: { low_to_moderate: 0, moderate_to_high: 0, total_escalations: 0 }
+      };
   }
 }
 

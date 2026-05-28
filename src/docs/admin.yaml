@@ -245,3 +245,75 @@ paths:
                               skin: { type: number, format: float, example: 3.2 }
         401: { description: Unauthorized }
         403: { description: Forbidden }
+
+  /admins/analytics/risk-clusters:
+    get:
+      summary: Get Risk Clusters Analytics metrics
+      description: Returns population-level risk stratification and escalation monitoring for the admin's entire assigned patient base.
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Risk Clusters Analytics metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Risk cluster analytics fetched successfully" }
+                  data:
+                    type: object
+                    properties:
+                      top_kpis:
+                        type: object
+                        properties:
+                          total_patients: { type: integer, example: 247 }
+                          low_risk:
+                            type: object
+                            properties:
+                              count: { type: integer, example: 198 }
+                              percentage: { type: integer, example: 80 }
+                          moderate_risk:
+                            type: object
+                            properties:
+                              count: { type: integer, example: 35 }
+                              percentage: { type: integer, example: 14 }
+                          high_risk:
+                            type: object
+                            properties:
+                              count: { type: integer, example: 14 }
+                              percentage: { type: integer, example: 6 }
+                      risk_distribution:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            category: { type: string, example: "Low Risk" }
+                            percentage: { type: integer, example: 80 }
+                      risk_escalations_8_days:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            date: { type: string, format: date, example: "2026-05-14" }
+                            escalations: { type: integer, example: 3 }
+                      critical_risk:
+                        type: object
+                        properties:
+                          declining_composite_score: { type: integer, example: 8 }
+                          severe_symptom_scores: { type: integer, example: 5 }
+                      moderate_risk:
+                        type: object
+                        properties:
+                          poor_adherence: { type: integer, example: 12 }
+                          missed_check_ins: { type: integer, example: 6 }
+                      escalations_trending_7_days:
+                        type: object
+                        properties:
+                          low_to_moderate: { type: integer, example: 4 }
+                          moderate_to_high: { type: integer, example: 3 }
+                          total_escalations: { type: integer, example: 7 }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }

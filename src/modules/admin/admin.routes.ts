@@ -40,4 +40,11 @@ router.get(
   adminController.getSymptomAnalytics.bind(adminController)
 );
 
+router.get(
+  "/analytics/risk-clusters",
+  authenticateJWT,
+  requireRole(["admin", "super admin"]),
+  adminController.getRiskClusterAnalytics.bind(adminController)
+);
+
 export default router;

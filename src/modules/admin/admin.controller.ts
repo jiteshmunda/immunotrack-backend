@@ -89,4 +89,18 @@ export class AdminController {
       return sendError(res, error, 400);
     }
   }
+
+  async getRiskClusterAnalytics(req: Request, res: Response) {
+    try {
+      const adminId = (req as AuthenticatedRequest).user.userId;
+      const data = await adminService.getRiskClusterAnalytics(adminId);
+      
+      return sendSuccess(res, {
+        message: "Risk cluster analytics fetched successfully",
+        data,
+      });
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
 }

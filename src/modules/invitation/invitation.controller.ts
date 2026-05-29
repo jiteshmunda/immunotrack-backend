@@ -61,9 +61,23 @@ export class InvitationController {
       const clinicianReq = req as unknown as ClinicianRequest;
       const invite_id = req.params.invite_id as string;
 
+      const role = clinicianReq.user.role;
+      let targetClinicianId: string | undefined = clinicianReq.clinicianId;
+      let targetClinicId: string | undefined = clinicianReq.clinicId;
+
+      if (role === "super admin") {
+        targetClinicianId = req.query.clinician_id as string;
+        targetClinicId = undefined; 
+      } else if (role === "admin") {
+        targetClinicianId = undefined; 
+      } else {
+        if (!targetClinicianId) throw new Error("Clinician profile not found");
+      }
+
       const result = await invitationService.resendInvite(
-        clinicianReq.clinicianId,
-        invite_id
+        invite_id,
+        targetClinicianId,
+        targetClinicId
       );
 
       await writeAudit(req, {
@@ -88,9 +102,23 @@ export class InvitationController {
       const clinicianReq = req as unknown as ClinicianRequest;
       const invite_id = req.params.invite_id as string;
 
+      const role = clinicianReq.user.role;
+      let targetClinicianId: string | undefined = clinicianReq.clinicianId;
+      let targetClinicId: string | undefined = clinicianReq.clinicId;
+
+      if (role === "super admin") {
+        targetClinicianId = req.query.clinician_id as string;
+        targetClinicId = undefined;
+      } else if (role === "admin") {
+        targetClinicianId = undefined;
+      } else {
+        if (!targetClinicianId) throw new Error("Clinician profile not found");
+      }
+
       const result = await invitationService.cancelInvite(
-        clinicianReq.clinicianId,
-        invite_id
+        invite_id,
+        targetClinicianId,
+        targetClinicId
       );
 
       await writeAudit(req, {
@@ -113,9 +141,24 @@ export class InvitationController {
       const clinicianReq = req as unknown as ClinicianRequest;
       const status = req.query.status as string | undefined;
 
+      const role = clinicianReq.user.role;
+      let targetClinicianId: string | undefined = clinicianReq.clinicianId;
+      let targetClinicId: string | undefined = clinicianReq.clinicId;
+
+      if (role === "super admin") {
+        targetClinicianId = req.query.clinician_id as string; 
+        targetClinicId = req.query.clinic_id as string; 
+      } else if (role === "admin") {
+        targetClinicianId = req.query.clinician_id as string;
+        
+      } else {
+        if (!targetClinicianId) throw new Error("Clinician profile not found");
+      }
+
       const result = await invitationService.getInvitations(
-        clinicianReq.clinicianId,
-        status
+        targetClinicianId,
+        status,
+        targetClinicId
       );
 
       return sendSuccess(res, result);

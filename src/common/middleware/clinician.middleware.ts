@@ -12,6 +12,7 @@ export interface ClinicianRequest extends Request {
     sid: string;
   };
   clinicianId: string;
+  clinicId?: string;
   clinicianName: string;
 }
 
@@ -34,7 +35,8 @@ export async function resolveClinicianProfile(
     const [clinician] = await db
       .select({ 
         id: clinicians.id,
-        name: clinicians.organizationName 
+        name: clinicians.organizationName,
+        clinicId: clinicians.clinicId
       })
       .from(clinicians)
       .where(eq(clinicians.userId, userId))
@@ -50,6 +52,9 @@ export async function resolveClinicianProfile(
 
     const clinicianReq = req as ClinicianRequest;
     clinicianReq.clinicianId = clinician.id;
+    if (clinician.clinicId) {
+      clinicianReq.clinicId = clinician.clinicId;
+    }
     clinicianReq.clinicianName = clinician.name || "Your Provider";
     
     next();

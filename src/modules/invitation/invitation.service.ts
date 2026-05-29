@@ -92,7 +92,7 @@ export class InvitationService {
           patientDiagnosis: encryptedDiagnosis,
           icd10Code: encryptedIcd10,
           rpmEnrolled: String(input.rpm_enrolled),
-          personalMessage: input.personal_message || "Welcome to the ImmunoTrack Monitoring Program",
+          personalMessage: input.personal_message?.trim() || undefined,
           status: "pending",
           expiresAt,
         })
@@ -100,9 +100,12 @@ export class InvitationService {
 
       // 5. Send Email
       try {
+        const clinicianFullName = clinician.fullName ? decrypt(clinician.fullName) : 'Your Doctor';
+        const clinicianFirstName = clinicianFullName.split(' ')[0];
+        
         await emailService.sendEmail({
           to: input.patient_email,
-          subject: `${clinician.fullName ? decrypt(clinician.fullName) : 'Your Doctor'} has invited you to ImmunoTrack`,
+          subject: `${clinicianFirstName} at ${clinician.clinicName || 'Your Clinic'} has invited you to join ImmunoTrack`,
           body: emailService.getInviteTemplate(
             input.patient_first_name,
             clinician.fullName ? decrypt(clinician.fullName) : 'Your Doctor',
@@ -110,7 +113,7 @@ export class InvitationService {
             display,
             raw,
             expiresAt.toISOString(),
-            input.personal_message || "Welcome to the ImmunoTrack Monitoring Program"
+            input.personal_message?.trim() || undefined
     )});
         
         await tx.update(invitations).set({ emailSentAt: new Date() }).where(eq(invitations.id, invitation.id));
@@ -268,9 +271,12 @@ export class InvitationService {
         }
       }
 
+      const clinicianFullName = clinicianInfo.fullName || 'Your Doctor';
+      const clinicianFirstName = clinicianFullName.split(' ')[0];
+
       await emailService.sendEmail({
         to: patientEmail,
-        subject: `${clinicianInfo.fullName || 'Your Doctor'} has invited you to ImmunoTrack`,
+        subject: `${clinicianFirstName} at ${clinicianInfo.clinicName || 'Your Clinic'} has invited you to join ImmunoTrack`,
         body: emailService.getInviteTemplate(
           patientFirstName,
           clinicianInfo.fullName || 'Your Doctor',
@@ -278,7 +284,7 @@ export class InvitationService {
           display,
           raw,
           expiresAt.toISOString(),
-          oldInvite.personalMessage || undefined
+          oldInvite.personalMessage?.trim() || undefined
         ),
       });
 

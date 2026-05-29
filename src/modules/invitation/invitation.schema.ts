@@ -8,7 +8,7 @@ export const invitePatientSchema = z.object({
   patient_diagnosis: z.string().min(1, "Diagnosis is required"),
   icd10_code: z.string().min(1, "ICD-10 code is required"),
   rpm_enrolled: z.boolean(),
-  personal_message: z.string().max(500, "Message must be under 500 characters").optional(),
+  personal_message: z.string().max(200, "Message must be under 200 characters").optional(),
   clinician_id: z.string().uuid().optional(),
 });
 

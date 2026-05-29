@@ -46,5 +46,8 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   // --- Clinicians & Access ---
   "PATIENT_ID_REQUIRED_FOR_CLINICIANS": "Please select a patient to view their adherence history.",
   "CLINICIAN_NOT_FOUND": "Your clinician profile could not be verified.",
-  "UNAUTHORIZED_ACCESS_TO_PATIENT_DATA": "Access Denied: You are not assigned to this patient."
+  "UNAUTHORIZED_ACCESS_TO_PATIENT_DATA": "Access Denied: You are not assigned to this patient.",
+  "Clinician ID is required": "Clinician ID is required.",
+  "Clinician not found": "The requested clinician was not found.",
+  "Forbidden: You do not have permission to delete this clinician": "Access Denied: You do not have permission to delete this clinician."
 };

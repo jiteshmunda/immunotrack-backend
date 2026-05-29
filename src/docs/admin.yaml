@@ -49,9 +49,32 @@ paths:
     get:
       summary: List all clinicians created by the admin
       description: Returns a list of clinicians that were created by the currently logged-in admin.
-      tags: [Admin]
+      tags: [Admin - Clinician Management]
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, suspended, archived]
+          description: Filter by user account status
+        - in: query
+          name: role
+          schema:
+            type: string
+            enum: [admin, clinician, super admin]
+          description: Filter by system role
+        - in: query
+          name: clinical_role
+          schema:
+            type: string
+          description: Filter by clinical title (e.g., Immunologist)
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search by name, email, or specialty
       responses:
         200:
           description: List of clinicians
@@ -79,6 +102,54 @@ paths:
                         created_at: { type: string, format: date-time, example: "2026-05-12T13:30:00Z" }
         401: { description: Unauthorized }
         403: { description: Forbidden }
+
+  /admins/clinicians/{id}:
+    get:
+      summary: Get Clinician Details
+      description: Returns the full profile details for a specific clinician.
+      tags: [Admin - Clinician Management]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Clinician details
+        403: { description: Forbidden }
+        404: { description: Not Found }
+    delete:
+      summary: Delete a clinician
+      description: Soft deletes a clinician (archives user) and unassigns all their patients. Can only be performed by the admin who created the clinician.
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the clinician to delete
+      responses:
+        200:
+          description: Clinician successfully deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Clinician successfully deleted!!" }
+        400: { description: Bad Request }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
+        404: { description: Not Found }
 
   /admins/dashboard/population:
     get:
@@ -317,3 +388,165 @@ paths:
                           total_escalations: { type: integer, example: 7 }
         401: { description: Unauthorized }
         403: { description: Forbidden }
+
+  /admins/audit-logs:
+    get:
+      summary: Get Audit Logs
+      description: Returns paginated audit log entries with full action metadata.
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: patient_id
+          schema: { type: string, format: uuid }
+          description: Filter by patient ID
+        - in: query
+          name: user_id
+          schema: { type: string, format: uuid }
+          description: Filter by user ID
+        - in: query
+          name: action_type
+          schema: { type: string }
+          description: Filter by action type (e.g., READ_PHI)
+        - in: query
+          name: date_from
+          schema: { type: string, format: date-time }
+          description: Filter from this date (UTC ISO string)
+        - in: query
+          name: date_to
+          schema: { type: string, format: date-time }
+          description: Filter up to this date (UTC ISO string)
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50 }
+          description: Limit number of records per page
+        - in: query
+          name: offset
+          schema: { type: integer, default: 0 }
+          description: Offset for pagination
+      responses:
+        200:
+          description: Audit logs fetched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Audit logs fetched successfully" }
+                  data:
+                    type: object
+                    properties:
+                      total: { type: integer, example: 120 }
+                      limit: { type: integer, example: 50 }
+                      offset: { type: integer, example: 0 }
+                      logs:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string, format: uuid, example: "b52d9b68-80f0-4c3e-8c6c-8f3a3d548325" }
+                            userId: { type: string, format: uuid, example: "8e0e7cf2-763d-4c36-bc21-2a1496a7d5eb" }
+                            action: { type: string, example: "READ_PHI" }
+                            resourceType: { type: string, example: "patient" }
+                            resourceId: { type: string, format: uuid, example: "a43e4fc2-50d4-4a5f-9e7b-8c6c1d538102" }
+                            ipAddress: { type: string, example: "192.168.1.100" }
+                            userAgent: { type: string, example: "Mozilla/5.0..." }
+                            status: { type: string, example: "success" }
+                            metadata: { type: object, additionalProperties: true, example: { role: "admin" } }
+                            createdAt: { type: string, format: date-time, example: "2026-05-28T12:00:00Z" }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
+
+
+
+  /admins/clinicians/{id}/role:
+    put:
+      summary: Update Clinician Role
+      description: Promote a clinician to an admin, or demote an admin to a clinician.
+      tags: [Admin - Clinician Management]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                new_role_name:
+                  type: string
+                  example: admin
+      responses:
+        200:
+          description: Role successfully updated
+        400: { description: Bad Request }
+        403: { description: Forbidden }
+        404: { description: Not Found }
+
+  /admins/clinicians/transfer-patients:
+    post:
+      summary: Transfer Patients
+      description: Reassign specific patients from one clinician (or unassigned pool) to a new clinician.
+      tags: [Admin - Clinician Management]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                to_clinician_id:
+                  type: string
+                  format: uuid
+                patient_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        200:
+          description: Patients successfully transferred
+        400: { description: Bad Request }
+        403: { description: Forbidden }
+
+  /admins/clinicians/{id}/patients:
+    get:
+      summary: Get Clinician Patient Roster
+      description: Fetch all patients currently assigned to a specific clinician.
+      tags: [Admin - Clinician Management]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, suspended, archived]
+          description: Filter patients by account status
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search patients by name, email, or MRN
+      responses:
+        200:
+          description: List of assigned patients
+        403: { description: Forbidden }
+        404: { description: Not Found }

@@ -30,28 +30,28 @@ router.put(
 router.get(
   "/patients",
   authenticateJWT,
-  requireRole(["clinician"]),
+  requireRole(["clinician", "admin"]),
   clinicianController.getAssignedPatients.bind(clinicianController)
 );
 
 router.post(
   "/patients/:patientId/notes",
   authenticateJWT,
-  requireRole(["clinician"]),
+  requireRole(["clinician", "admin"]),
   clinicianController.addClinicalNote.bind(clinicianController)
 );
 
 router.get(
   "/patients/:patientId/details",
   authenticateJWT,
-  requireRole(["clinician"]),
+  requireRole(["clinician", "admin"]),
   clinicianController.getPatientDetails.bind(clinicianController)
 );
 
 router.get(
   "/analytics",
   authenticateJWT,
-  requireRole(["clinician"]),
+  requireRole(["clinician", "admin"]),
   clinicianController.getAnalytics.bind(clinicianController)
 );
 

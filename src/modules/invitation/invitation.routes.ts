@@ -12,7 +12,7 @@ router.post(
   "/clinician/invite",
   requireHttps,
   authenticateJWT,
-  requireRole(["clinician"]),
+  requireRole(["clinician", "admin", "super admin"]),
   resolveClinicianProfile,
   (req, res) => controller.invitePatient(req, res)
 );

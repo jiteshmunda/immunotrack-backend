@@ -14,7 +14,7 @@ export const ENV = {
   ADMIN_EMAIL: process.env.ADMIN_EMAIL || "",
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || "",
   ADMIN_NAME: process.env.ADMIN_NAME || "",
-  ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS || "http://localhost:5173,http://localhost:3000",
+  ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS || "http://localhost:5173,http://localhost:3000,https://immunotrack-frontend.vercel.app/",
   project_id: process.env.project_id || "",
   client_email: process.env.client_email || "",
   private_key: process.env.private_key || "",

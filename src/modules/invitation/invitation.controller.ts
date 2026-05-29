@@ -19,8 +19,23 @@ export class InvitationController {
       const clinicianReq = req as unknown as ClinicianRequest;
       const validated = invitePatientSchema.parse(req.body);
 
+      let targetClinicianId = clinicianReq.clinicianId;
+      const role = clinicianReq.user.role;
+
+      if (role === "admin" || role === "super admin") {
+        if (!validated.clinician_id) {
+          throw new Error("clinician_id is required when an admin invites a patient");
+        }
+        targetClinicianId = validated.clinician_id;
+      } else {
+        // Enforce that clinicians can only invite for themselves
+        if (!targetClinicianId) {
+          throw new Error("Clinician profile not found");
+        }
+      }
+
       const result = await invitationService.invitePatient(
-        clinicianReq.clinicianId,
+        targetClinicianId,
         validated
       );
 

@@ -305,4 +305,130 @@ export class AdminController {
       return sendError(res, error, 400);
     }
   }
+
+  async getAllUsers(req: Request, res: Response) {
+    try {
+      const adminId = (req as any).user.userId;
+      const filters = {
+        role: req.query.role as string,
+        status: req.query.status as string,
+        search: req.query.search as string,
+        limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
+        offset: req.query.offset ? parseInt(req.query.offset as string) : undefined,
+      };
+
+      const result = await adminService.getAllUsers(filters);
+
+      await writeAudit(req, {
+        action: "FETCH_USERS",
+        status: "success",
+        userId: adminId,
+        resourceType: "user",
+      });
+
+      return sendSuccess(res, {
+        message: "Users fetched successfully",
+        data: result
+      });
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
+
+  async getUserDetails(req: Request, res: Response) {
+    try {
+      const adminId = (req as any).user.userId;
+      const userId = req.params.id as string;
+
+      if (!userId) {
+        throw new Error("User ID is required");
+      }
+
+      const user = await adminService.getUserDetails(userId);
+
+      await writeAudit(req, {
+        action: "FETCH_USER_DETAILS",
+        status: "success",
+        userId: adminId,
+        resourceType: "user",
+        resourceId: userId,
+      });
+
+      return sendSuccess(res, {
+        message: "User details fetched successfully",
+        data: user
+      });
+    } catch (error: any) {
+      if (error.message.includes("not found")) {
+        return sendError(res, error, 404);
+      }
+      return sendError(res, error, 400);
+    }
+  }
+
+  async updateUserStatus(req: Request, res: Response) {
+    try {
+      const adminId = (req as any).user.userId;
+      const userId = req.params.id as string;
+      const { status } = req.body;
+
+      if (!userId) {
+        throw new Error("User ID is required");
+      }
+      if (!status) {
+        throw new Error("Status is required");
+      }
+
+      const user = await adminService.updateUserStatus(userId, status);
+
+      await writeAudit(req, {
+        action: "UPDATE_USER_STATUS",
+        status: "success",
+        userId: adminId,
+        resourceType: "user",
+        resourceId: userId,
+        details: { status }
+      });
+
+      return sendSuccess(res, {
+        message: "User status updated successfully",
+        data: user
+      });
+    } catch (error: any) {
+      if (error.message.includes("not found")) {
+        return sendError(res, error, 404);
+      }
+      return sendError(res, error, 400);
+    }
+  }
+
+  async deleteUser(req: Request, res: Response) {
+    try {
+      const adminId = (req as any).user.userId;
+      const userId = req.params.id as string;
+
+      if (!userId) {
+        throw new Error("User ID is required");
+      }
+
+      const user = await adminService.deleteUser(userId);
+
+      await writeAudit(req, {
+        action: "DELETE_USER",
+        status: "success",
+        userId: adminId,
+        resourceType: "user",
+        resourceId: userId,
+      });
+
+      return sendSuccess(res, {
+        message: "User deleted successfully",
+      });
+    } catch (error: any) {
+      if (error.message.includes("not found")) {
+        return sendError(res, error, 404);
+      }
+      return sendError(res, error, 400);
+    }
+  }
 }

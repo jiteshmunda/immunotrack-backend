@@ -12,7 +12,7 @@ router.post(
   "/clinician/invite",
   requireHttps,
   authenticateJWT,
-  requireRole(["clinician"]),
+  requireRole(["clinician", "admin", "super admin"]),
   resolveClinicianProfile,
   (req, res) => controller.invitePatient(req, res)
 );
@@ -21,7 +21,7 @@ router.get(
   "/clinician/invite",
   requireHttps,
   authenticateJWT,
-  requireRole(["clinician"]),
+  requireRole(["clinician", "admin", "super admin"]),
   resolveClinicianProfile,
   (req, res) => controller.getInvitations(req, res)
 );
@@ -31,7 +31,7 @@ router.post(
   "/clinician/invite/:invite_id/resend",
   requireHttps,
   authenticateJWT,
-  requireRole(["clinician"]),
+  requireRole(["clinician", "admin", "super admin"]),
   resolveClinicianProfile,
   (req, res) => controller.resendInvite(req, res)
 );
@@ -41,7 +41,7 @@ router.delete(
   "/clinician/invite/:invite_id",
   requireHttps,
   authenticateJWT,
-  requireRole(["clinician"]),
+  requireRole(["clinician", "admin", "super admin"]),
   resolveClinicianProfile,
   (req, res) => controller.cancelInvite(req, res)
 );

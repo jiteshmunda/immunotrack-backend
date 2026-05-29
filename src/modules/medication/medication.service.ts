@@ -4,7 +4,7 @@ import { patientMedications, medicationLogs, medicationReminders } from "../../d
 import { patients, clinicians, patientClinicianAssignments } from "../../db/schema/profile.schema";
 import { users } from "../../db/schema/user.schema";
 import { alerts } from "../../db/schema/ai.schema";
-import { eq, and, desc, between, sql } from "drizzle-orm";
+import { eq, and, desc, between, sql, or, inArray } from "drizzle-orm";
 import { encrypt, decrypt, hashForLookup } from "../../utils/encryption";
 import { LogMedicationInput } from "./medication.validation";
 import { calculateAdherenceWindow, formatAdherencePercentage, isPRNMedication, buildChronologicalLogGrid } from "../../utils/adherence";
@@ -706,13 +706,20 @@ export class MedicationService {
     } else if (role === "clinician") {
       if (!patientId) throw new Error("PATIENT_ID_REQUIRED_FOR_CLINICIANS");
       
-      const [clinician] = await db.select().from(clinicians).where(eq(clinicians.userId, userId)).limit(1);
-      if (!clinician) throw new Error("CLINICIAN_NOT_FOUND");
+      const targetClinicians = await db.select({ id: clinicians.id })
+        .from(clinicians)
+        .where(or(
+          eq(clinicians.userId, userId),
+          eq(clinicians.createdBy, userId)
+        ));
+
+      if (targetClinicians.length === 0) throw new Error("CLINICIAN_NOT_FOUND");
+      const clinicianIds = targetClinicians.map(c => c.id);
 
       const [assignment] = await db.select()
         .from(patientClinicianAssignments)
         .where(and(
-          eq(patientClinicianAssignments.clinicianId, clinician.id),
+          inArray(patientClinicianAssignments.clinicianId, clinicianIds),
           eq(patientClinicianAssignments.patientId, patientId)
         )).limit(1);
 

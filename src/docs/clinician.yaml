@@ -197,7 +197,8 @@ paths:
                         created_at: { type: string, format: date-time }
         401: { description: Unauthorized }
     post:
-      summary: Clinician invites a patient to join (HIPAA-Compliant)
+      summary: Clinician or Admin invites a patient to join (HIPAA-Compliant)
+      description: Admins must include the clinician_id in the body to specify which clinician the patient is assigned to.
       tags: [Clinician]
       security:
         - bearerAuth: []
@@ -217,6 +218,7 @@ paths:
                 icd10_code: { type: string, example: "J45.20" }
                 rpm_enrolled: { type: boolean, example: true }
                 personal_message: { type: string, maxLength: 500, example: "Welcome to our monitoring program." }
+                clinician_id: { type: string, format: uuid, description: "Required if inviting as an Admin.", example: "a5c9e7c9-c094-496c-a288-0ae21c32312f" }
       responses:
         201:
           description: Patient invited successfully

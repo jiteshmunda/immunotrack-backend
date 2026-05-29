@@ -5,7 +5,7 @@ export const updatePatientProfileSchema = z.object({
   first_name: z.string().optional(),
   last_name: z.string().optional(),
   sex: z.enum(["male", "female", "other", "unknown"]).optional(),
-  phone: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Must be a valid E.164 phone number").optional(),
+  phone: z.string().min(10, "Phone number must be at least 10 digits long").regex(/^\+?[1-9]\d{1,14}$/, "Please enter a valid phone number including country code (e.g. +1234567890)").optional(),
   medication_reminders_enabled: z.boolean().optional(),
   reminder_time_utc: z.string().optional(),
   fcm_token: z.string().optional(),

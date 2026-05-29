@@ -6,7 +6,7 @@ import { patients, patientClinicianAssignments, clinicians } from "../../db/sche
 import { invitations } from "../../db/schema/invitation.schema";
 import { onboardingSessions, patientConsents, notifications } from "../../db/schema/compliance.schema";
 import { eq, and, desc } from "drizzle-orm";
-import { verifyPassword, hashPassword } from "../../utils/hash";
+import { verifyPassword, hashPassword, checkPwnedPassword } from "../../utils/hash";
 import { hashForLookup, decrypt, encrypt } from "../../utils/encryption";
 import { generateAccessToken, generateRefreshToken } from "../../utils/jwt";
 import crypto from "crypto";
@@ -47,16 +47,8 @@ export class AuthService {
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       console.log("Login failed: user locked");
-      throw new Error("Too many failed attempts. Please wait 15 minutes before trying again.");
-    }
-
-    if (user.lockedUntil && user.lockedUntil <= new Date()) {
-      // Lockout expired, give a fresh start
-      user.failedLoginAttempts = 0;
-      user.lockedUntil = null;
-      await db.update(users)
-        .set({ failedLoginAttempts: 0, lockedUntil: null })
-        .where(eq(users.id, user.id));
+      const diffMin = Math.ceil((user.lockedUntil.getTime() - new Date().getTime()) / 60000);
+      throw new Error(`Account locked. Please wait ${diffMin} minutes before trying again.`);
     }
 
     if (!user.passwordHash) {
@@ -70,8 +62,10 @@ export class AuthService {
       const newAttempts = (user.failedLoginAttempts || 0) + 1;
       let lockedUntil = null;
       
-      if (newAttempts >= 5) {
-        lockedUntil = new Date(Date.now() + 15 * 60 * 1000);
+      if (newAttempts === 5) {
+        lockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+      } else if (newAttempts >= 10) {
+        lockedUntil = new Date(Date.now() + 60 * 60 * 1000); // 1 hr
       }
       
       await db.update(users)
@@ -79,7 +73,8 @@ export class AuthService {
         .where(eq(users.id, user.id));
 
       if (lockedUntil) {
-        throw new Error("Too many failed attempts. Please wait 15 minutes before trying again.");
+        const diffMin = Math.ceil((lockedUntil.getTime() - new Date().getTime()) / 60000);
+        throw new Error(`Account locked due to too many failed attempts. Please wait ${diffMin} minutes.`);
       }
       throw new Error("Invalid email or password");
     }
@@ -111,10 +106,6 @@ export class AuthService {
       sid: session.id 
     });
 
-    const isExpired = user.passwordChangedAt
-      ? (new Date().getTime() - user.passwordChangedAt.getTime()) > 60 * 24 * 60 * 60 * 1000
-      : false;
-
     return {
       accessToken,
       refreshToken: rawRefreshToken,
@@ -122,7 +113,7 @@ export class AuthService {
         user_id: user.id,
         role: role.name,
       },
-      resetRequired: user.isTempPassword || isExpired,
+      resetRequired: user.isTempPassword,
     };
   }
 
@@ -156,6 +147,10 @@ export class AuthService {
     const firstName = decrypt(invite.patientFirstName);
     const lastName = decrypt(invite.patientLastName);
     const fullName = `${firstName} ${lastName}`;
+
+    const isPwned = await checkPwnedPassword(input.password);
+    if (isPwned) throw new Error("Password has appeared in a known data breach. Please choose a stronger password.");
+
     const passwordHash = await hashPassword(input.password);
 
     const [patientRole] = await db.select().from(roles).where(eq(roles.name, "patient")).limit(1);
@@ -280,10 +275,6 @@ export class AuthService {
       sid: newSession.id 
     });
 
-    const isExpired = user.passwordChangedAt
-      ? (new Date().getTime() - user.passwordChangedAt.getTime()) > 60 * 24 * 60 * 60 * 1000
-      : false;
-
     return {
       accessToken,
       refreshToken: newRawRefreshToken,
@@ -291,7 +282,7 @@ export class AuthService {
         user_id: user.id,
         role: role.name,
       },
-      resetRequired: user.isTempPassword || isExpired,
+      resetRequired: user.isTempPassword,
     };
   }
 
@@ -333,6 +324,9 @@ export class AuthService {
         throw new Error("Password has been used recently. Please choose a new password.");
       }
     }
+
+    const isPwned = await checkPwnedPassword(newPassword);
+    if (isPwned) throw new Error("Password has appeared in a known data breach. Please choose a stronger password.");
 
     const passwordHash = await hashPassword(newPassword);
     
@@ -458,6 +452,9 @@ export class AuthService {
           throw new Error("Password has been used recently. Please choose a new password.");
         }
       }
+
+      const isPwned = await checkPwnedPassword(newPassword);
+      if (isPwned) throw new Error("Password has appeared in a known data breach. Please choose a stronger password.");
 
       const newPasswordHash = await hashPassword(newPassword);
 

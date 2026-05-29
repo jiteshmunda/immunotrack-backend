@@ -81,12 +81,13 @@ export class EmailService {
     const messageBlock = personalMessage
       ? `
         <!-- Styled blockquote for personal message -->
-        <div style="border-left: 4px solid #7FE3C5; background-color: #F0F9F7; padding: 15px 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
-          <p style="margin: 0; font-style: italic; color: #333333; font-size: 15px; line-height: 1.6;">"${personalMessage}"</p>
+        <div style="border-left: 3px solid #7FE3C5; background-color: #E8F8F2; padding: 15px 20px; margin: 25px 0;">
+          <p style="margin: 0; font-style: italic; color: #333333; font-size: 13px; line-height: 1.6;">${personalMessage}</p>
         </div>`
       : "";
 
     const deepLink = `https://dev-api.immunotrack.ai/invite?code=${rawCode}`;
+    // const deepLink = `https://immunotrack.ai/invite?code=${displayCode}`;
 
     // Format exact expiration date and time
     const expiryDate = new Date(expiryTimestamp);
@@ -95,11 +96,12 @@ export class EmailService {
       year: "numeric",
       month: "long",
       day: "numeric",
+      timeZone: "UTC",
     });
     const timeFormatted = expiryDate.toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
-      timeZoneName: "short",
+      timeZone: "UTC",
     });
     const fullExpiryString = `${dateFormatted} at ${timeFormatted}`;
 
@@ -155,17 +157,17 @@ export class EmailService {
             <!-- 6. Invite Code (large display) -->
             <div style="background-color: #f8fafc; padding: 25px; border-radius: 12px; border: 2px dashed #CBD5E1; text-align: center; margin: 30px 0 10px 0;">
               <span style="font-size: 13px; text-transform: uppercase; letter-spacing: 1.5px; color: #64748B; font-weight: 700; display: block; margin-bottom: 10px;">Your Invite Code</span>
-              <span style="font-size: 32px; font-weight: 800; color: #1B1E54; letter-spacing: 2px; font-family: monospace; display: block; -webkit-user-select: all; user-select: all;">${displayCode}</span>
+              <span style="font-size: 24px; font-weight: bold; color: #1B1E54; letter-spacing: 2px; font-family: 'Courier New', Courier, monospace; display: block; -webkit-user-select: all; user-select: all;">${displayCode}</span>
             </div>
             
             <!-- 7. Expiry Warning -->
-            <p style="margin-top: 0; margin-bottom: 35px; font-size: 13px; color: #e11d48; text-align: center; font-weight: 600;">
-              This invitation code expires in 72 hours — by ${fullExpiryString}.
+            <p style="margin-top: 0; margin-bottom: 35px; font-size: 12px; color: #C0392B; text-align: center; font-weight: bold;">
+              This invitation code expires in 72 hours — by ${fullExpiryString} UTC.
             </p>
 
             <!-- 8. Primary CTA Button -->
             <div style="text-align: center; margin: 35px 0 25px 0;">
-              <a href="${deepLink}" style="background-color: #1B1E54; color: #7FE3C5; padding: 16px 36px; font-size: 16px; font-weight: 700; text-decoration: none; border-radius: 8px; display: inline-block; box-shadow: 0 4px 12px rgba(27,30,84,0.15); transition: background-color 0.2s;">
+              <a href="${deepLink}" style="background-color: #2C2F7F; color: #ffffff; padding: 16px 36px; font-size: 16px; font-weight: bold; text-decoration: none; border-radius: 8px; display: inline-block; box-shadow: 0 4px 12px rgba(27,30,84,0.15); transition: background-color 0.2s; width: 100%; max-width: 280px; box-sizing: border-box; line-height: 16px;">
                 Open ImmunoTrack
               </a>
             </div>
@@ -218,8 +220,8 @@ export class EmailService {
    * Generates a HIPAA-compliant OTP email template
    */
   getOtpTemplate(
-    otp: string, 
-    title = "Password Reset Request", 
+    otp: string,
+    title = "Password Reset Request",
     description = "We received a request to reset your password. Use the verification code below to proceed. This code is valid for 10 minutes.",
     footerWarning = "If you did not request a password reset, please ignore this email or contact support if you have concerns."
   ): string {

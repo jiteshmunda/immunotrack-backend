@@ -1135,4 +1135,129 @@ export class AdminService {
 
     return result;
   }
+
+  async getAllUsers(filters?: { role?: string; status?: string; search?: string; limit?: number; offset?: number }) {
+    const queryConditions = [];
+    
+    if (filters?.status) {
+      queryConditions.push(eq(users.status, filters.status));
+    }
+
+    if (filters?.role) {
+      const [roleData] = await db.select({ id: roles.id }).from(roles).where(eq(roles.name, filters.role)).limit(1);
+      if (roleData) {
+        queryConditions.push(eq(users.roleId, roleData.id));
+      } else {
+        return { data: [], total: 0 };
+      }
+    }
+
+    let query = db
+      .select({
+        id: users.id,
+        fullName: users.fullName,
+        email: users.email,
+        status: users.status,
+        roleName: roles.name,
+        createdAt: users.createdAt,
+        lastLoginAt: users.lastLoginAt,
+      })
+      .from(users)
+      .leftJoin(roles, eq(users.roleId, roles.id));
+      
+    if (queryConditions.length > 0) {
+      query = query.where(and(...queryConditions)) as any;
+    }
+
+    const allUsers = await query;
+
+    let result = allUsers.map(u => ({
+      ...u,
+      fullName: u.fullName ? decrypt(u.fullName) : null,
+      email: u.email ? decrypt(u.email) : null,
+    }));
+
+    if (filters?.search) {
+      const searchLower = filters.search.toLowerCase().trim();
+      result = result.filter(u => 
+        (u.fullName && u.fullName.toLowerCase().includes(searchLower)) ||
+        (u.email && u.email.toLowerCase().includes(searchLower))
+      );
+    }
+
+    const total = result.length;
+    
+    if (filters?.limit !== undefined && filters?.offset !== undefined) {
+      const offset = Number(filters.offset);
+      const limit = Number(filters.limit);
+      result = result.slice(offset, offset + limit);
+    }
+
+    return {
+      data: result,
+      total
+    };
+  }
+
+  async getUserDetails(userId: string) {
+    const [user] = await db
+      .select({
+        id: users.id,
+        fullName: users.fullName,
+        email: users.email,
+        status: users.status,
+        roleName: roles.name,
+        createdAt: users.createdAt,
+        lastLoginAt: users.lastLoginAt,
+        failedLoginAttempts: users.failedLoginAttempts,
+      })
+      .from(users)
+      .leftJoin(roles, eq(users.roleId, roles.id))
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    return {
+      ...user,
+      fullName: user.fullName ? decrypt(user.fullName) : null,
+      email: user.email ? decrypt(user.email) : null,
+    };
+  }
+
+  async updateUserStatus(userId: string, status: string) {
+    const validStatuses = ["active", "archived"];
+    if (!validStatuses.includes(status)) {
+      throw new Error(`Invalid status. Must be one of: ${validStatuses.join(", ")}`);
+    }
+
+    const [updatedUser] = await db
+      .update(users)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning({ id: users.id, status: users.status });
+
+    if (!updatedUser) {
+      throw new Error("User not found");
+    }
+
+    return updatedUser;
+  }
+
+  async deleteUser(userId: string) {
+    // Soft delete
+    const [deletedUser] = await db
+      .update(users)
+      .set({ status: "archived", updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning({ id: users.id });
+
+    if (!deletedUser) {
+      throw new Error("User not found");
+    }
+
+    return deletedUser;
+  }
 }

@@ -92,7 +92,7 @@ export class InvitationService {
           patientDiagnosis: encryptedDiagnosis,
           icd10Code: encryptedIcd10,
           rpmEnrolled: String(input.rpm_enrolled),
-          personalMessage: input.personal_message || "Welcome to the ImmunoTrack Monitoring Program",
+          personalMessage: input.personal_message?.trim() || undefined,
           status: "pending",
           expiresAt,
         })
@@ -100,9 +100,12 @@ export class InvitationService {
 
       // 5. Send Email
       try {
+        const clinicianFullName = clinician.fullName ? decrypt(clinician.fullName) : 'Your Doctor';
+        const clinicianFirstName = clinicianFullName.split(' ')[0];
+        
         await emailService.sendEmail({
           to: input.patient_email,
-          subject: `${clinician.fullName ? decrypt(clinician.fullName) : 'Your Doctor'} has invited you to ImmunoTrack`,
+          subject: `${clinicianFirstName} at ${clinician.clinicName || 'Your Clinic'} has invited you to join ImmunoTrack`,
           body: emailService.getInviteTemplate(
             input.patient_first_name,
             clinician.fullName ? decrypt(clinician.fullName) : 'Your Doctor',
@@ -110,7 +113,7 @@ export class InvitationService {
             display,
             raw,
             expiresAt.toISOString(),
-            input.personal_message || "Welcome to the ImmunoTrack Monitoring Program"
+            input.personal_message?.trim() || undefined
     )});
         
         await tx.update(invitations).set({ emailSentAt: new Date() }).where(eq(invitations.id, invitation.id));
@@ -200,11 +203,18 @@ export class InvitationService {
 
 // ---------------------------------POST /clinician/invite/:invite_id/resend---------------------------------------
 
-  async resendInvite(clinicianId: string, inviteId: string) {
+  async resendInvite(inviteId: string, clinicianId?: string, clinicId?: string) {
+    let conditions = [eq(invitations.id, inviteId)];
+    if (clinicianId) {
+      conditions.push(eq(invitations.clinicianId, clinicianId));
+    } else if (clinicId) {
+      conditions.push(eq(invitations.clinicId, clinicId));
+    }
+
     const [oldInvite] = await db
       .select()
       .from(invitations)
-      .where(and(eq(invitations.id, inviteId), eq(invitations.clinicianId, clinicianId)))
+      .where(and(...conditions))
       .limit(1);
 
     if (!oldInvite) throw new Error("INVITE_NOT_FOUND");
@@ -243,27 +253,38 @@ export class InvitationService {
 
       const patientEmail = decrypt(oldInvite.patientEmail);
       const patientFirstName = decrypt(oldInvite.patientFirstName);
-      const [clinician] = await tx.select({ 
-          fullName: users.fullName,
-          clinicName: clinics.name
-        })
-        .from(clinicians)
-        .innerJoin(users, eq(clinicians.userId, users.id))
-        .leftJoin(clinics, eq(clinicians.clinicId, clinics.id))
-        .where(eq(clinicians.id, clinicianId))
-        .limit(1);
+      let clinicianInfo = { fullName: "", clinicName: "" };
+
+      if (oldInvite.clinicianId) {
+        const [clinician] = await tx.select({ 
+            fullName: users.fullName,
+            clinicName: clinics.name
+          })
+          .from(clinicians)
+          .innerJoin(users, eq(clinicians.userId, users.id))
+          .leftJoin(clinics, eq(clinicians.clinicId, clinics.id))
+          .where(eq(clinicians.id, oldInvite.clinicianId))
+          .limit(1);
+        if (clinician) {
+          clinicianInfo.fullName = clinician.fullName ? decrypt(clinician.fullName) : "";
+          clinicianInfo.clinicName = clinician.clinicName || "";
+        }
+      }
+
+      const clinicianFullName = clinicianInfo.fullName || 'Your Doctor';
+      const clinicianFirstName = clinicianFullName.split(' ')[0];
 
       await emailService.sendEmail({
         to: patientEmail,
-        subject: `${clinician?.fullName ? decrypt(clinician.fullName) : 'Your Doctor'} has invited you to ImmunoTrack`,
+        subject: `${clinicianFirstName} at ${clinicianInfo.clinicName || 'Your Clinic'} has invited you to join ImmunoTrack`,
         body: emailService.getInviteTemplate(
           patientFirstName,
-          clinician?.fullName ? decrypt(clinician.fullName) : 'Your Doctor',
-          clinician?.clinicName || 'Your Clinic',
+          clinicianInfo.fullName || 'Your Doctor',
+          clinicianInfo.clinicName || 'Your Clinic',
           display,
           raw,
           expiresAt.toISOString(),
-          oldInvite.personalMessage || undefined
+          oldInvite.personalMessage?.trim() || undefined
         ),
       });
 
@@ -278,17 +299,29 @@ export class InvitationService {
 
 //  --------------------------------------DELETE /clinician/invite/:invite_id------------------------------------------
 
-  async cancelInvite(clinicianId: string, inviteId: string) {
+  async cancelInvite(inviteId: string, clinicianId?: string, clinicId?: string) {
+    let conditions = [eq(invitations.id, inviteId)];
+    if (clinicianId) {
+      conditions.push(eq(invitations.clinicianId, clinicianId));
+    } else if (clinicId) {
+      conditions.push(eq(invitations.clinicId, clinicId));
+    }
+
     await db.update(invitations)
       .set({ status: "invalidated", invalidatedAt: new Date(), invalidatedReason: "clinician_cancelled" })
-      .where(and(eq(invitations.id, inviteId), eq(invitations.clinicianId, clinicianId)));
+      .where(and(...conditions));
     
     return { success: true };
   }
 //  --------------------------------------GET /clinician/invite------------------------------------------
 
-  async getInvitations(clinicianId: string, status?: string) {
-    let conditions = [eq(invitations.clinicianId, clinicianId)];
+  async getInvitations(clinicianId?: string, status?: string, clinicId?: string) {
+    let conditions = [];
+    if (clinicianId) {
+      conditions.push(eq(invitations.clinicianId, clinicianId));
+    } else if (clinicId) {
+      conditions.push(eq(invitations.clinicId, clinicId));
+    }
 
     if (status) {
       const statuses = status.split(",").map(s => s.trim().toLowerCase());
@@ -299,7 +332,7 @@ export class InvitationService {
     const inviteRecords = await db
       .select()
       .from(invitations)
-      .where(and(...conditions))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(sql`${invitations.createdAt} DESC`);
 
     return inviteRecords.map(inv => ({

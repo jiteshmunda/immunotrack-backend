@@ -3,7 +3,7 @@ import { alerts } from "../../db/schema/ai.schema";
 import { patients, clinicians, patientClinicianAssignments } from "../../db/schema/profile.schema";
 import { users } from "../../db/schema/user.schema";
 import { patientMedications } from "../../db/schema/tracking.schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, or } from "drizzle-orm";
 import { decrypt } from "../../utils/encryption";
 
 export class AlertService {
@@ -11,13 +11,16 @@ export class AlertService {
   // -----------------------------GET /alerts------------------------------------------
   
   async getAlerts(clinicianUserId: string) {
-    const [clinician] = await db
-      .select()
+    const targetClinicians = await db
+      .select({ id: clinicians.id })
       .from(clinicians)
-      .where(eq(clinicians.userId, clinicianUserId))
-      .limit(1);
+      .where(or(
+        eq(clinicians.userId, clinicianUserId),
+        eq(clinicians.createdBy, clinicianUserId)
+      ));
 
-    if (!clinician) throw new Error("CLINICIAN_NOT_FOUND");
+    if (targetClinicians.length === 0) throw new Error("CLINICIAN_NOT_FOUND");
+    const clinicianIds = targetClinicians.map(c => c.id);
 
     const results = await db
       .select({
@@ -38,6 +41,8 @@ export class AlertService {
         composite_score_current: alerts.compositeScoreCurrent,
         streak_days: alerts.streakDays,
         weekly_change_pct: alerts.weeklyChangePct,
+        resolved_at: alerts.resolvedAt,
+        resolution_note: alerts.resolutionNote,
         medication_name: patientMedications.name,
         patient_name: users.fullName,
       })
@@ -54,8 +59,8 @@ export class AlertService {
       )
       .where(
         and(
-          eq(patientClinicianAssignments.clinicianId, clinician.id),
-          eq(alerts.status, "active")
+          inArray(patientClinicianAssignments.clinicianId, clinicianIds),
+          inArray(alerts.status, ["active", "resolved"])
         )
       )
       .orderBy(desc(alerts.lastTriggeredAt));
@@ -75,6 +80,8 @@ export class AlertService {
         status: r.status,
         created_at: r.created_at,
         lastTriggeredAt: r.last_triggered_at,
+        resolved_at: r.resolved_at,
+        resolution_note: r.resolution_note,
         risk_score: r.risk_score ? parseFloat(r.risk_score) : null,
         domain: r.domain,
         alert_subtype: r.alert_subtype,

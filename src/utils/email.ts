@@ -174,7 +174,7 @@ export class EmailService {
             <div style="text-align: center; margin: 30px 0; border-top: 1px solid #E2E8F0; padding-top: 25px;">
               <p style="font-size: 13px; color: #64748B; margin-top: 0; margin-bottom: 15px; font-weight: 600;">If app is not installed:</p>
               <div style="display: inline-block; margin: 0 8px 10px 8px;">
-                <a href="https://apps.apple.com/app/immunotrack" style="display: inline-block; text-decoration: none;">
+                <a href="https://apps.apple.com/app/id6766438796" style="display: inline-block; text-decoration: none;">
                   <span style="background-color: #000000; color: #ffffff; padding: 10px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; display: inline-block; border: 1px solid #333; line-height: 1.2; text-align: left;">
                     <span style="font-size: 9px; display: block; color: #a1a1a1; font-weight: 400;">Download on the</span>
                     App Store
@@ -182,7 +182,7 @@ export class EmailService {
                 </a>
               </div>
               <div style="display: inline-block; margin: 0 8px 10px 8px;">
-                <a href="https://play.google.com/store/apps/details?id=com.immunotrack" style="display: inline-block; text-decoration: none;">
+                <a href="https://play.google.com/store/apps/details?id=ai.immunotrack.app" style="display: inline-block; text-decoration: none;">
                   <span style="background-color: #000000; color: #ffffff; padding: 10px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; display: inline-block; border: 1px solid #333; line-height: 1.2; text-align: left;">
                     <span style="font-size: 9px; display: block; color: #a1a1a1; font-weight: 400;">GET IT ON</span>
                     Google Play

@@ -7,7 +7,7 @@ import { roles } from "../../db/schema/role.schema";
 import { patientClinicalNotes } from "../../db/schema/clinical-note.schema";
 import { hashForLookup, encrypt, decrypt } from "../../utils/encryption";
 import { hashPassword, generateTempPassword } from "../../utils/hash";
-import { eq, desc, and, sql, between } from "drizzle-orm";
+import { eq, desc, and, sql, between, or, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { CreateClinicianInput, ClinicianAnalyticsResponse, UpdateClinicianProfileInput } from "./clinician.schema";
 import { calculateRiskScore, getSeverityLevel, getStatusColor } from "../symptoms/utils/symptom-scores";
@@ -185,17 +185,28 @@ export class ClinicianService {
   // ---------------------------------------------------- GET Assigned Patients with Risk Calculation ---------------------------------------------------
 
   async getAssignedPatients(userId: string, search?: string) {
-    // 1. Get clinician profile
-    const [clinician] = await db
-      .select()
+    // 1. Get clinician profile or admin's clinicians
+    const targetClinicians = await db
+      .select({ id: clinicians.id })
       .from(clinicians)
-      .where(eq(clinicians.userId, userId))
-      .limit(1);
+      .where(or(
+        eq(clinicians.userId, userId),
+        eq(clinicians.createdBy, userId)
+      ));
 
-    if (!clinician) throw new Error("CLINICIAN_NOT_FOUND");
+    if (targetClinicians.length === 0) {
+      return {
+        total_patient_count: 0,
+        total_high_risk_count: 0,
+        total_alerts_count: 0,
+        patients: [],
+      };
+    }
+    
+    const clinicianIds = targetClinicians.map(c => c.id);
 
     // 2. Fetch all assigned patients with their core user data
-    const assignedPatients = await db
+    const assignedPatientsResult = await db
       .select({
         id: patients.id,
         fullName: users.fullName,
@@ -204,12 +215,18 @@ export class ClinicianService {
       .from(patientClinicianAssignments)
       .innerJoin(patients, eq(patientClinicianAssignments.patientId, patients.id))
       .innerJoin(users, eq(patients.userId, users.id))
-      .where(eq(patientClinicianAssignments.clinicianId, clinician.id));
+      .where(inArray(patientClinicianAssignments.clinicianId, clinicianIds));
+
+    // Deduplicate patients since multiple clinicians under the admin might be assigned to the same patient
+    const uniquePatientsMap = new Map();
+    assignedPatientsResult.forEach(p => uniquePatientsMap.set(p.id, p));
+    const assignedPatients = Array.from(uniquePatientsMap.values());
 
     if (assignedPatients.length === 0) {
       return {
         total_patient_count: 0,
         total_high_risk_count: 0,
+        total_alerts_count: 0,
         patients: [],
       };
     }
@@ -348,11 +365,31 @@ export class ClinicianService {
     // 1. Auth & Security
     const [authData] = await db.select({
       clinicianId: clinicians.id, fullName: users.fullName,
-      isAssigned: sql<boolean>`EXISTS (SELECT 1 FROM ${patientClinicianAssignments} WHERE clinician_id = ${clinicians.id} AND patient_id = ${patientId})`
     }).from(clinicians).innerJoin(users, eq(clinicians.userId, users.id)).where(eq(clinicians.userId, clinicianUserId)).limit(1);
 
     if (!authData) throw new Error("CLINICIAN_NOT_FOUND");
-    if (!authData.isAssigned) throw new Error("UNAUTHORIZED_ACCESS_TO_PATIENT_DATA");
+
+    const targetClinicians = await db
+      .select({ id: clinicians.id })
+      .from(clinicians)
+      .where(or(
+        eq(clinicians.userId, clinicianUserId),
+        eq(clinicians.createdBy, clinicianUserId)
+      ));
+    
+    if (targetClinicians.length === 0) throw new Error("UNAUTHORIZED_ACCESS_TO_PATIENT_DATA");
+    const clinicianIds = targetClinicians.map(c => c.id);
+
+    const [assignment] = await db
+      .select({ id: patientClinicianAssignments.id })
+      .from(patientClinicianAssignments)
+      .where(and(
+        eq(patientClinicianAssignments.patientId, patientId),
+        inArray(patientClinicianAssignments.clinicianId, clinicianIds)
+      ))
+      .limit(1);
+
+    if (!assignment) throw new Error("UNAUTHORIZED_ACCESS_TO_PATIENT_DATA");
 
     // 2. Fetch Core Data
     const [patientData] = await db.select({ user: users, patient: patients }).from(patients).innerJoin(users, eq(patients.userId, users.id)).where(eq(patients.id, patientId)).limit(1);
@@ -447,14 +484,18 @@ export class ClinicianService {
 
   async getClinicianAnalytics(clinicianUserId: string): Promise<ClinicianAnalyticsResponse> {
     // 1. Get Clinician
-    const [clinician] = await db.select({ id: clinicians.id })
+    const targetClinicians = await db.select({ id: clinicians.id })
       .from(clinicians)
-      .where(eq(clinicians.userId, clinicianUserId))
-      .limit(1);
-    if (!clinician) throw new Error("CLINICIAN_NOT_FOUND");
+      .where(or(
+        eq(clinicians.userId, clinicianUserId),
+        eq(clinicians.createdBy, clinicianUserId)
+      ));
+      
+    if (targetClinicians.length === 0) throw new Error("CLINICIAN_NOT_FOUND");
+    const clinicianIds = targetClinicians.map(c => c.id);
 
     // 2. Get Assigned Patients
-    const assignedPatients = await db
+    const assignedPatientsResult = await db
       .select({ 
         id: patients.id, 
         fullName: users.fullName,
@@ -463,7 +504,11 @@ export class ClinicianService {
       .from(patientClinicianAssignments)
       .innerJoin(patients, eq(patientClinicianAssignments.patientId, patients.id))
       .innerJoin(users, eq(patients.userId, users.id))
-      .where(eq(patientClinicianAssignments.clinicianId, clinician.id));
+      .where(inArray(patientClinicianAssignments.clinicianId, clinicianIds));
+      
+    const uniquePatientsMap = new Map();
+    assignedPatientsResult.forEach(p => uniquePatientsMap.set(p.id, p));
+    const assignedPatients = Array.from(uniquePatientsMap.values());
 
     if (assignedPatients.length === 0) {
       return {

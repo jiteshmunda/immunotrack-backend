@@ -89,4 +89,32 @@ router.get(
   adminController.getClinicianPatients.bind(adminController)
 );
 
+router.get(
+  "/users",
+  authenticateJWT,
+  requireRole(["admin", "super admin"]),
+  adminController.getAllUsers.bind(adminController)
+);
+
+router.get(
+  "/users/:id",
+  authenticateJWT,
+  requireRole(["admin", "super admin"]),
+  adminController.getUserDetails.bind(adminController)
+);
+
+router.put(
+  "/users/:id/status",
+  authenticateJWT,
+  requireRole(["admin", "super admin"]),
+  adminController.updateUserStatus.bind(adminController)
+);
+
+router.delete(
+  "/users/:id",
+  authenticateJWT,
+  requireRole(["admin", "super admin"]),
+  adminController.deleteUser.bind(adminController)
+);
+
 export default router;

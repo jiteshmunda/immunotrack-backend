@@ -151,7 +151,7 @@ app.get('/invite', (req, res) => {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Opening ImmunoTrack…</title>
+  <title>Get ImmunoTrack</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -166,73 +166,72 @@ app.get('/invite', (req, res) => {
       text-align: center;
       box-shadow: 0 8px 30px rgba(27,30,84,0.08);
     }
-    .spinner {
-      width: 44px; height: 44px; margin: 0 auto 24px;
-      border: 3px solid #E2E8F0;
-      border-top-color: #1B1E54;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
     h2 { font-size: 20px; font-weight: 700; margin-bottom: 10px; }
-    p  { font-size: 15px; color: #64748B; line-height: 1.5; }
+    p  { font-size: 15px; color: #64748B; line-height: 1.5; margin-bottom: 6px; }
     .store-btn {
-      display: inline-block; margin-top: 28px;
+      display: inline-block; margin-top: 24px;
       background: #1B1E54; color: white;
       padding: 14px 28px; border-radius: 12px;
       font-size: 15px; font-weight: 600;
       text-decoration: none;
     }
     .store-btn:active { opacity: 0.85; }
-    #fallback { display: none; }
+    .open-btn {
+      display: inline-block; margin-top: 12px;
+      color: #1B1E54; font-size: 14px; font-weight: 500;
+      text-decoration: underline; cursor: pointer;
+      background: none; border: none; padding: 0;
+    }
   </style>
 </head>
 <body>
   <div class="card">
-    <!-- Shown while we attempt to open the app via custom scheme -->
-    <div id="opening">
-      <div class="spinner"></div>
-      <h2>Opening ImmunoTrack…</h2>
-      <p>If the app doesn't open automatically, tap the button below.</p>
-    </div>
-    <!-- Shown only if the app is not installed (timer fires after 2.5 s) -->
-    <div id="fallback">
-      <h2>Get ImmunoTrack</h2>
-      <p>Download the app and use code <strong>${code || ''}</strong> during sign-up.</p>
-      <a class="store-btn" href="https://apps.apple.com/app/id6766438796">
-        Download on the App Store
-      </a>
-    </div>
+    <!--
+      This page is only reached when the email is opened in Gmail / Outlook
+      (third-party mail apps use a WebView that does not support Universal Links).
+      Apple Mail users never see this — iOS intercepts the link before it loads.
+
+      We show the App Store button immediately so users with the app not installed
+      are not left staring at a spinner. At the same time we silently attempt to
+      open the app via its custom URL scheme — if the app IS installed it will
+      open immediately and this page goes to the background.
+    -->
+    <h2>Get ImmunoTrack</h2>
+    <p>Your invite code is <strong>${code || ''}</strong></p>
+    <p>Download the app, then enter your code to get started.</p>
+    <a class="store-btn" href="https://apps.apple.com/app/id6766438796">
+      Download on the App Store
+    </a>
+    
+
+    <button class="open-btn" id="openBtn" onclick="tryOpen()">
+      Already have the app? Open it
+    </button>
   </div>
 
   <script>
     (function () {
-      var code        = ${JSON.stringify(code || '')};
+      var code         = ${JSON.stringify(code || '')};
       var customScheme = 'immunotrack://invite?code=' + encodeURIComponent(code);
-      var appStoreUrl  = 'https://apps.apple.com/app/id6766438796';
 
-      // Step 1: Start the App Store fallback timer (2.5 s).
-      // If the app opens successfully, step 3 will clear this before it fires.
-      var fallbackTimer = setTimeout(function () {
-        // App did not open (not installed). Show the fallback UI and redirect.
-        document.getElementById('opening').style.display = 'none';
-        document.getElementById('fallback').style.display  = 'block';
-        window.location.href = appStoreUrl;
-      }, 2500);
-
-      // Step 3: If the app opened, this page moves to the background.
-      // Cancel the timer so the App Store redirect does NOT fire.
-      document.addEventListener('visibilitychange', function () {
-        if (document.hidden) clearTimeout(fallbackTimer);
-      });
-      // Belt-and-suspenders: pagehide also fires when the page is backgrounded.
-      window.addEventListener('pagehide', function () {
-        clearTimeout(fallbackTimer);
-      });
-
-      // Step 2: Attempt to open the app via its registered custom URL scheme.
-      // iOS silently ignores this if the app is not installed — no error popup.
+      // Silently attempt to open the app on page load.
+      // If installed: iOS intercepts the scheme, app opens, page goes background.
+      // If not installed: iOS ignores the unknown scheme silently — no popup, no error.
+      // The user already sees the App Store button so there is no awkward wait.
       window.location.href = customScheme;
+
+      // Cancel any pending navigation if page goes background (app opened).
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) {
+          document.getElementById('openBtn').style.display = 'none';
+        }
+      });
+
+      // Manual "open app" button in case the silent attempt did not fire
+      // (some WebView sandboxes block automatic scheme navigation).
+      window.tryOpen = function () {
+        window.location.href = customScheme;
+      };
     })();
   </script>
 </body>
@@ -275,5 +274,4 @@ app.use("/health", (req, res) => {
 // API Routes
 app.use("/api/v1", router);
 
-export default app;
- 
+export default app; 

@@ -4,3 +4,6 @@ package-lock.json
 logs/
 *.xlsx
 dist/
+*.dump
+*.sql
+*.custom

@@ -868,5 +868,35 @@ export const medicationData = [
     indicatedFor: "Peanut Allergy (ages 4-17)",
     rxOtc: "Rx",
     clinicalNotes: "FDA-approved oral immunotherapy for peanut allergy. Desensitizes, does not cure. Ongoing daily maintenance required."
+  },
+  {
+    externalId: "BIO-008",
+    name: "Itepekimab",
+    genericName: "Itepekimab",
+    brandNames: "Dupixent (pipeline)",
+    category: "Biologic",
+    subCategory: "Anti-IL-33",
+    route: "Subcutaneous injection",
+    standardDose: "Phase 3 — 300mg every 2-4 weeks",
+    availableStrengths: "300mg (investigational)",
+    defaultFrequency: "Every 2-4 weeks",
+    indicatedFor: "Severe Asthma, Atopic Dermatitis (pipeline)",
+    rxOtc: "Rx",
+    clinicalNotes: "In development — upstream cytokine inhibition."
+  },
+  {
+    externalId: "BIO-009",
+    name: "Cendakimab",
+    genericName: "Cendakimab",
+    brandNames: "Pipeline",
+    category: "Biologic",
+    subCategory: "Anti-IL-13Rα2",
+    route: "Oral (small molecule)",
+    standardDose: "Investigational oral dosing",
+    availableStrengths: "TBD",
+    defaultFrequency: "Once daily (investigational)",
+    indicatedFor: "Eosinophilic Esophagitis, Atopic Dermatitis, Asthma (pipeline)",
+    rxOtc: "Rx",
+    clinicalNotes: "Oral biologic-like small molecule — in development."
   }
 ];

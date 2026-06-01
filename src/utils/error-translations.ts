@@ -49,5 +49,10 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   "UNAUTHORIZED_ACCESS_TO_PATIENT_DATA": "Access Denied: You are not assigned to this patient.",
   "Clinician ID is required": "Clinician ID is required.",
   "Clinician not found": "The requested clinician was not found.",
-  "Forbidden: You do not have permission to delete this clinician": "Access Denied: You do not have permission to delete this clinician."
+  "Forbidden: You do not have permission to delete this clinician": "Access Denied: You do not have permission to delete this clinician.",
+
+  // --- File Uploads ---
+  "No file uploaded": "Please select a photo to upload.",
+  "Only image files are allowed!": "Only image files (JPG, PNG, WEBP) are allowed.",
+  "File too large": "The uploaded file is too large. Please select an image under 5MB."
 };

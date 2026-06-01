@@ -974,10 +974,13 @@ export class AdminService {
         npi_number: clinicians.npiNumber,
         state_of_licensure: clinicians.stateOfLicensure,
         created_at: clinicians.createdAt,
-        createdBy: clinicians.createdBy
+        createdBy: clinicians.createdBy,
+        phone: clinicians.phone,
+        clinic_name: clinics.name
       })
       .from(clinicians)
       .innerJoin(users, eq(clinicians.userId, users.id))
+      .leftJoin(clinics, eq(clinicians.clinicId, clinics.id))
       .where(eq(clinicians.id, clinicianId));
 
     if (clinicianData.length === 0) {
@@ -994,6 +997,7 @@ export class AdminService {
       full_name: decrypt(clinician.full_name!),
       email: decrypt(clinician.email!),
       npi_number: clinician.npi_number ? decrypt(clinician.npi_number) : null,
+      phone: clinician.phone ? decrypt(clinician.phone) : null,
       createdBy: undefined,
     };
   }

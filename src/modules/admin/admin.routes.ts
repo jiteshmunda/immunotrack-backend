@@ -27,6 +27,13 @@ router.get(
 );
 
 router.get(
+  "/analytics",
+  authenticateJWT,
+  requireRole(["admin", "super admin"]),
+  adminController.getAnalytics.bind(adminController)
+);
+
+router.get(
   "/analytics/adherence",
   authenticateJWT,
   requireRole(["admin", "super admin"]),

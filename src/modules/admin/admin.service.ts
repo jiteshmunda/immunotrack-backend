@@ -4,8 +4,10 @@ import { clinicians, patients, patientClinicianAssignments } from "../../db/sche
 import { clinics } from "../../db/schema/clinic.schema";
 import { roles } from "../../db/schema/role.schema";
 import { dailyLogs, patientMedications, medicationLogs } from "../../db/schema/tracking.schema";
-import { alerts } from "../../db/schema/ai.schema";
+import { alerts, flarePredictions, flareHistory } from "../../db/schema/ai.schema";
+import { rpmRollingPeriods } from "../../db/schema/rpm.schema";
 import { auditLogs } from "../../db/schema/compliance.schema";
+import { invitations } from "../../db/schema/invitation.schema";
 import { hashForLookup, encrypt, decrypt } from "../../utils/encryption";
 import { hashPassword, generateTempPassword } from "../../utils/hash";
 import { eq, sql, and, or, between, inArray, gte, lte, desc } from "drizzle-orm";
@@ -192,6 +194,163 @@ export class AdminService {
     }
 
     return result;
+  }
+
+  async getAnalytics(adminId: string) {
+    const adminClinicId = await this.getAdminClinicId(adminId);
+    const adminClinicians = await db
+      .select({ id: clinicians.id, userId: clinicians.userId, fullName: users.fullName })
+      .from(clinicians)
+      .innerJoin(users, eq(clinicians.userId, users.id))
+      .where(eq(clinicians.clinicId, adminClinicId));
+
+    if (adminClinicians.length === 0) {
+      return this.emptyAnalytics();
+    }
+    const clinicianIds = adminClinicians.map(c => c.id);
+
+    const assignedPatientsResult = await db
+      .select({ id: patients.id })
+      .from(patients)
+      .innerJoin(users, eq(patients.userId, users.id))
+      .innerJoin(patientClinicianAssignments, eq(patients.id, patientClinicianAssignments.patientId))
+      .where(and(
+        inArray(patientClinicianAssignments.clinicianId, clinicianIds),
+        eq(users.status, "active")
+      ));
+
+    const uniquePatientsMap = new Map();
+    assignedPatientsResult.forEach(p => uniquePatientsMap.set(p.id, p));
+    const uniquePatients = Array.from(uniquePatientsMap.values());
+    const total_patients = uniquePatients.length;
+
+    if (total_patients === 0) {
+      return this.emptyAnalytics();
+    }
+    const patientIds = uniquePatients.map(p => p.id);
+
+    // 2. Composite score trends (box plot)
+    const endOfToday = new Date();
+    endOfToday.setUTCHours(23, 59, 59, 999);
+    
+    const startOf30DaysAgo = new Date(endOfToday.getTime() - 30 * 24 * 60 * 60 * 1000);
+    startOf30DaysAgo.setUTCHours(0, 0, 0, 0);
+
+    const logs30Days = await db
+      .select({
+        patientId: dailyLogs.patientId,
+        respiratoryComposite: dailyLogs.respiratoryComposite,
+        nasalComposite: dailyLogs.nasalComposite,
+        skinComposite: dailyLogs.skinComposite
+      })
+      .from(dailyLogs)
+      .where(and(
+        inArray(dailyLogs.patientId, patientIds),
+        between(dailyLogs.loggedAt, startOf30DaysAgo, endOfToday)
+      ));
+
+    let scores = logs30Days.map(l => calculateRiskScore(Number(l.respiratoryComposite), Number(l.nasalComposite), Number(l.skinComposite)));
+    scores.sort((a, b) => a - b);
+    
+    let composite_score_trends = { min: 0, q1: 0, median: 0, q3: 0, max: 0 };
+    if (scores.length > 0) {
+      const min = scores[0];
+      const max = scores[scores.length - 1];
+      const median = scores[Math.floor(scores.length / 2)];
+      const q1 = scores[Math.floor(scores.length / 4)];
+      const q3 = scores[Math.floor((scores.length * 3) / 4)];
+      composite_score_trends = { min, q1, median, q3, max };
+    }
+
+    // 4. Medication adherence
+    const activeMeds = await db.select().from(patientMedications)
+      .where(and(inArray(patientMedications.patientId, patientIds), eq(patientMedications.active, true)));
+    
+    let totalAdherenceSum = 0;
+    let patientsWithMeds = 0;
+    await Promise.all(uniquePatients.map(async (p) => {
+      const metrics = await medicationService.getAdherenceMetrics(adminId, "admin", p.id, 30);
+      if (metrics.totalLogged > 0) {
+        totalAdherenceSum += metrics.overallAdherence;
+        patientsWithMeds++;
+      }
+    }));
+    const medication_adherence = patientsWithMeds > 0 ? Math.round(totalAdherenceSum / patientsWithMeds) : 0;
+
+    // 5. Active alerts count
+    const activeAlerts = await db
+      .select({
+        id: alerts.id,
+        patientId: alerts.patientId,
+        clinicianId: patientClinicianAssignments.clinicianId,
+      })
+      .from(alerts)
+      .innerJoin(patientClinicianAssignments, eq(alerts.patientId, patientClinicianAssignments.patientId))
+      .where(and(
+        inArray(alerts.patientId, patientIds),
+        eq(alerts.status, "active")
+      ));
+    
+    const alertsByClinician: Record<string, number> = {};
+    for (const alert of activeAlerts) {
+      alertsByClinician[alert.clinicianId] = (alertsByClinician[alert.clinicianId] || 0) + 1;
+    }
+    
+    const active_alerts_count = adminClinicians.map(c => ({
+      clinician: c.fullName ? decrypt(c.fullName) : "Unknown",
+      count: alertsByClinician[c.id] || 0
+    }));
+
+
+
+    // 7. Clinician Activity
+    const clinician_activity = await Promise.all(adminClinicians.map(async c => {
+       const resolved = await db.select({ count: sql<number>`count(*)` })
+          .from(alerts)
+          .where(and(eq(alerts.resolvedBy, c.userId!), gte(alerts.resolvedAt, startOf30DaysAgo)));
+          
+       const invited = await db.select({ count: sql<number>`count(*)` })
+          .from(invitations)
+          .where(and(eq(invitations.clinicianId, c.id), gte(invitations.createdAt, startOf30DaysAgo)));
+
+       return {
+          clinician: c.fullName ? decrypt(c.fullName) : "Unknown",
+          patients_invited: Number(invited[0]?.count || 0),
+          alerts_resolved: Number(resolved[0]?.count || 0)
+       };
+    }));
+
+    // 8. Audit log summary
+    const startOfTodayForAudit = new Date(endOfToday.getTime());
+    startOfTodayForAudit.setUTCHours(0, 0, 0, 0);
+
+    const auditEvents = await db.select({ count: sql<number>`count(*)` })
+       .from(auditLogs)
+       .where(and(
+          inArray(auditLogs.userId, adminClinicians.map(c => c.userId!).filter(Boolean)),
+          gte(auditLogs.createdAt, startOfTodayForAudit)
+       ));
+    const audit_log_summary = Number(auditEvents[0]?.count || 0);
+
+    return {
+      total_patients,
+      composite_score_trends,
+      medication_adherence,
+      active_alerts_count,
+      clinician_activity,
+      audit_log_summary
+    };
+  }
+
+  private emptyAnalytics() {
+    return {
+      total_patients: 0,
+      composite_score_trends: { min: 0, q1: 0, median: 0, q3: 0, max: 0 },
+      medication_adherence: 0,
+      active_alerts_count: [],
+      clinician_activity: [],
+      audit_log_summary: 0
+    };
   }
 
   async getPopulationDashboard(adminId: string) {

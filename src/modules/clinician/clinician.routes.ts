@@ -15,14 +15,14 @@ router.post(
 router.get(
   "/profile",
   authenticateJWT,
-  requireRole(["clinician"]),
+  requireRole(["clinician", "admin"]),
   clinicianController.getProfile.bind(clinicianController)
 );
 
 router.put(
   "/profile",
   authenticateJWT,
-  requireRole(["clinician"]),
+  requireRole(["clinician", "admin"]),
   clinicianController.updateProfile.bind(clinicianController)
 );
 

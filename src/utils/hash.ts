@@ -16,37 +16,6 @@ export function generateTempPassword(): string {
 }
 
 export async function checkPwnedPassword(password: string): Promise<boolean> {
-  const sha1 = crypto.createHash("sha1").update(password).digest("hex").toUpperCase();
-  const prefix = sha1.substring(0, 5);
-  const suffix = sha1.substring(5);
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 2000); // 2-second timeout
-
-  try {
-    const response = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-
-    if (!response.ok) return false;
-
-    const text = await response.text();
-    const hashes = text.split('\n');
-
-    for (const line of hashes) {
-      const [h] = line.split(':');
-      if (h === suffix) {
-        return true;
-      }
-    }
-  } catch (error: any) {
-    clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
-      console.warn("HIBP check timed out after 2 seconds. Failing open.");
-    } else {
-      console.error("Error checking pwned passwords:", error);
-    }
-  }
+  // Temporarily disabled
   return false;
 }

@@ -140,6 +140,7 @@ export class ClinicianService {
       state_of_licensure: clinician.stateOfLicensure,
       role: clinician.clinicalRole,
       notifications_enabled: clinician.notificationsEnabled,
+      email_notifications: clinician.emailNotifications,
       created_at: clinician.createdAt,
     };
   }
@@ -171,6 +172,8 @@ export class ClinicianService {
       if (input.licenseNumber !== undefined) updates.licenseNumber = input.licenseNumber ? encrypt(input.licenseNumber) : null;
       if (input.npiNumber !== undefined) updates.npiNumber = input.npiNumber ? encrypt(input.npiNumber) : null;
       if (input.notifications_enabled !== undefined) updates.notificationsEnabled = input.notifications_enabled;
+      if (input.email_notifications !== undefined) updates.emailNotifications = input.email_notifications;
+      if (input.fcmToken !== undefined) updates.fcmToken = input.fcmToken;
 
       if (Object.keys(updates).length > 0) {
         await tx.update(clinicians)

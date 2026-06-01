@@ -432,4 +432,32 @@ export class AdminController {
       return sendError(res, error, 400);
     }
   }
+
+  // ------------------------------------- GET /patients ------------------------------------------
+
+  async getOrgPatients(req: Request, res: Response) {
+    try {
+      const adminId = (req as AuthenticatedRequest).user.userId;
+      const filters = req.query as { status?: string; clinician_id?: string; search?: string; limit?: string; offset?: string };
+      
+      const result = await adminService.getOrgPatients(adminId, filters);
+      return sendSuccess(res, result);
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
+
+  // ------------------------------------- GET /patients/:id ------------------------------------------
+
+  async getOrgPatientDetails(req: Request, res: Response) {
+    try {
+      const adminId = (req as AuthenticatedRequest).user.userId;
+      const { id } = req.params;
+      
+      const result = await adminService.getOrgPatientDetails(adminId, id as string);
+      return sendSuccess(res, result);
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
 }

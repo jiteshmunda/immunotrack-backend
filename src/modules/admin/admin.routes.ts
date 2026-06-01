@@ -117,4 +117,18 @@ router.delete(
   adminController.deleteUser.bind(adminController)
 );
 
+router.get(
+  "/patients",
+  authenticateJWT,
+  requireRole(["admin", "super admin"]),
+  adminController.getOrgPatients.bind(adminController)
+);
+
+router.get(
+  "/patients/:id",
+  authenticateJWT,
+  requireRole(["admin", "super admin"]),
+  adminController.getOrgPatientDetails.bind(adminController)
+);
+
 export default router;

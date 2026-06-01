@@ -198,14 +198,16 @@ export class AdminService {
     // 1. Identify Target Patients
     const adminClinicId = await this.getAdminClinicId(adminId);
     const adminClinicians = await db
-      .select({ id: clinicians.id })
+      .select({ id: clinicians.id, status: users.status })
       .from(clinicians)
+      .innerJoin(users, eq(clinicians.userId, users.id))
       .where(eq(clinicians.clinicId, adminClinicId));
 
     if (adminClinicians.length === 0) {
       return this.emptyDashboard();
     }
     const clinicianIds = adminClinicians.map(c => c.id);
+    const active_clinicians = adminClinicians.filter(c => c.status === "active").length;
 
     const assignedPatientsResult = await db
       .select({ id: patients.id, userId: patients.userId })
@@ -218,9 +220,9 @@ export class AdminService {
       ));
 
     const uniquePatients = Array.from(new Map(assignedPatientsResult.map(p => [p.id, p])).values());
-    const active_users = uniquePatients.length;
+    const active_patients = uniquePatients.length;
 
-    if (active_users === 0) {
+    if (active_patients === 0) {
       return this.emptyDashboard();
     }
     const patientIds = uniquePatients.map(p => p.id);
@@ -275,16 +277,16 @@ export class AdminService {
 
     // 6. User Engagement
     const todaysLogPatients = new Set(todaysLogs.map(l => l.patientId));
-    const daily_active_users = Math.round((todaysLogPatients.size / active_users) * 100);
+    const daily_active_users = Math.round((todaysLogPatients.size / active_patients) * 100);
 
     const logsLast7Days = await db.select({ patientId: dailyLogs.patientId, loggedAt: dailyLogs.loggedAt }).from(dailyLogs)
       .where(and(inArray(dailyLogs.patientId, patientIds), between(dailyLogs.loggedAt, startOf7DaysAgo, endOfToday)));
     const weeklyLogPatients = new Set(logsLast7Days.map(l => l.patientId));
-    const weekly_active_users = Math.round((weeklyLogPatients.size / active_users) * 100);
+    const weekly_active_users = Math.round((weeklyLogPatients.size / active_patients) * 100);
 
     const [logsLast30DaysCount] = await db.select({ count: sql<number>`count(*)` }).from(dailyLogs)
       .where(and(inArray(dailyLogs.patientId, patientIds), between(dailyLogs.loggedAt, startOf30DaysAgo, endOfToday)));
-    const expectedLogs30Days = active_users * 30;
+    const expectedLogs30Days = active_patients * 30;
     const logging_compliance = expectedLogs30Days > 0 ? Math.round((Number(logsLast30DaysCount?.count || 0) / expectedLogs30Days) * 100) : 0;
 
     // 7. System Health
@@ -324,12 +326,22 @@ export class AdminService {
       daily_symptom_log_trends.push({ date: dStr, count });
     }
 
+    // 9. Today's Audit Events
+    const auditLogsResponse = await this.getAuditLogs(adminId, { 
+      limit: 1,
+      date_from: startOfToday.toISOString(),
+      date_to: endOfToday.toISOString()
+    });
+    const todays_audit_events_count = auditLogsResponse.total;
+
     return {
-      active_users,
+      active_patients,
+      active_clinicians,
       daily_logs,
       adherence_rate,
       avg_symptom_score,
       alerts_today,
+      todays_audit_events_count,
       daily_symptom_log_trends,
       user_engagement: {
         daily_active_users,
@@ -346,11 +358,13 @@ export class AdminService {
 
   private emptyDashboard() {
     return {
-      active_users: 0,
+      active_patients: 0,
+      active_clinicians: 0,
       daily_logs: 0,
       adherence_rate: 0,
       avg_symptom_score: 0,
       alerts_today: 0,
+      todays_audit_events_count: 0,
       daily_symptom_log_trends: [],
       user_engagement: {
         daily_active_users: 0,
@@ -1348,5 +1362,158 @@ export class AdminService {
     }
 
     return deletedUser;
+  }
+
+  // ------------------------------------- Organisation Patient List API ------------------------------------------
+
+  async getOrgPatients(adminId: string, filters: { status?: string; clinician_id?: string; search?: string; limit?: string; offset?: string }) {
+    const adminClinicId = await this.getAdminClinicId(adminId);
+    
+    const orgClinicians = await db
+      .select({ id: clinicians.id, full_name: users.fullName })
+      .from(clinicians)
+      .innerJoin(users, eq(clinicians.userId, users.id))
+      .where(eq(clinicians.clinicId, adminClinicId));
+
+    if (orgClinicians.length === 0) return { total: 0, limit: 50, offset: 0, patients: [] };
+
+    const clinicianMap = new Map(orgClinicians.map(c => [c.id, c.full_name ? decrypt(c.full_name) : "Unknown"]));
+    const clinicianIds = orgClinicians.map(c => c.id);
+
+    let conditions: any[] = [inArray(patientClinicianAssignments.clinicianId, clinicianIds)];
+
+    if (filters.status) {
+      conditions.push(eq(users.status, filters.status));
+    }
+    if (filters.clinician_id) {
+      conditions.push(eq(patientClinicianAssignments.clinicianId, filters.clinician_id));
+    }
+
+    const baseQuery = db
+      .select({
+        id: patients.id,
+        user_id: users.id,
+        full_name: users.fullName,
+        email: users.email,
+        status: users.status,
+        is_rpm_active: patients.monitoringActive,
+        clinician_id: patientClinicianAssignments.clinicianId,
+        created_at: patients.createdAt,
+      })
+      .from(patients)
+      .innerJoin(users, eq(patients.userId, users.id))
+      .innerJoin(patientClinicianAssignments, eq(patients.id, patientClinicianAssignments.patientId))
+      .where(and(...conditions));
+
+    const allResults = await baseQuery;
+
+    let decryptedResults = allResults.map(p => ({
+      ...p,
+      full_name: decrypt(p.full_name!),
+      email: decrypt(p.email!),
+      clinician_name: clinicianMap.get(p.clinician_id) || "Unknown"
+    }));
+
+    const dedupedMap = new Map();
+    for (const p of decryptedResults) {
+      if (!dedupedMap.has(p.id)) {
+        dedupedMap.set(p.id, p);
+      } else {
+        const existing = dedupedMap.get(p.id);
+        if (!existing.clinician_name.includes(p.clinician_name)) {
+          existing.clinician_name += `, ${p.clinician_name}`;
+        }
+      }
+    }
+    decryptedResults = Array.from(dedupedMap.values());
+
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      decryptedResults = decryptedResults.filter(p => 
+        (p.full_name && p.full_name.toLowerCase().includes(searchLower)) ||
+        (p.email && p.email.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // Sort descending by created_at by default
+    decryptedResults.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    const total = decryptedResults.length;
+    const limit = filters.limit ? Number(filters.limit) : 50;
+    const offset = filters.offset ? Number(filters.offset) : 0;
+    
+    const paginatedResults = decryptedResults.slice(offset, offset + limit);
+
+    return {
+      total,
+      limit,
+      offset,
+      patients: paginatedResults
+    };
+  }
+
+  async getOrgPatientDetails(adminId: string, patientId: string) {
+    const adminClinicId = await this.getAdminClinicId(adminId);
+    
+    const orgClinicians = await db
+      .select({ id: clinicians.id })
+      .from(clinicians)
+      .where(eq(clinicians.clinicId, adminClinicId));
+
+    if (orgClinicians.length === 0) throw new Error("Forbidden: Patient not found or not in your organization");
+
+    const clinicianIds = orgClinicians.map(c => c.id);
+
+    const assignments = await db
+      .select({ 
+        id: patientClinicianAssignments.id,
+        clinician_id: clinicians.id,
+        clinician_name: users.fullName
+      })
+      .from(patientClinicianAssignments)
+      .innerJoin(clinicians, eq(patientClinicianAssignments.clinicianId, clinicians.id))
+      .innerJoin(users, eq(clinicians.userId, users.id))
+      .where(and(
+        eq(patientClinicianAssignments.patientId, patientId),
+        inArray(patientClinicianAssignments.clinicianId, clinicianIds)
+      ));
+
+    if (assignments.length === 0) {
+      throw new Error("Forbidden: Patient not found or not in your organization");
+    }
+
+    const assigned_clinicians = assignments.map(a => ({
+      id: a.clinician_id,
+      name: a.clinician_name ? decrypt(a.clinician_name) : "Unknown"
+    }));
+
+    const [patientData] = await db
+      .select({
+        id: patients.id,
+        user_id: users.id,
+        full_name: users.fullName,
+        email: users.email,
+        status: users.status,
+        date_of_birth: patients.dateOfBirth,
+        biological_sex: patients.sex,
+        phone_number: patients.phone,
+        is_rpm_active: patients.monitoringActive,
+        created_at: patients.createdAt,
+      })
+      .from(patients)
+      .innerJoin(users, eq(patients.userId, users.id))
+      .where(eq(patients.id, patientId))
+      .limit(1);
+
+    if (!patientData) throw new Error("Patient not found");
+
+    return {
+      ...patientData,
+      full_name: decrypt(patientData.full_name!),
+      email: decrypt(patientData.email!),
+      date_of_birth: patientData.date_of_birth ? decrypt(patientData.date_of_birth) : null,
+      phone_number: patientData.phone_number ? decrypt(patientData.phone_number) : null,
+      assigned_clinicians
+    };
   }
 }

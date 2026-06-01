@@ -141,14 +141,15 @@ export class ClinicianService {
       role: clinician.clinicalRole,
       notifications_enabled: clinician.notificationsEnabled,
       email_notifications: clinician.emailNotifications,
-      profile_picture: user.profilePicture,
+      profile_picture: user.profilePicture ? decrypt(user.profilePicture) : null,
       created_at: clinician.createdAt,
     };
   }
 
   // ---------------------------------------------------- POST /clinician/profile/photo ---------------------------------------------------
   async uploadPhoto(userId: string, dataUri: string) {
-    await db.update(users).set({ profilePicture: dataUri }).where(eq(users.id, userId));
+    const encryptedUri = encrypt(dataUri);
+    await db.update(users).set({ profilePicture: encryptedUri }).where(eq(users.id, userId));
     return { profile_picture: dataUri };
   }
 

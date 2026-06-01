@@ -141,7 +141,7 @@ export class PatientService {
       reminder_time_utc: patient.reminderTimeUtc,
       onboarding_completed: patient.onboardingCompleted,
       monitoring_active: patient.monitoringActive,
-      profile_picture: user.profilePicture,
+      profile_picture: user.profilePicture ? decrypt(user.profilePicture) : null,
       created_at: patient.createdAt,
       updated_at: patient.updatedAt,
     };
@@ -150,7 +150,8 @@ export class PatientService {
   // -----------------------POST /patient/profile/photo----------------------------------
   
   async uploadPhoto(userId: string, dataUri: string) {
-    await db.update(users).set({ profilePicture: dataUri }).where(eq(users.id, userId));
+    const encryptedUri = encrypt(dataUri);
+    await db.update(users).set({ profilePicture: encryptedUri }).where(eq(users.id, userId));
     return { profile_picture: dataUri };
   }
 

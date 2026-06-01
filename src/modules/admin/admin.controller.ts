@@ -123,7 +123,8 @@ export class AdminController {
         offset: req.query.offset ? parseInt(req.query.offset as string) : 0,
       };
 
-      const data = await adminService.getAuditLogs(filters);
+      const adminId = (req as AuthenticatedRequest).user.userId;
+      const data = await adminService.getAuditLogs(adminId, filters);
 
       return sendSuccess(res, {
         message: "Audit logs fetched successfully",
@@ -317,7 +318,7 @@ export class AdminController {
         offset: req.query.offset ? parseInt(req.query.offset as string) : undefined,
       };
 
-      const result = await adminService.getAllUsers(filters);
+      const result = await adminService.getAllUsers(adminId, filters);
 
       await writeAudit(req, {
         action: "FETCH_USERS",
@@ -344,7 +345,7 @@ export class AdminController {
         throw new Error("User ID is required");
       }
 
-      const user = await adminService.getUserDetails(userId);
+      const user = await adminService.getUserDetails(adminId, userId);
 
       await writeAudit(req, {
         action: "FETCH_USER_DETAILS",
@@ -379,7 +380,7 @@ export class AdminController {
         throw new Error("Status is required");
       }
 
-      const user = await adminService.updateUserStatus(userId, status);
+      const user = await adminService.updateUserStatus(adminId, userId, status);
 
       await writeAudit(req, {
         action: "UPDATE_USER_STATUS",
@@ -411,7 +412,7 @@ export class AdminController {
         throw new Error("User ID is required");
       }
 
-      const user = await adminService.deleteUser(userId);
+      const user = await adminService.deleteUser(adminId, userId);
 
       await writeAudit(req, {
         action: "DELETE_USER",

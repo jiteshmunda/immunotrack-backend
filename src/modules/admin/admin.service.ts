@@ -17,6 +17,48 @@ import { getAverageResponseTime } from "../../common/middleware/metrics.middlewa
 const medicationService = new MedicationService();
 
 export class AdminService {
+  private async getAdminClinicId(adminId: string): Promise<string> {
+    const [adminClinician] = await db
+      .select({ clinicId: clinicians.clinicId })
+      .from(clinicians)
+      .where(eq(clinicians.userId, adminId))
+      .limit(1);
+
+    if (!adminClinician || !adminClinician.clinicId) {
+      throw new Error("Admin organization not found");
+    }
+    return adminClinician.clinicId;
+  }
+
+  private async getOrgScopes(adminClinicId: string): Promise<{ userIds: string[], patientIds: string[] }> {
+    const orgClinicians = await db
+      .select({ userId: clinicians.userId, id: clinicians.id })
+      .from(clinicians)
+      .where(eq(clinicians.clinicId, adminClinicId));
+
+    const clinicianUserIds = orgClinicians.map(c => c.userId).filter(Boolean) as string[];
+    const clinicianIds = orgClinicians.map(c => c.id);
+
+    let patientUserIds: string[] = [];
+    let patientIds: string[] = [];
+    
+    if (clinicianIds.length > 0) {
+      const orgPatients = await db
+        .select({ userId: patients.userId, id: patients.id })
+        .from(patientClinicianAssignments)
+        .innerJoin(patients, eq(patientClinicianAssignments.patientId, patients.id))
+        .where(inArray(patientClinicianAssignments.clinicianId, clinicianIds));
+        
+      patientUserIds = orgPatients.map(p => p.userId);
+      patientIds = orgPatients.map(p => p.id);
+    }
+    
+    return {
+      userIds: Array.from(new Set([...clinicianUserIds, ...patientUserIds])),
+      patientIds: Array.from(new Set(patientIds))
+    };
+  }
+
   async createAdmin(input: CreateClinicianInput) {
     const tempPassword = generateTempPassword();
 
@@ -104,7 +146,8 @@ export class AdminService {
       }
     }
 
-    const queryConditions = [eq(clinicians.createdBy, adminId)];
+    const adminClinicId = await this.getAdminClinicId(adminId);
+    const queryConditions: any[] = [eq(clinicians.clinicId, adminClinicId)];
     if (filters?.status) {
       queryConditions.push(eq(users.status, filters.status));
     }
@@ -153,13 +196,11 @@ export class AdminService {
 
   async getPopulationDashboard(adminId: string) {
     // 1. Identify Target Patients
+    const adminClinicId = await this.getAdminClinicId(adminId);
     const adminClinicians = await db
       .select({ id: clinicians.id })
       .from(clinicians)
-      .where(or(
-        eq(clinicians.createdBy, adminId),
-        eq(clinicians.userId, adminId)
-      ));
+      .where(eq(clinicians.clinicId, adminClinicId));
 
     if (adminClinicians.length === 0) {
       return this.emptyDashboard();
@@ -326,13 +367,11 @@ export class AdminService {
 
   async getAdherenceAnalytics(adminId: string) {
     // 1. Get Patients
+    const adminClinicId = await this.getAdminClinicId(adminId);
     const adminClinicians = await db
       .select({ id: clinicians.id })
       .from(clinicians)
-      .where(or(
-        eq(clinicians.createdBy, adminId),
-        eq(clinicians.userId, adminId)
-      ));
+      .where(eq(clinicians.clinicId, adminClinicId));
 
     if (adminClinicians.length === 0) {
       return this.emptyAdherenceAnalytics();
@@ -492,13 +531,11 @@ export class AdminService {
 
   async getSymptomAnalytics(adminId: string) {
     // 1. Get Patients
+    const adminClinicId = await this.getAdminClinicId(adminId);
     const adminClinicians = await db
       .select({ id: clinicians.id })
       .from(clinicians)
-      .where(or(
-        eq(clinicians.createdBy, adminId),
-        eq(clinicians.userId, adminId)
-      ));
+      .where(eq(clinicians.clinicId, adminClinicId));
 
     if (adminClinicians.length === 0) return this.emptySymptomAnalytics();
 
@@ -671,13 +708,11 @@ export class AdminService {
 
   async getRiskClusterAnalytics(adminId: string) {
     // 1. Get unique assigned patients
+    const adminClinicId = await this.getAdminClinicId(adminId);
     const adminClinicians = await db
       .select({ id: clinicians.id })
       .from(clinicians)
-      .where(or(
-        eq(clinicians.createdBy, adminId),
-        eq(clinicians.userId, adminId)
-      ));
+      .where(eq(clinicians.clinicId, adminClinicId));
 
     if (adminClinicians.length === 0) return this.emptyRiskAnalytics();
     const clinicianIds = adminClinicians.map(c => c.id);
@@ -874,7 +909,7 @@ export class AdminService {
       };
   }
 
-  async getAuditLogs(filters: {
+  async getAuditLogs(adminId: string, filters: {
     patient_id?: string;
     user_id?: string;
     action_type?: string;
@@ -883,7 +918,23 @@ export class AdminService {
     limit?: number;
     offset?: number;
   }) {
+    const adminClinicId = await this.getAdminClinicId(adminId);
+    const orgScopes = await this.getOrgScopes(adminClinicId);
+
+    if (orgScopes.userIds.length === 0) {
+      return { total: 0, limit: filters.limit ? Number(filters.limit) : 50, offset: filters.offset ? Number(filters.offset) : 0, logs: [] };
+    }
+
     const conditions = [];
+
+    if (orgScopes.patientIds.length > 0) {
+      conditions.push(or(
+        inArray(auditLogs.userId, orgScopes.userIds),
+        inArray(auditLogs.resourceId, orgScopes.patientIds)
+      ));
+    } else {
+      conditions.push(inArray(auditLogs.userId, orgScopes.userIds));
+    }
 
     if (filters.user_id) {
       conditions.push(eq(auditLogs.userId, filters.user_id));
@@ -934,7 +985,7 @@ export class AdminService {
       .select({
         id: clinicians.id,
         userId: clinicians.userId,
-        createdBy: clinicians.createdBy
+        clinicId: clinicians.clinicId
       })
       .from(clinicians)
       .where(eq(clinicians.id, clinicianId));
@@ -944,8 +995,9 @@ export class AdminService {
     }
 
     const clinician = targetClinicians[0];
+    const adminClinicId = await this.getAdminClinicId(adminId);
 
-    if (clinician.createdBy !== adminId) {
+    if (clinician.clinicId !== adminClinicId) {
       throw new Error("Forbidden: You do not have permission to delete this clinician");
     }
 
@@ -976,7 +1028,8 @@ export class AdminService {
         created_at: clinicians.createdAt,
         createdBy: clinicians.createdBy,
         phone: clinicians.phone,
-        clinic_name: clinics.name
+        clinic_name: clinics.name,
+        clinicId: clinicians.clinicId
       })
       .from(clinicians)
       .innerJoin(users, eq(clinicians.userId, users.id))
@@ -988,7 +1041,9 @@ export class AdminService {
     }
 
     const clinician = clinicianData[0];
-    if (clinician.createdBy !== adminId) {
+    const adminClinicId = await this.getAdminClinicId(adminId);
+    
+    if (clinician.clinicId !== adminClinicId) {
       throw new Error("Forbidden: You do not have permission to view this clinician");
     }
 
@@ -1012,7 +1067,7 @@ export class AdminService {
       .select({
         id: clinicians.id,
         userId: clinicians.userId,
-        createdBy: clinicians.createdBy
+        clinicId: clinicians.clinicId
       })
       .from(clinicians)
       .where(eq(clinicians.id, clinicianId));
@@ -1021,7 +1076,8 @@ export class AdminService {
       throw new Error("Clinician not found");
     }
 
-    if (targetClinicians[0].createdBy !== adminId) {
+    const adminClinicId = await this.getAdminClinicId(adminId);
+    if (targetClinicians[0].clinicId !== adminClinicId) {
       throw new Error("Forbidden: You do not have permission to modify this clinician");
     }
 
@@ -1050,7 +1106,7 @@ export class AdminService {
     const targetClinicians = await db
       .select({
         id: clinicians.id,
-        createdBy: clinicians.createdBy,
+        clinicId: clinicians.clinicId,
         userId: clinicians.userId
       })
       .from(clinicians)
@@ -1060,7 +1116,8 @@ export class AdminService {
       throw new Error("Target clinician not found");
     }
 
-    if (targetClinicians[0].createdBy !== adminId && targetClinicians[0].userId !== adminId) {
+    const adminClinicId = await this.getAdminClinicId(adminId);
+    if (targetClinicians[0].clinicId !== adminClinicId) {
       throw new Error("Forbidden: You do not have permission to assign patients to this clinician");
     }
 
@@ -1087,7 +1144,7 @@ export class AdminService {
     const targetClinicians = await db
       .select({
         id: clinicians.id,
-        createdBy: clinicians.createdBy
+        clinicId: clinicians.clinicId
       })
       .from(clinicians)
       .where(eq(clinicians.id, clinicianId));
@@ -1096,7 +1153,8 @@ export class AdminService {
       throw new Error("Clinician not found");
     }
 
-    if (targetClinicians[0].createdBy !== adminId) {
+    const adminClinicId = await this.getAdminClinicId(adminId);
+    if (targetClinicians[0].clinicId !== adminClinicId) {
       throw new Error("Forbidden: You do not have permission to view this clinician's patients");
     }
 
@@ -1140,8 +1198,15 @@ export class AdminService {
     return result;
   }
 
-  async getAllUsers(filters?: { role?: string; status?: string; search?: string; limit?: number; offset?: number }) {
-    const queryConditions = [];
+  async getAllUsers(adminId: string, filters?: { role?: string; status?: string; search?: string; limit?: number; offset?: number }) {
+    const adminClinicId = await this.getAdminClinicId(adminId);
+    const orgScopes = await this.getOrgScopes(adminClinicId);
+
+    if (orgScopes.userIds.length === 0) {
+      return { data: [], total: 0 };
+    }
+
+    const queryConditions: any[] = [inArray(users.id, orgScopes.userIds)];
     
     if (filters?.status) {
       queryConditions.push(eq(users.status, filters.status));
@@ -1203,7 +1268,14 @@ export class AdminService {
     };
   }
 
-  async getUserDetails(userId: string) {
+  async getUserDetails(adminId: string, userId: string) {
+    const adminClinicId = await this.getAdminClinicId(adminId);
+    const orgScopes = await this.getOrgScopes(adminClinicId);
+
+    if (!orgScopes.userIds.includes(userId)) {
+      throw new Error("Forbidden: User not found or not in your organization");
+    }
+
     const [user] = await db
       .select({
         id: users.id,
@@ -1231,10 +1303,17 @@ export class AdminService {
     };
   }
 
-  async updateUserStatus(userId: string, status: string) {
+  async updateUserStatus(adminId: string, userId: string, status: string) {
     const validStatuses = ["active", "archived"];
     if (!validStatuses.includes(status)) {
       throw new Error(`Invalid status. Must be one of: ${validStatuses.join(", ")}`);
+    }
+
+    const adminClinicId = await this.getAdminClinicId(adminId);
+    const orgScopes = await this.getOrgScopes(adminClinicId);
+
+    if (!orgScopes.userIds.includes(userId)) {
+      throw new Error("Forbidden: User not found or not in your organization");
     }
 
     const [updatedUser] = await db
@@ -1250,8 +1329,14 @@ export class AdminService {
     return updatedUser;
   }
 
-  async deleteUser(userId: string) {
-    // Soft delete
+  async deleteUser(adminId: string, userId: string) {
+    const adminClinicId = await this.getAdminClinicId(adminId);
+    const orgScopes = await this.getOrgScopes(adminClinicId);
+
+    if (!orgScopes.userIds.includes(userId)) {
+      throw new Error("Forbidden: User not found or not in your organization");
+    }
+
     const [deletedUser] = await db
       .update(users)
       .set({ status: "archived", updatedAt: new Date() })

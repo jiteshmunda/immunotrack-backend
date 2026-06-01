@@ -141,8 +141,21 @@ export class ClinicianService {
       role: clinician.clinicalRole,
       notifications_enabled: clinician.notificationsEnabled,
       email_notifications: clinician.emailNotifications,
+      profile_picture: user.profilePicture,
       created_at: clinician.createdAt,
     };
+  }
+
+  // ---------------------------------------------------- POST /clinician/profile/photo ---------------------------------------------------
+  async uploadPhoto(userId: string, dataUri: string) {
+    await db.update(users).set({ profilePicture: dataUri }).where(eq(users.id, userId));
+    return { profile_picture: dataUri };
+  }
+
+  // ---------------------------------------------------- DELETE /clinician/profile/photo ---------------------------------------------------
+  async deletePhoto(userId: string) {
+    await db.update(users).set({ profilePicture: null }).where(eq(users.id, userId));
+    return { success: true, message: "Profile picture deleted successfully" };
   }
 
   // ---------------------------------------------------- PUT /clinician/profile ---------------------------------------------------

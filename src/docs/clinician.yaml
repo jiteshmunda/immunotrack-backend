@@ -121,6 +121,59 @@ paths:
         401: { description: Unauthorized }
         403: { description: Forbidden }
 
+  /clinicians/profile/photo:
+    post:
+      summary: Upload a profile photo
+      description: Accepts a multipart/form-data request containing the clinician's new profile picture.
+      tags: [Clinician]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                photo:
+                  type: string
+                  format: binary
+                  description: The profile image file (max 5MB)
+      responses:
+        200:
+          description: Photo uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: object
+                    properties:
+                      profile_picture: { type: string, example: "data:image/jpeg;base64,/9j/4AAQSk..." }
+        400: { description: Bad Request }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
+    delete:
+      summary: Delete profile photo
+      description: Removes the clinician's profile picture.
+      tags: [Clinician]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Photo deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Profile picture deleted successfully" }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
+
   /clinicians/patients:
     get:
       summary: List all patients assigned to the clinician

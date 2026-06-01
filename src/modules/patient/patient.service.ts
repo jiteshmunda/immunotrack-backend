@@ -141,9 +141,23 @@ export class PatientService {
       reminder_time_utc: patient.reminderTimeUtc,
       onboarding_completed: patient.onboardingCompleted,
       monitoring_active: patient.monitoringActive,
+      profile_picture: user.profilePicture,
       created_at: patient.createdAt,
       updated_at: patient.updatedAt,
     };
+  }
+
+  // -----------------------POST /patient/profile/photo----------------------------------
+  
+  async uploadPhoto(userId: string, dataUri: string) {
+    await db.update(users).set({ profilePicture: dataUri }).where(eq(users.id, userId));
+    return { profile_picture: dataUri };
+  }
+
+  // -----------------------DELETE /patient/profile/photo----------------------------------
+  async deletePhoto(userId: string) {
+    await db.update(users).set({ profilePicture: null }).where(eq(users.id, userId));
+    return { success: true, message: "Profile picture deleted successfully" };
   }
 
   // -----------------------POST /patient/consent---------------------------------

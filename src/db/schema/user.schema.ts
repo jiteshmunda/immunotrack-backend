@@ -39,6 +39,8 @@ export const users = pgTable("users", {
   resetPasswordAttempts: integer("reset_password_attempts").default(0).notNull(),
   resetPasswordRequestedAt: timestamp("reset_password_requested_at"),
 
+  profilePicture: text("profile_picture"),
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

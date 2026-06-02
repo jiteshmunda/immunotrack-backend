@@ -290,16 +290,13 @@ export class AuthController {
 
       return sendSuccess(res, { message: "Password has been reset successfully. Please log in with your new password." });
     } catch (error: any) {
-      const safeMessage = (error.message.includes("select") || error.message.includes("Failed query")) 
-        ? "Internal database error" 
-        : error.message;
-
       await writeAudit(req, {
         action: "PASSWORD_RESET",
         status: "failure",
-        details: { error: safeMessage },
+        details: { error: error.message || "Unknown error" },
       });
-      return sendError(res, safeMessage, 400);
+      // Fixed: Passing the original error object instead of a string to properly support Zod and mapped errors
+      return sendError(res, error, 400);
     }
   }
 

@@ -80,6 +80,7 @@ export const updateClinicianProfileSchema = z.object({
   }).optional(),
   notifications_enabled: z.boolean().optional(),
   email_notifications: z.boolean().optional(),
+  mfa_enabled: z.boolean().optional(),
   fcmToken: z.string().optional(),
 });
 

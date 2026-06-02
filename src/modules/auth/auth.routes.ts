@@ -9,6 +9,8 @@ const authController = new AuthController();
 // Standard Auth
 router.post("/patient/login", authController.patientLogin.bind(authController));
 router.post("/clinician/login", authController.clinicianLogin.bind(authController));
+router.post("/verify-mfa", authController.verifyMfa.bind(authController));
+router.post("/resend-mfa", authController.resendMfa.bind(authController));
 router.post("/refresh", authController.refresh.bind(authController));
 router.post("/logout", authController.logout.bind(authController));
 router.post("/change-password", authenticateJWT, authController.changePassword.bind(authController));

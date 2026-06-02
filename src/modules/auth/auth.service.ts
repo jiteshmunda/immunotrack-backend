@@ -84,6 +84,38 @@ export class AuthService {
       .set({ lastLoginAt: new Date(), updatedAt: new Date(), failedLoginAttempts: 0, lockedUntil: null })
       .where(eq(users.id, user.id));
 
+    const requiresMfa = user.mfaEnabled;
+
+    if (requiresMfa) {
+      // Generate 6-character alphanumeric OTP (uppercase + numbers)
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+      let otp = "";
+      for (let i = 0; i < 6; i++) {
+        otp += chars[Math.floor(Math.random() * chars.length)];
+      }
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+
+      await db.update(users)
+        .set({ loginOtp: otp, loginOtpExpires: expiresAt, loginOtpAttempts: 0 })
+        .where(eq(users.id, user.id));
+
+      const userFullName = decrypt(user.fullName);
+      const firstName = userFullName.split(" ")[0];
+      await emailService.sendLoginMfaEmail(decrypt(user.email), otp, firstName);
+
+      const tempToken = jwt.sign(
+        { userId: user.id, role: role.name, mfaPending: true },
+        ENV.JWT_SECRET,
+        { expiresIn: "15m" }
+      );
+
+      return {
+        mfaRequired: true,
+        tempToken,
+        resetRequired: user.isTempPassword,
+      };
+    }
+
     await db.delete(userSessions).where(eq(userSessions.userId, user.id));
 
     const rawRefreshToken = crypto.randomBytes(32).toString("hex");
@@ -107,6 +139,7 @@ export class AuthService {
     });
 
     return {
+      mfaRequired: false,
       accessToken,
       refreshToken: rawRefreshToken,
       user: {
@@ -116,6 +149,119 @@ export class AuthService {
       resetRequired: user.isTempPassword,
     };
   }
+
+  // -----------------POST /auth/verify-mfa---------------------------
+
+  async verifyMfaLogin(tempToken: string, otp: string, ip?: string, userAgent?: string) {
+    let decoded: any;
+    try {
+      decoded = jwt.verify(tempToken, ENV.JWT_SECRET);
+    } catch (e) {
+      throw new Error("Invalid or expired temporary token");
+    }
+
+    if (!decoded.mfaPending) {
+      throw new Error("Invalid temporary token");
+    }
+
+    const userId = decoded.userId;
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user) throw new Error("User not found");
+
+    if (!user.loginOtp || !user.loginOtpExpires) {
+      throw new Error("MFA not requested or expired");
+    }
+
+    if (new Date() > user.loginOtpExpires) {
+      throw new Error("OTP has expired. Please log in again.");
+    }
+
+    if (user.loginOtpAttempts >= 5) {
+      throw new Error("Too many failed attempts. Please log in again.");
+    }
+
+    if (user.loginOtp !== otp) {
+      await db.update(users)
+        .set({ loginOtpAttempts: user.loginOtpAttempts + 1 })
+        .where(eq(users.id, user.id));
+      throw new Error("Invalid verification code");
+    }
+
+    // Clear OTP
+    await db.update(users)
+      .set({ loginOtp: null, loginOtpExpires: null, loginOtpAttempts: 0 })
+      .where(eq(users.id, user.id));
+
+    // Issue tokens
+    await db.delete(userSessions).where(eq(userSessions.userId, user.id));
+
+    const rawRefreshToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHmac("sha256", ENV.ENCRYPTION_KEY).update(rawRefreshToken).digest("hex");
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    const [session] = await db.insert(userSessions).values([{
+      userId: user.id,
+      tokenHash,
+      ipAddress: ip,
+      userAgent: userAgent,
+      expiresAt,
+    }]).returning();
+
+    const accessToken = generateAccessToken({
+      userId: user.id,
+      role: decoded.role,
+      sid: session.id
+    });
+
+    return {
+      accessToken,
+      refreshToken: rawRefreshToken,
+      user: {
+        user_id: user.id,
+        role: decoded.role,
+      },
+      resetRequired: user.isTempPassword,
+    };
+  }
+  async resendMfa(tempToken: string) {
+    try {
+      const decoded = jwt.verify(tempToken, ENV.JWT_SECRET) as any;
+      if (!decoded.mfaPending) {
+        throw new Error("Invalid request");
+      }
+
+      const [user] = await db.select().from(users).where(eq(users.id, decoded.userId)).limit(1);
+      if (!user) throw new Error("User not found");
+
+      if (user.loginOtpExpires && (user.loginOtpExpires.getTime() - Date.now() > 9 * 60 * 1000)) {
+        throw new Error("RATE_LIMITED");
+      }
+
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+      let otp = "";
+      for (let i = 0; i < 6; i++) {
+        otp += chars[Math.floor(Math.random() * chars.length)];
+      }
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+
+      await db.update(users)
+        .set({ loginOtp: otp, loginOtpExpires: expiresAt, loginOtpAttempts: 0 })
+        .where(eq(users.id, user.id));
+
+      const userFullName = decrypt(user.fullName);
+      const firstName = userFullName.split(" ")[0];
+      await emailService.sendLoginMfaEmail(decrypt(user.email), otp, firstName);
+
+      return { success: true };
+    } catch (err: any) {
+      if (err.name === "TokenExpiredError") throw new Error("Invalid or expired token");
+      throw err;
+    }
+  }
+
 
 
 //  POST ------------------------/auth/register — Step 2 of Patient Onboarding------------------------------------------
@@ -437,7 +583,7 @@ export class AuthService {
       if (user.passwordHash) {
         const isSame = await verifyPassword(newPassword, user.passwordHash);
         if (isSame) {
-          throw new Error("Password has been used recently. Please choose a new password.");
+          throw new Error("New password cannot be the same as your old password");
         }
       }
 

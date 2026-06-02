@@ -36,6 +36,10 @@ export class PatientService {
         }
       }
 
+      if (input.mfa_enabled !== undefined) {
+        await tx.update(users).set({ mfaEnabled: input.mfa_enabled, updatedAt: new Date() }).where(eq(users.id, userId));
+      }
+
       const updates: any = { updatedAt: new Date() };
       
       if (input.zip_code !== undefined) updates.locationZip = input.zip_code;
@@ -118,6 +122,7 @@ export class PatientService {
       clinician_name: assignment?.clinicianName ? decrypt(assignment.clinicianName) : null,
       clinic_name: assignment?.clinicName || null,
       patient_id: patient.id,
+      mfa_enabled: user.mfaEnabled,
       date_of_birth: (() => {
         if (!patient.dateOfBirth) return null;
         const rawDob = decrypt(patient.dateOfBirth);

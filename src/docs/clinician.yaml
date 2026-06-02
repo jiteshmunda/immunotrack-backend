@@ -78,6 +78,7 @@ paths:
                       role: { type: string, nullable: true }
                       notifications_enabled: { type: boolean }
                       email_notifications: { type: boolean }
+                      mfa_enabled: { type: boolean }
                       created_at: { type: string, format: date-time }
         401: { description: Unauthorized }
         403: { description: Forbidden }
@@ -104,6 +105,7 @@ paths:
                 role: { type: string, enum: [Allergist, Immunologist, Primary Care, Nurse Practitioner, Other] }
                 notifications_enabled: { type: boolean, example: false }
                 email_notifications: { type: boolean, example: true }
+                mfa_enabled: { type: boolean, example: true }
                 fcmToken: { type: string, example: "fcm-device-token-12345" }
       responses:
         200:

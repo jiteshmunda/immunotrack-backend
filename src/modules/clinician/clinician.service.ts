@@ -23,8 +23,10 @@ import {
   formatPatientHeader, 
   calculateMedicationAdherence 
 } from "./clinician.helper";
+import { EmailService } from "../../utils/email";
 
 const medicationService = new MedicationService();
+const emailService = new EmailService();
 
 export class ClinicianService {
 
@@ -96,6 +98,11 @@ export class ClinicianService {
         organizationName: input.organizationName,
       });
 
+      // Send the email asynchronously
+      emailService.sendClinicianWelcomeEmail(input.email, input.fullName, tempPassword).catch(e => {
+        console.error("Failed to send welcome email to clinician:", e);
+      });
+
       return {
         clinicianId: newUser.id,
         tempPassword,
@@ -141,6 +148,7 @@ export class ClinicianService {
       role: clinician.clinicalRole,
       notifications_enabled: clinician.notificationsEnabled,
       email_notifications: clinician.emailNotifications,
+      mfa_enabled: user.mfaEnabled,
       profile_picture: user.profilePicture ? decrypt(user.profilePicture) : null,
       created_at: clinician.createdAt,
     };
@@ -175,6 +183,10 @@ export class ClinicianService {
             const last = input.last_name || parts.slice(1).join(" ");
             await tx.update(users).set({ fullName: encrypt(`${first} ${last}`), updatedAt: new Date() }).where(eq(users.id, userId));
         }
+      }
+
+      if (input.mfa_enabled !== undefined) {
+        await tx.update(users).set({ mfaEnabled: input.mfa_enabled, updatedAt: new Date() }).where(eq(users.id, userId));
       }
 
       // 2. Update Clinician Profile

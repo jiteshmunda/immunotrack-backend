@@ -222,7 +222,6 @@ export class MedicationService {
         dosesTaken,
         dosesMissed,
         nextDoseDate: reminder?.nextDoseDate || null,
-        DEBUG_FIELD: "HELLO_FROM_ANTIGRAVITY",
         createdAt: m.createdAt,
         deletedAt: m.deletedAt
       };

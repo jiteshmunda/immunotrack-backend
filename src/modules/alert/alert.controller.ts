@@ -11,8 +11,8 @@ export class AlertController {
   
   async getAlerts(req: Request, res: Response) {
     try {
-      const userId = (req as any).user.userId;
-      const alerts = await alertService.getAlerts(userId);
+      const user = (req as any).user;
+      const alerts = await alertService.getAlerts(user.userId, user.role);
       
       return sendSuccess(res, { alerts });
     } catch (error: any) {

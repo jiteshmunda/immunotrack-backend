@@ -76,6 +76,8 @@ export const updateClinicianProfileSchema = z.object({
     message: "Please select a valid clinical role",
   }).optional(),
   notifications_enabled: z.boolean().optional(),
+  email_notifications: z.boolean().optional(),
+  fcmToken: z.string().optional(),
 });
 
 export type UpdateClinicianProfileInput = z.infer<typeof updateClinicianProfileSchema>;

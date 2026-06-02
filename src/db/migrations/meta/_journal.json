@@ -204,6 +204,27 @@
       "when": 1779958852474,
       "tag": "0028_concerned_wolfpack",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1780314865324,
+      "tag": "0029_flippant_lady_mastermind",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1780315609254,
+      "tag": "0030_cheerful_alex_wilder",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1780320420267,
+      "tag": "0031_opposite_killer_shrike",
+      "breakpoints": true
     }
   ]
 }

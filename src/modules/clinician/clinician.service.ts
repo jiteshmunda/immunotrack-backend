@@ -140,8 +140,23 @@ export class ClinicianService {
       state_of_licensure: clinician.stateOfLicensure,
       role: clinician.clinicalRole,
       notifications_enabled: clinician.notificationsEnabled,
+      email_notifications: clinician.emailNotifications,
+      profile_picture: user.profilePicture ? decrypt(user.profilePicture) : null,
       created_at: clinician.createdAt,
     };
+  }
+
+  // ---------------------------------------------------- POST /clinician/profile/photo ---------------------------------------------------
+  async uploadPhoto(userId: string, dataUri: string) {
+    const encryptedUri = encrypt(dataUri);
+    await db.update(users).set({ profilePicture: encryptedUri }).where(eq(users.id, userId));
+    return { profile_picture: dataUri };
+  }
+
+  // ---------------------------------------------------- DELETE /clinician/profile/photo ---------------------------------------------------
+  async deletePhoto(userId: string) {
+    await db.update(users).set({ profilePicture: null }).where(eq(users.id, userId));
+    return { success: true, message: "Profile picture deleted successfully" };
   }
 
   // ---------------------------------------------------- PUT /clinician/profile ---------------------------------------------------
@@ -171,6 +186,8 @@ export class ClinicianService {
       if (input.licenseNumber !== undefined) updates.licenseNumber = input.licenseNumber ? encrypt(input.licenseNumber) : null;
       if (input.npiNumber !== undefined) updates.npiNumber = input.npiNumber ? encrypt(input.npiNumber) : null;
       if (input.notifications_enabled !== undefined) updates.notificationsEnabled = input.notifications_enabled;
+      if (input.email_notifications !== undefined) updates.emailNotifications = input.email_notifications;
+      if (input.fcmToken !== undefined) updates.fcmToken = input.fcmToken;
 
       if (Object.keys(updates).length > 0) {
         await tx.update(clinicians)

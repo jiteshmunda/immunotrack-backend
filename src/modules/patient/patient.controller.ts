@@ -54,6 +54,51 @@ export class PatientController {
     }
   }
 
+  // ------------------------------POST /api/v1/patient/profile/photo------------------------------
+
+  async uploadPhoto(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user.userId;
+      if (!req.file) throw new Error("No file uploaded");
+
+      const b64 = req.file.buffer.toString("base64");
+      const mimeType = req.file.mimetype;
+      const dataUri = `data:${mimeType};base64,${b64}`;
+
+      const result = await patientService.uploadPhoto(userId, dataUri);
+
+      await writeAudit(req, {
+        action: "PROFILE_PHOTO_UPDATED",
+        status: "success",
+        userId: userId,
+        resourceType: "patient",
+      });
+
+      return sendSuccess(res, result);
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
+
+  // ------------------------------DELETE /api/v1/patient/profile/photo------------------------------
+  async deletePhoto(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user.userId;
+      const result = await patientService.deletePhoto(userId);
+
+      await writeAudit(req, {
+        action: "PROFILE_PHOTO_DELETED",
+        status: "success",
+        userId: userId,
+        resourceType: "patient",
+      });
+
+      return sendSuccess(res, result);
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
+
 
 // --------------------------POST /api/v1/patient/consent------------------------------
 

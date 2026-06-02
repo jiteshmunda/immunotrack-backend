@@ -15,16 +15,34 @@ router.post(
 router.get(
   "/profile",
   authenticateJWT,
-  requireRole(["clinician"]),
+  requireRole(["clinician", "admin"]),
   clinicianController.getProfile.bind(clinicianController)
 );
 
 router.put(
   "/profile",
   authenticateJWT,
-  requireRole(["clinician"]),
+  requireRole(["clinician", "admin"]),
   clinicianController.updateProfile.bind(clinicianController)
 );
+
+import { upload } from "../../common/middleware/upload.middleware";
+
+router.post(
+  "/profile/photo",
+  authenticateJWT,
+  requireRole(["clinician", "admin"]),
+  upload.single("photo"),
+  clinicianController.uploadPhoto.bind(clinicianController)
+);
+
+router.delete(
+  "/profile/photo",
+  authenticateJWT,
+  requireRole(["clinician", "admin"]),
+  clinicianController.deletePhoto.bind(clinicianController)
+);
+
 
 
 router.get(

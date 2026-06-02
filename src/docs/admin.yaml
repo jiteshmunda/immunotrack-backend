@@ -151,6 +151,82 @@ paths:
         403: { description: Forbidden }
         404: { description: Not Found }
 
+  /admins/patients:
+    get:
+      summary: Get all patients in the organization
+      description: Returns a paginated list of all patients assigned to any clinician within the admin's organization.
+      tags: [Admin - Patient Management]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [active, suspended, archived] }
+          description: Filter by user account status
+        - in: query
+          name: clinician_id
+          schema: { type: string, format: uuid }
+          description: Filter by specific assigned clinician
+        - in: query
+          name: search
+          schema: { type: string }
+          description: Search by name or email
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, default: 0 }
+      responses:
+        200:
+          description: List of patients
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: object
+                    properties:
+                      total: { type: integer, example: 120 }
+                      limit: { type: integer, example: 50 }
+                      offset: { type: integer, example: 0 }
+                      patients:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string, format: uuid }
+                            user_id: { type: string, format: uuid }
+                            full_name: { type: string, example: "Jane Doe" }
+                            email: { type: string, format: email, example: "jane.doe@example.com" }
+                            status: { type: string, example: "active" }
+                            is_rpm_active: { type: boolean, example: true }
+                            clinician_name: { type: string, example: "Dr. Willson" }
+                            created_at: { type: string, format: date-time }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
+
+  /admins/patients/{id}:
+    get:
+      summary: Get Patient Details
+      description: Returns read-only full profile details for a specific patient within the organization.
+      tags: [Admin - Patient Management]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        200:
+          description: Patient details
+        401: { description: Unauthorized }
+        403: { description: "Forbidden: Patient not found or not in your organization" }
+        404: { description: Not Found }
+
   /admins/dashboard/population:
     get:
       summary: Get Population Dashboard metrics
@@ -171,11 +247,13 @@ paths:
                   data:
                     type: object
                     properties:
-                      active_users: { type: integer, example: 247 }
+                      active_patients: { type: integer, example: 247 }
+                      active_clinicians: { type: integer, example: 12 }
                       daily_logs: { type: integer, example: 189 }
                       adherence_rate: { type: integer, example: 87 }
                       avg_symptom_score: { type: number, format: float, example: 4.2 }
                       alerts_today: { type: integer, example: 12 }
+                      todays_audit_events_count: { type: integer, example: 45 }
                       user_engagement:
                         type: object
                         properties:
@@ -188,6 +266,55 @@ paths:
                           api_response_time: { type: string, example: "125ms" }
                           system_uptime: { type: string, example: "99.9%" }
                           data_sync_status: { type: string, example: "Healthy" }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
+
+  /admins/analytics:
+    get:
+      summary: Get Admin Analytics
+      description: Returns practice-wide metrics across the organization without clinician-level duplication.
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Analytics fetched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Analytics fetched successfully" }
+                  data:
+                    type: object
+                    properties:
+                      total_patients: { type: integer, example: 48 }
+                      composite_score_trends:
+                        type: object
+                        properties:
+                          min: { type: number, example: 0 }
+                          q1: { type: number, example: 2.6 }
+                          median: { type: number, example: 4.1 }
+                          q3: { type: number, example: 5.3 }
+                          max: { type: number, example: 10 }
+                      medication_adherence: { type: integer, example: 46 }
+                      active_alerts_count:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            clinician: { type: string, example: "Dr Allison" }
+                            count: { type: integer, example: 8 }
+                      clinician_activity:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            clinician: { type: string, example: "Dr Allison" }
+                            patients_invited: { type: integer, example: 0 }
+                            alerts_resolved: { type: integer, example: 26 }
+                      audit_log_summary: { type: integer, example: 3853 }
         401: { description: Unauthorized }
         403: { description: Forbidden }
 

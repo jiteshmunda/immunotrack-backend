@@ -1,7 +1,8 @@
 paths:
   /alerts:
     get:
-      summary: Retrieve active clinical alerts for assigned patients
+      summary: Retrieve active clinical alerts
+      description: Retrieve active clinical alerts. Admins see all alerts across their organization, Clinicians see only alerts for their directly assigned patients.
       tags: [Clinical Alerts]
       security:
         - bearerAuth: []
@@ -76,4 +77,5 @@ paths:
                   resolved_at: { type: string, format: date-time }
                   resolution_note: { type: string, example: "Clinician adjusted patient controller daily doses and followed up via phone." }
         401: { description: Unauthorized }
+        403: { description: "Forbidden: You are not assigned to this patient" }
         404: { description: Alert not found }

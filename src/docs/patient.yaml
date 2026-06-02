@@ -36,6 +36,7 @@ paths:
                       reminder_time_utc: { type: string }
                       onboarding_completed: { type: boolean }
                       monitoring_active: { type: boolean }
+                      profile_picture: { type: string, nullable: true }
                       created_at: { type: string, format: date-time }
                       updated_at: { type: string, format: date-time }
         401: { description: Unauthorized }
@@ -77,6 +78,59 @@ paths:
                   onboarding_complete: { type: boolean, example: true }
         401: { description: Unauthorized }
         400: { description: Validation error }
+
+  /patients/profile/photo:
+    post:
+      summary: Upload a profile photo
+      description: Accepts a multipart/form-data request containing the patient's new profile picture.
+      tags: [Patient Onboarding]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                photo:
+                  type: string
+                  format: binary
+                  description: The profile image file (max 5MB)
+      responses:
+        200:
+          description: Photo uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: object
+                    properties:
+                      profile_picture: { type: string, example: "data:image/jpeg;base64,/9j/4AAQSk..." }
+        400: { description: Bad Request }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
+    delete:
+      summary: Delete profile photo
+      description: Removes the patient's profile picture.
+      tags: [Patient Onboarding]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Photo deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Profile picture deleted successfully" }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
 
   /patients/consent:
     post:

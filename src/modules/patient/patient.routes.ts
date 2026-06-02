@@ -20,6 +20,23 @@ router.put(
   (req, res) => controller.updateProfile(req, res)
 );
 
+import { upload } from "../../common/middleware/upload.middleware";
+
+router.post(
+  "/profile/photo",
+  authenticateJWT,
+  requireRole(["patient"]),
+  upload.single("photo"),
+  (req, res) => controller.uploadPhoto(req, res)
+);
+
+router.delete(
+  "/profile/photo",
+  authenticateJWT,
+  requireRole(["patient"]),
+  (req, res) => controller.deletePhoto(req, res)
+);
+
 router.get(
   "/dashboard",
   authenticateJWT,

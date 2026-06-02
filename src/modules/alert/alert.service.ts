@@ -21,15 +21,7 @@ export class AlertService {
 
     let clinicianIds = [requester.id];
 
-    if (role === "admin" || role === "super admin") {
-      if (!requester.clinicId) throw new Error("ORGANIZATION_NOT_FOUND");
-      
-      const orgClinicians = await db
-        .select({ id: clinicians.id })
-        .from(clinicians)
-        .where(eq(clinicians.clinicId, requester.clinicId));
-      clinicianIds = orgClinicians.map(c => c.id);
-    }
+
 
     if (clinicianIds.length === 0) return [];
 
@@ -137,7 +129,7 @@ export class AlertService {
       .limit(1);
 
     if (!assignment) {
-      throw new Error("Forbidden: You are not assigned to this patient");
+      throw new Error("UNAUTHORIZED_ACCESS_TO_PATIENT_DATA");
     }
 
     const [updated] = await db

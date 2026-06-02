@@ -60,5 +60,10 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   // --- File Uploads ---
   "No file uploaded": "Please select a photo to upload.",
   "Only image files are allowed!": "Only image files (JPG, PNG, WEBP) are allowed.",
-  "File too large": "The uploaded file is too large. Please select an image under 20MB."
+  "File too large": "The uploaded file is too large. Please select an image under 20MB.",
+
+  // --- Alerts ---
+  "ALERT_NOT_FOUND": "The requested alert was not found.",
+  "RESOLUTION_NOTE_MUST_BE_STRING": "Resolution note must be text.",
+  "RESOLUTION_NOTE_TOO_LONG": "Resolution note must not exceed 500 characters."
 };

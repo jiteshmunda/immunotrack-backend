@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 export const invitePatientSchema = z.object({
-  patient_first_name: z.string().min(1, "First name is required"),
-  patient_last_name: z.string().min(1, "Last name is required"),
+  patient_first_name: z.string().min(1, "First name is required").max(100, "First name must not exceed 100 characters").regex(/^[a-zA-Z\s]+$/, "First name must only contain letters and spaces"),
+  patient_last_name: z.string().min(1, "Last name is required").max(100, "Last name must not exceed 100 characters").regex(/^[a-zA-Z\s]+$/, "Last name must only contain letters and spaces"),
   patient_email: z.string().email("Invalid email format"),
   patient_dob: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format must be YYYY-MM-DD"),
   patient_diagnosis: z.string().min(1, "Diagnosis is required"),

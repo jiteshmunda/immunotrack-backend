@@ -4,6 +4,7 @@ export const createClinicianSchema = z.object({
   fullName: z
     .string()
     .min(1, "Full name is required")
+    .max(100, "Full name must not exceed 100 characters")
     .regex(/^[a-zA-Z\s]+$/, "Full name must only contain letters and spaces"),
   
   email: z.string().email("Invalid email format"),
@@ -45,10 +46,12 @@ export type CreateClinicianInput = z.infer<typeof createClinicianSchema>;
 export const updateClinicianProfileSchema = z.object({
   first_name: z
     .string()
+    .max(100, "First name must not exceed 100 characters")
     .regex(/^[a-zA-Z\s]+$/, "First name must only contain letters and spaces")
     .optional(),
   last_name: z
     .string()
+    .max(100, "Last name must not exceed 100 characters")
     .regex(/^[a-zA-Z\s]+$/, "Last name must only contain letters and spaces")
     .optional(),
   specialty: z

@@ -24,10 +24,10 @@ export interface AddMedicationInput {
 
 export class MedicationService {
 
-// ----------------------------------GET /medications/catalog--------------------------------------------------
+  // ----------------------------------GET /medications/catalog--------------------------------------------------
   async getCatalog() {
     const catalog = await db.select().from(medicationCatalog);
-    
+
     // Group by category 
     const grouped = catalog.reduce((acc: Record<string, any[]>, item) => {
       if (!acc[item.category]) acc[item.category] = [];
@@ -49,7 +49,7 @@ export class MedicationService {
     return grouped;
   }
 
-//  -------------------------------------------- POST /medications---------------------------------------------------------
+  //  -------------------------------------------- POST /medications---------------------------------------------------------
   async addMedicationToPlan(userId: string, input: AddMedicationInput) {
     const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
@@ -62,7 +62,7 @@ export class MedicationService {
     if (input.medicationId) {
       const [catalogItem] = await db.select().from(medicationCatalog)
         .where(eq(medicationCatalog.id, input.medicationId)).limit(1);
-      
+
       if (catalogItem) {
         finalCategory = finalCategory || catalogItem.category || undefined;
         finalRoute = finalRoute || catalogItem.route || undefined;
@@ -123,7 +123,7 @@ export class MedicationService {
 
     return {
       ...newMed,
-      name: input.name, 
+      name: input.name,
       dose: input.dose,
       notes: input.notes || null
     };
@@ -147,7 +147,7 @@ export class MedicationService {
     return Promise.all(meds.map(async (m) => {
       const freq = m.frequency || "";
       const freqLower = freq.toLowerCase();
-      
+
       const isWeekly = freqLower.includes("weekly") || freqLower.includes("every week") || freqLower.includes("every 1 week");
       const isBiWeekly = freqLower.includes("every 2 weeks") || freqLower.includes("every 2-4 weeks");
       const isMonthly = freqLower.includes("every 4 weeks") || freqLower.includes("monthly") || freqLower.includes("every month");
@@ -200,6 +200,12 @@ export class MedicationService {
         dosesMissed = todaysLogs.filter(l => l.status === "missed").length;
       }
 
+      const [reminder] = await db.select({ nextDoseDate: medicationReminders.nextDoseDate })
+        .from(medicationReminders)
+        .where(eq(medicationReminders.medicationId, m.id))
+        .orderBy(medicationReminders.nextDoseDate)
+        .limit(1);
+
       return {
         id: m.id,
         medicationId: m.medicationId,
@@ -215,13 +221,15 @@ export class MedicationService {
         dosesCount,
         dosesTaken,
         dosesMissed,
+        nextDoseDate: reminder?.nextDoseDate || null,
+        DEBUG_FIELD: "HELLO_FROM_ANTIGRAVITY",
         createdAt: m.createdAt,
         deletedAt: m.deletedAt
       };
     }));
   }
-//
-// -------------------------------------- DELETE /medications/:id ---------------------------------------------------
+  //
+  // -------------------------------------- DELETE /medications/:id ---------------------------------------------------
   async deleteMedicationFromPlan(userId: string, id: string) {
     const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
@@ -269,11 +277,11 @@ export class MedicationService {
       const [existingLogsToday] = await db.select({
         count: sql<number>`count(*)`
       })
-      .from(medicationLogs)
-      .where(and(
-        eq(medicationLogs.medicationId, med.id),
-        between(medicationLogs.loggedAt, startOfToday, endOfToday)
-      ));
+        .from(medicationLogs)
+        .where(and(
+          eq(medicationLogs.medicationId, med.id),
+          between(medicationLogs.loggedAt, startOfToday, endOfToday)
+        ));
 
       const logCount = Number(existingLogsToday?.count || 0);
 
@@ -286,7 +294,7 @@ export class MedicationService {
     if (input.status === "taken") {
       let minDaysBetweenLogs = 0;
       const f = (med.frequency || "").toLowerCase();
-      
+
       if (f.includes("weekly") || f.includes("every week")) {
         minDaysBetweenLogs = 5;
       } else if (f.includes("every 2 weeks") || f.includes("every two weeks") || f.includes("every 2-4 weeks")) {
@@ -390,10 +398,10 @@ export class MedicationService {
     // Check for max-dose warnings (e.g. for "Every 4-6 hours (max 3-4 times/day)")
     let warning: string | null = null;
     const freqLower = (med.frequency || "").toLowerCase();
-    
+
     if (input.status === "taken" && (freqLower.includes("max 3-4 times") || freqLower.includes("max 3–4 times"))) {
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      
+
       const [takenLogsLast24h] = await db
         .select({ count: sql<number>`count(*)` })
         .from(medicationLogs)
@@ -411,10 +419,24 @@ export class MedicationService {
       }
     }
 
-    const [reminder] = await db.select({ time: medicationReminders.reminderTime })
+    const [reminder] = await db.select({
+      id: medicationReminders.id,
+      time: medicationReminders.reminderTime,
+      intervalWeeks: medicationReminders.intervalWeeks
+    })
       .from(medicationReminders)
       .where(eq(medicationReminders.medicationId, input.medicationId))
       .limit(1);
+
+    if (input.status === "taken" && reminder?.intervalWeeks) {
+      const baseDate = input.takenTime ? new Date(input.takenTime) : new Date();
+      baseDate.setDate(baseDate.getDate() + (reminder.intervalWeeks * 7));
+      const nextDateStr = baseDate.toISOString().split("T")[0];
+
+      await db.update(medicationReminders)
+        .set({ nextDoseDate: nextDateStr, updatedAt: new Date() })
+        .where(eq(medicationReminders.id, reminder.id));
+    }
 
     return {
       ...log,
@@ -432,8 +454,8 @@ export class MedicationService {
 
     if (filters.startDate && filters.endDate) {
       conditions.push(between(
-        medicationLogs.loggedAt, 
-        new Date(filters.startDate), 
+        medicationLogs.loggedAt,
+        new Date(filters.startDate),
         new Date(filters.endDate)
       ));
     }
@@ -447,10 +469,10 @@ export class MedicationService {
       medicationName: patientMedications.name,
       reminderTime: sql<string>`(SELECT reminder_time FROM medication_reminders WHERE medication_id = ${medicationLogs.medicationId} LIMIT 1)`
     })
-    .from(medicationLogs)
-    .innerJoin(patientMedications, eq(medicationLogs.medicationId, patientMedications.id))
-    .where(and(...conditions))
-    .orderBy(desc(medicationLogs.createdAt));
+      .from(medicationLogs)
+      .innerJoin(patientMedications, eq(medicationLogs.medicationId, patientMedications.id))
+      .where(and(...conditions))
+      .orderBy(desc(medicationLogs.createdAt));
 
     return results.map(r => ({
       ...r,
@@ -460,11 +482,11 @@ export class MedicationService {
   }
 
   // ---------------------------------- POST /medications/reminders -------------------------------------
-  async createReminder(userId: string, data: { 
-    medicationId: string; 
-    time?: string; 
-    times?: string[]; 
-    frequency?: string; 
+  async createReminder(userId: string, data: {
+    medicationId: string;
+    time?: string;
+    times?: string[];
+    frequency?: string;
     daysOfWeek?: string[];
     dayOfMonth?: number;
     month?: number;
@@ -573,10 +595,10 @@ export class MedicationService {
       intervalWeeks: medicationReminders.intervalWeeks,
       endDate: patientMedications.endDate,
     })
-    .from(medicationReminders)
-    .innerJoin(patientMedications, eq(medicationReminders.medicationId, patientMedications.id))
-    .where(eq(medicationReminders.patientId, patient.id))
-    .orderBy(desc(medicationReminders.createdAt));
+      .from(medicationReminders)
+      .innerJoin(patientMedications, eq(medicationReminders.medicationId, patientMedications.id))
+      .where(eq(medicationReminders.patientId, patient.id))
+      .orderBy(desc(medicationReminders.createdAt));
 
     const todayStr = new Date().toISOString().split("T")[0];
 
@@ -604,8 +626,8 @@ export class MedicationService {
   }
 
   // ---------------------------------- PATCH /medications/reminders/:id --------------------------------
-  async updateReminder(userId: string, reminderId: string, data: { 
-    active?: boolean; 
+  async updateReminder(userId: string, reminderId: string, data: {
+    active?: boolean;
     time?: string;
     daysOfWeek?: string[];
     dayOfMonth?: number;
@@ -637,12 +659,12 @@ export class MedicationService {
           daysOfWeekStr ? eq(medicationReminders.daysOfWeek, daysOfWeekStr) : sql`days_of_week IS NULL`
         ))
         .limit(1);
-      
+
       if (existing) throw new Error("REMINDER_ALREADY_EXISTS");
     }
 
     const [updated] = await db.update(medicationReminders)
-      .set({ 
+      .set({
         isEnabled: data.active !== undefined ? data.active : reminder.isEnabled,
         reminderTime: data.time || reminder.reminderTime,
         daysOfWeek: daysOfWeekStr,
@@ -705,7 +727,7 @@ export class MedicationService {
       targetPatientId = patientId;
     } else if (role === "clinician") {
       if (!patientId) throw new Error("PATIENT_ID_REQUIRED_FOR_CLINICIANS");
-      
+
       const targetClinicians = await db.select({ id: clinicians.id })
         .from(clinicians)
         .where(or(
@@ -756,16 +778,16 @@ export class MedicationService {
         .where(and(
           eq(medicationLogs.medicationId, m.id),
           between(
-            sql`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`, 
-            windowStartDate.toISOString().split('T')[0], 
+            sql`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`,
+            windowStartDate.toISOString().split('T')[0],
             windowEndDate.toISOString().split('T')[0]
           )
         ));
 
       const overallTaken = overallLogs.filter(l => l.status === "taken").length;
       const overallLogged = overallLogs.length;
-      const adherencePercentage = !isPrn && overallLogged > 0 
-        ? formatAdherencePercentage(overallTaken, overallLogged) 
+      const adherencePercentage = !isPrn && overallLogged > 0
+        ? formatAdherencePercentage(overallTaken, overallLogged)
         : (isPrn ? null : 0);
 
       //Calculate 7-day rolling adherence
@@ -781,16 +803,16 @@ export class MedicationService {
         .where(and(
           eq(medicationLogs.medicationId, m.id),
           between(
-            sql`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`, 
-            start7d.toISOString().split('T')[0], 
+            sql`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`,
+            start7d.toISOString().split('T')[0],
             end7d.toISOString().split('T')[0]
           )
         ));
 
       const taken7d = logs7d.filter(l => l.status === "taken").length;
       const logged7d = logs7d.length;
-      const rolling7DayAdherence = !isPrn && logged7d > 0 
-        ? formatAdherencePercentage(taken7d, logged7d) 
+      const rolling7DayAdherence = !isPrn && logged7d > 0
+        ? formatAdherencePercentage(taken7d, logged7d)
         : (isPrn ? null : 0);
 
       //Formulate PRN usage count text
@@ -809,8 +831,8 @@ export class MedicationService {
         .where(and(
           eq(medicationLogs.medicationId, m.id),
           between(
-            sql`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`, 
-            new Date(today.getTime() - 29 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], 
+            sql`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC')`,
+            new Date(today.getTime() - 29 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
             today.toISOString().split('T')[0]
           )
         ));
@@ -841,8 +863,8 @@ export class MedicationService {
 
     // 4. Calculate Overall Adherence (Average of all active non-PRN medications)
     const nonPrnMeds = metrics.filter(m => !m.isPrn);
-    const overallPercentage = nonPrnMeds.length > 0 
-      ? nonPrnMeds.reduce((acc, m) => acc + (m.adherencePercentage || 0), 0) / nonPrnMeds.length 
+    const overallPercentage = nonPrnMeds.length > 0
+      ? nonPrnMeds.reduce((acc, m) => acc + (m.adherencePercentage || 0), 0) / nonPrnMeds.length
       : 100;
 
     const totalTaken = nonPrnMeds.reduce((sum, m) => sum + m.daysTaken, 0);

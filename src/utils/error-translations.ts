@@ -20,12 +20,18 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   "Code has expired or is invalid": "The verification code has expired or is invalid.",
   "Too many failed attempts. Please request a new code.": "Too many failed attempts. Please request a new verification code.",
   "Invalid verification code": "The verification code you entered is incorrect.",
+  "INVALID_CODE": "The invitation code you entered is invalid.",
+  "DOB_MISMATCH": "The date of birth provided does not match our records.",
+  "EXPIRED": "This invitation code has expired.",
+  "ALREADY_USED": "This invitation code has already been redeemed.",
+  "RATE_LIMITED": "Too many attempts. Please try again later.",
   "New password cannot be the same as your old password": "Your new password must be different from your old password.",
   "New email cannot be the same as current email": "The new email address cannot be the same as your current email.",
   "Email is already taken": "This email address is already in use by another account.",
   "Too many failed attempts. Please wait 15 minutes before trying again.": "Too many failed attempts. Please wait 15 minutes before trying again.",
   "Password has been used recently. Please choose a new password.": "Password has been used recently. Please choose a new password.",
   "Password must be at least 12 characters for this role": "Password must be at least 12 characters for this role",
+  "Password has appeared in a known data breach. Please choose a stronger password.": "Password has appeared in a known data breach. Please choose a stronger password.",
 
   // --- Medication Plan Modules ---
   "PATIENT_NOT_FOUND": "We couldn't find your profile. Please complete your registration.",
@@ -49,5 +55,10 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   "UNAUTHORIZED_ACCESS_TO_PATIENT_DATA": "Access Denied: You are not assigned to this patient.",
   "Clinician ID is required": "Clinician ID is required.",
   "Clinician not found": "The requested clinician was not found.",
-  "Forbidden: You do not have permission to delete this clinician": "Access Denied: You do not have permission to delete this clinician."
+  "Forbidden: You do not have permission to delete this clinician": "Access Denied: You do not have permission to delete this clinician.",
+
+  // --- File Uploads ---
+  "No file uploaded": "Please select a photo to upload.",
+  "Only image files are allowed!": "Only image files (JPG, PNG, WEBP) are allowed.",
+  "File too large": "The uploaded file is too large. Please select an image under 20MB."
 };

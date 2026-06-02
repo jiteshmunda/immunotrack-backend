@@ -59,14 +59,43 @@ export class NotificationService {
       })
       .returning();
 
-    // Fetch the recipient's FCM token from patients (only patients have fcmToken for now)
+    const { users } = await import("../../db/schema/user.schema");
+    const { clinicians } = await import("../../db/schema/profile.schema");
+    const { EmailService } = await import("../../utils/email");
+
     const [patient] = await db
       .select()
       .from(patients)
       .where(eq(patients.userId, userId))
       .limit(1);
 
-    const fcmToken = patient?.fcmToken;
+    const [clinician] = await db
+      .select()
+      .from(clinicians)
+      .where(eq(clinicians.userId, userId))
+      .limit(1);
+
+    const fcmToken = patient?.fcmToken || clinician?.fcmToken;
+
+    // Dispatch email if it's a high-priority clinician alert
+    if (type === "patient_deterioration") {
+      const clinicianWantsEmails = clinician ? clinician.emailNotifications : true;
+      if (clinicianWantsEmails) {
+        const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+        if (user && user.email) {
+          const emailService = new EmailService();
+        emailService.sendEmail({
+          to: decrypt(user.email),
+          subject: "ImmunoTrack Alert: Patient Deterioration",
+          body: `
+            <h2>Patient Alert</h2>
+            <p>One of your patients has reported symptoms indicating a deterioration in their condition.</p>
+            <p>Please log in to the ImmunoTrack Clinician Portal to review their latest symptom logs and active alerts.</p>
+          `
+        }).catch(e => console.error("[NotificationService] Failed to send email alert:", e));
+        }
+      }
+    }
 
     if (!fcmToken) {
       console.log(`[NotificationService] No fcmToken registered for user ${userId}. In-app notification saved, skipping push.`);

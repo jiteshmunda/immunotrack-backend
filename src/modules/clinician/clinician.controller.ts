@@ -82,6 +82,50 @@ export class ClinicianController {
     }
   }
 
+  // ------------------------------POST /clinicians/profile/photo------------------------------
+  async uploadPhoto(req: Request, res: Response) {
+    try {
+      const userId = (req as AuthenticatedRequest).user.userId;
+      if (!req.file) throw new Error("No file uploaded");
+
+      const b64 = req.file.buffer.toString("base64");
+      const mimeType = req.file.mimetype;
+      const dataUri = `data:${mimeType};base64,${b64}`;
+
+      const result = await clinicianService.uploadPhoto(userId, dataUri);
+
+      await writeAudit(req, {
+        action: "PROFILE_PHOTO_UPDATED",
+        status: "success",
+        userId: userId,
+        resourceType: "clinician",
+      });
+
+      return sendSuccess(res, result);
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
+
+  // ------------------------------DELETE /clinicians/profile/photo------------------------------
+  async deletePhoto(req: Request, res: Response) {
+    try {
+      const userId = (req as AuthenticatedRequest).user.userId;
+      const result = await clinicianService.deletePhoto(userId);
+
+      await writeAudit(req, {
+        action: "PROFILE_PHOTO_DELETED",
+        status: "success",
+        userId: userId,
+        resourceType: "clinician",
+      });
+
+      return sendSuccess(res, result);
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
+
   // ------------------------------GET /clinicians/patients------------------------------------
 
   async getAssignedPatients(req: Request, res: Response) {

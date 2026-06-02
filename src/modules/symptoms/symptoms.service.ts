@@ -179,26 +179,18 @@ export class SymptomService {
         }
       ];
 
-      // We need clinician info for notifications (getting primary clinician)
-      // We will skip actual FCM logic here and let NotificationService handle it if needed.
-      // But we just need to send a push to the clinician, so we find the clinician assignment.
+      // We need clinician info for notifications
       const { patientClinicianAssignments } = await import("../../db/schema/profile.schema");
-      const [assignment] = await tx
+      const assignments = await tx
         .select()
         .from(patientClinicianAssignments)
-        .where(
-          and(
-            eq(patientClinicianAssignments.patientId, patient.id),
-            eq(patientClinicianAssignments.isPrimary, true)
-          )
-        )
-        .limit(1);
+        .where(eq(patientClinicianAssignments.patientId, patient.id));
 
       for (const d of domains) {
-        if (d.prevScore === null) continue;
-
-        const prevColor = d.getColor(d.prevScore);
         const currColor = d.getColor(d.currentScore);
+        const prevColor = d.prevScore !== null ? d.getColor(d.prevScore) : "green";
+
+        console.log(`[DEBUG Alert] Domain: ${d.name} | PrevScore: ${d.prevScore} | PrevColor: ${prevColor} | CurrScore: ${d.currentScore} | CurrColor: ${currColor}`);
 
         let subtype: string | null = null;
         let priority: string | null = null;
@@ -210,6 +202,8 @@ export class SymptomService {
         } else if (prevColor === "green" && currColor === "red") {
           subtype = "rapid_escalation"; priority = "Critical";
         }
+
+        console.log(`[DEBUG Alert] Subtype evaluated: ${subtype} | Priority: ${priority}`);
 
         const [activeAlert] = await tx
           .select()
@@ -255,21 +249,29 @@ export class SymptomService {
             });
           }
 
-          if (assignment) {
-            // Send notification to primary clinician
-            // We get clinician's userId
+          console.log(`[DEBUG Alert] Alert created/updated for patient: ${patient.id}`);
+          console.log(`[DEBUG Alert] Assignments found: ${assignments.length}`);
+
+          if (assignments.length > 0) {
             const { clinicians } = await import("../../db/schema/profile.schema");
-            const [clinician] = await tx.select().from(clinicians).where(eq(clinicians.id, assignment.clinicianId)).limit(1);
-            if (clinician) {
-               notificationService.sendNotification(
-                 clinician.userId,
-                 "patient_deterioration",
-                 `Alert: ${d.name} Declining`,
-                 alertDesc
-               ).catch(e => console.error(e));
+            for (const assignment of assignments) {
+              const [clinician] = await tx.select().from(clinicians).where(eq(clinicians.id, assignment.clinicianId)).limit(1);
+              console.log(`[DEBUG Alert] Checking clinician ID: ${assignment.clinicianId} | Found valid clinician: ${!!clinician}`);
+              
+              if (clinician) {
+                 console.log(`[DEBUG Alert] Sending notification to clinician's userId: ${clinician.userId}`);
+                 notificationService.sendNotification(
+                   clinician.userId,
+                   "patient_deterioration",
+                   `Alert: ${d.name} Declining`,
+                   alertDesc
+                 ).catch(e => console.error(e));
+              }
             }
+          } else {
+             console.log(`[DEBUG Alert] Skipped notification: Patient has no assigned clinicians in patient_clinician_assignments.`);
           }
-        } else if (d.currentScore > d.prevScore) {
+        } else if (d.currentScore > (d.prevScore ?? 0)) {
             if (activeAlert) {
                await tx
               .update(alerts)

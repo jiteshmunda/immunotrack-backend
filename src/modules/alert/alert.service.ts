@@ -10,17 +10,28 @@ export class AlertService {
 
   // -----------------------------GET /alerts------------------------------------------
   
-  async getAlerts(clinicianUserId: string) {
-    const targetClinicians = await db
-      .select({ id: clinicians.id })
+  async getAlerts(clinicianUserId: string, role: string) {
+    const [requester] = await db
+      .select({ id: clinicians.id, clinicId: clinicians.clinicId })
       .from(clinicians)
-      .where(or(
-        eq(clinicians.userId, clinicianUserId),
-        eq(clinicians.createdBy, clinicianUserId)
-      ));
+      .where(eq(clinicians.userId, clinicianUserId))
+      .limit(1);
 
-    if (targetClinicians.length === 0) throw new Error("CLINICIAN_NOT_FOUND");
-    const clinicianIds = targetClinicians.map(c => c.id);
+    if (!requester) throw new Error("CLINICIAN_NOT_FOUND");
+
+    let clinicianIds = [requester.id];
+
+    if (role === "admin" || role === "super admin") {
+      if (!requester.clinicId) throw new Error("ORGANIZATION_NOT_FOUND");
+      
+      const orgClinicians = await db
+        .select({ id: clinicians.id })
+        .from(clinicians)
+        .where(eq(clinicians.clinicId, requester.clinicId));
+      clinicianIds = orgClinicians.map(c => c.id);
+    }
+
+    if (clinicianIds.length === 0) return [];
 
     const results = await db
       .select({
@@ -106,6 +117,28 @@ export class AlertService {
       .limit(1);
 
     if (!alert) throw new Error("ALERT_NOT_FOUND");
+
+    const [requester] = await db
+      .select({ id: clinicians.id })
+      .from(clinicians)
+      .where(eq(clinicians.userId, clinicianUserId))
+      .limit(1);
+
+    if (!requester) throw new Error("CLINICIAN_NOT_FOUND");
+
+    // Verify assignment
+    const [assignment] = await db
+      .select({ id: patientClinicianAssignments.id })
+      .from(patientClinicianAssignments)
+      .where(and(
+        eq(patientClinicianAssignments.patientId, alert.patientId),
+        eq(patientClinicianAssignments.clinicianId, requester.id)
+      ))
+      .limit(1);
+
+    if (!assignment) {
+      throw new Error("Forbidden: You are not assigned to this patient");
+    }
 
     const [updated] = await db
       .update(alerts)

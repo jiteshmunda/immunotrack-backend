@@ -60,5 +60,5 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   // --- File Uploads ---
   "No file uploaded": "Please select a photo to upload.",
   "Only image files are allowed!": "Only image files (JPG, PNG, WEBP) are allowed.",
-  "File too large": "The uploaded file is too large. Please select an image under 5MB."
+  "File too large": "The uploaded file is too large. Please select an image under 20MB."
 };

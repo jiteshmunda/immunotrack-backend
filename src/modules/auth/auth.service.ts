@@ -544,7 +544,7 @@ export class AuthService {
   async resetPassword(email: string, otp: string, newPassword: string) {
     const emailHash = hashForLookup(email);
     
-    return await db.transaction(async (tx) => {
+    const txResult = await db.transaction(async (tx) => {
       const [result] = await tx
         .select({ user: users, role: roles })
         .from(users)
@@ -553,37 +553,37 @@ export class AuthService {
         .limit(1);
 
       if (!result || result.user.status !== "active") {
-        throw new Error("Invalid request");
+        return { error: "Invalid request" };
       }
       
       const { user, role } = result;
 
       if (role.name !== "patient" && newPassword.length < 12) {
-        throw new Error("Password must be at least 12 characters for this role");
+        return { error: "Password must be at least 12 characters for this role" };
       }
 
       if (!user.resetPasswordOtp || !user.resetPasswordExpires || user.resetPasswordExpires < new Date()) {
-        throw new Error("Code has expired or is invalid");
+        return { error: "Code has expired or is invalid" };
       }
 
       if (user.resetPasswordAttempts >= 5) {
-        throw new Error("Too many failed attempts. Please request a new code.");
+        return { error: "Too many failed attempts. Please request a new code." };
       }
 
       const otpHash = crypto.createHmac("sha256", ENV.ENCRYPTION_KEY).update(otp).digest("hex");
       if (user.resetPasswordOtp !== otpHash) {
-        await db.update(users)
+        await tx.update(users)
           .set({ resetPasswordAttempts: user.resetPasswordAttempts + 1 })
           .where(eq(users.id, user.id));
         
-        throw new Error("Invalid verification code");
+        return { error: "Invalid verification code" };
       }
 
       // Prevent Password Reuse
       if (user.passwordHash) {
         const isSame = await verifyPassword(newPassword, user.passwordHash);
         if (isSame) {
-          throw new Error("New password cannot be the same as your old password");
+          return { error: "New password cannot be the same as your old password" };
         }
       }
 
@@ -595,12 +595,12 @@ export class AuthService {
       for (const history of recentPasswords) {
         const isReused = await verifyPassword(newPassword, history.passwordHash);
         if (isReused) {
-          throw new Error("Password has been used recently. Please choose a new password.");
+          return { error: "Password has been used recently. Please choose a new password." };
         }
       }
 
       const isPwned = await checkPwnedPassword(newPassword);
-      if (isPwned) throw new Error("Password has appeared in a known data breach. Please choose a stronger password.");
+      if (isPwned) return { error: "Password has appeared in a known data breach. Please choose a stronger password." };
 
       const newPasswordHash = await hashPassword(newPassword);
 
@@ -623,7 +623,13 @@ export class AuthService {
 
       // Revoke all sessions for security
       await tx.delete(userSessions).where(eq(userSessions.userId, user.id));
+      
+      return { success: true };
     });
+
+    if (txResult.error) {
+      throw new Error(txResult.error);
+    }
   }
 
   // ---------------------------------POST /auth/email/request-otp-----------------------------------------
@@ -679,15 +685,15 @@ export class AuthService {
 
   // ---------------------------------POST /auth/email/verify-otp-----------------------------------------
   async verifyEmailUpdate(userId: string, otp: string) {
-    return await db.transaction(async (tx) => {
+    const txResult = await db.transaction(async (tx) => {
       const [user] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
 
       if (!user) {
-        throw new Error("User not found");
+        return { error: "User not found" };
       }
 
       if (!user.emailUpdateOtp || !user.emailUpdateExpires || user.emailUpdateExpires < new Date() || !user.pendingEmail) {
-        throw new Error("Code has expired or is invalid");
+        return { error: "Code has expired or is invalid" };
       }
 
       if (user.emailUpdateAttempts >= 5) {
@@ -699,7 +705,7 @@ export class AuthService {
             emailUpdateAttempts: 0 
           })
           .where(eq(users.id, userId));
-        throw new Error("Too many failed attempts. Please request a new code.");
+        return { error: "Too many failed attempts. Please request a new code." };
       }
 
       const otpHash = crypto.createHmac("sha256", ENV.ENCRYPTION_KEY).update(otp).digest("hex");
@@ -708,7 +714,7 @@ export class AuthService {
           .set({ emailUpdateAttempts: user.emailUpdateAttempts + 1 })
           .where(eq(users.id, userId));
         
-        throw new Error("Invalid verification code");
+        return { error: "Invalid verification code" };
       }
 
       const newEmailDecrypted = decrypt(user.pendingEmail);
@@ -727,15 +733,23 @@ export class AuthService {
         })
         .where(eq(users.id, userId));
         
-      // Send security alert to the old email address (no await to prevent blocking the transaction unnecessarily, though usually fine)
+      return { success: true, oldEmailDecrypted };
+    });
+
+    if (txResult.error) {
+      throw new Error(txResult.error);
+    }
+
+    if (txResult.success && txResult.oldEmailDecrypted) {
+      // Send security alert to the old email address
       emailService.sendEmail({
-        to: oldEmailDecrypted,
+        to: txResult.oldEmailDecrypted,
         subject: "Security Alert: Your ImmunoTrack Email Has Been Changed",
         body: emailService.getSecurityNotificationTemplate(
           "Email Address Changed",
           "This is a confirmation that the email address associated with your ImmunoTrack account has been successfully updated."
         ),
       }).catch(err => console.error("Failed to send security alert to old email:", err));
-    });
+    }
   }
 }

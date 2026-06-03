@@ -36,6 +36,7 @@ paths:
                       reminder_time_utc: { type: string }
                       onboarding_completed: { type: boolean }
                       monitoring_active: { type: boolean }
+                      terms_of_service: { type: boolean }
                       profile_picture: { type: string, nullable: true }
                       created_at: { type: string, format: date-time }
                       updated_at: { type: string, format: date-time }
@@ -65,6 +66,7 @@ paths:
                 location: { type: string, example: "New York, NY" }
                 latitude: { type: number, format: float, example: 41.8781 }
                 longitude: { type: number, format: float, example: -87.6298 }
+                terms_of_service: { type: boolean, example: false }
       responses:
         200:
           description: Profile fields updated successfully.

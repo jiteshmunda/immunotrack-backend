@@ -13,6 +13,7 @@ export const updatePatientProfileSchema = z.object({
   latitude: z.number().min(-90, "Latitude must be >= -90").max(90, "Latitude must be <= 90").optional(),
   longitude: z.number().min(-180, "Longitude must be >= -180").max(180, "Longitude must be <= 180").optional(),
   mfa_enabled: z.boolean().optional(),
+  terms_of_service: z.boolean().optional(),
 });
 
 export type UpdatePatientProfileInput = z.infer<typeof updatePatientProfileSchema>;

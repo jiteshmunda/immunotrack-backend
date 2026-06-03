@@ -44,6 +44,12 @@ router.delete(
 );
 
 
+router.get(
+  "/diagnoses",
+  authenticateJWT,
+  requireRole(["clinician", "admin"]),
+  clinicianController.getDiagnoses.bind(clinicianController)
+);
 
 router.get(
   "/patients",

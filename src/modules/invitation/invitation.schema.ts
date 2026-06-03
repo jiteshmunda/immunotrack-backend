@@ -4,7 +4,16 @@ export const invitePatientSchema = z.object({
   patient_first_name: z.string().min(1, "First name is required").max(100, "First name must not exceed 100 characters").regex(/^[a-zA-Z\s]+$/, "First name must only contain letters and spaces"),
   patient_last_name: z.string().min(1, "Last name is required").max(100, "Last name must not exceed 100 characters").regex(/^[a-zA-Z\s]+$/, "Last name must only contain letters and spaces"),
   patient_email: z.string().email("Invalid email format"),
-  patient_dob: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format must be YYYY-MM-DD"),
+  patient_dob: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format must be YYYY-MM-DD").refine((val) => {
+    const dob = new Date(val);
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const m = today.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+      age--;
+    }
+    return age >= 18;
+  }, { message: "Patient must be at least 18 years old" }),
   patient_diagnosis: z.string().min(1, "Diagnosis is required"),
   icd10_code: z.string().min(1, "ICD-10 code is required"),
   rpm_enrolled: z.boolean(),

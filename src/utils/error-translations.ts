@@ -25,6 +25,7 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   "EXPIRED": "This invitation code has expired.",
   "ALREADY_USED": "This invitation code has already been redeemed.",
   "RATE_LIMITED": "Too many attempts. Please try again later.",
+  "You must wait 30 minutes before resending this invitation.": "You must wait 30 minutes before resending this invitation.",
   "New password cannot be the same as your old password": "Your new password must be different from your old password.",
   "New email cannot be the same as current email": "The new email address cannot be the same as your current email.",
   "Email is already taken": "This email address is already in use by another account.",

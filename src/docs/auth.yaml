@@ -22,6 +22,8 @@ paths:
                 type: object
                 properties:
                   success: { type: boolean, example: true }
+                  mfaRequired: { type: boolean, example: false }
+                  tempToken: { type: string, example: "temp_jwt_if_mfa_required" }
                   accessToken: { type: string, example: "eyJhbGciOiJIUzI1Ni..." }
                   user:
                     type: object
@@ -55,6 +57,8 @@ paths:
                 type: object
                 properties:
                   success: { type: boolean, example: true }
+                  mfaRequired: { type: boolean, example: true }
+                  tempToken: { type: string, example: "temp_jwt_if_mfa_required" }
                   accessToken: { type: string, example: "eyJhbGciOiJIUzI1Ni..." }
                   user:
                     type: object
@@ -64,6 +68,66 @@ paths:
                   resetRequired: { type: boolean, example: false }
         401:
           description: Authentication failed.
+
+  /auth/verify-mfa:
+    post:
+      summary: Verify the 6-digit MFA code to complete login
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tempToken, otp]
+              properties:
+                tempToken: { type: string, example: "temp_jwt_returned_from_login" }
+                otp: { type: string, minLength: 6, maxLength: 6, example: "A1B2C3" }
+      responses:
+        200:
+          description: MFA successful, tokens issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  accessToken: { type: string, example: "eyJhbGciOiJIUzI1Ni..." }
+                  user:
+                    type: object
+                    properties:
+                      user_id: { type: string, format: uuid, example: "b8cffc86-f212-489b-bbf4-7f109570ea39" }
+                      role: { type: string, example: "clinician" }
+                  resetRequired: { type: boolean, example: false }
+        401:
+          description: Invalid OTP or expired token
+
+  /auth/resend-mfa:
+    post:
+      summary: Resend the 6-character MFA code to the user's email
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tempToken]
+              properties:
+                tempToken: { type: string, example: "temp_jwt_returned_from_login" }
+      responses:
+        200:
+          description: MFA code resent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+        429:
+          description: Rate limited (Please wait before requesting a new code)
+        400:
+          description: Invalid or expired temporary token
 
   /auth/refresh:
     post:

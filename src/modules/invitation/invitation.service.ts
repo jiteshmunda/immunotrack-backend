@@ -220,20 +220,17 @@ export class InvitationService {
     if (!oldInvite) throw new Error("INVITE_NOT_FOUND");
     if (oldInvite.status === "redeemed") throw new Error("ALREADY_REDEEMED");
 
-    // Rate limiting check
-    if (oldInvite.resendCount >= 3) {
-      const lockDuration = 60 * 60 * 1000; // 1 hour
-      if (oldInvite.lastResentAt && new Date().getTime() - oldInvite.lastResentAt.getTime() < lockDuration) {
-        throw new Error("RATE_LIMITED");
-      }
+    // 30-minute cooldown check
+    const lastSendTime = oldInvite.lastResentAt || oldInvite.generatedAt;
+    const cooldownDuration = 30 * 60 * 1000; // 30 minutes
+    if (new Date().getTime() - lastSendTime.getTime() < cooldownDuration) {
+      throw new Error("You must wait 30 minutes before resending this invitation.");
     }
 
     return await db.transaction(async (tx) => {
       const { raw, display } = this.generateInviteCode();
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + 72);
-
-      const resetCount = oldInvite.resendCount >= 3 ? 0 : oldInvite.resendCount;
 
       const [updatedInvite] = await tx
         .update(invitations)
@@ -244,7 +241,7 @@ export class InvitationService {
           expiresAt,
           generatedAt: new Date(),
           emailSentAt: null,
-          resendCount: resetCount + 1,
+          resendCount: oldInvite.resendCount + 1,
           lastResentAt: new Date(),
           failedAttempts: 0
         })

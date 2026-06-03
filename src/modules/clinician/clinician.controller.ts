@@ -235,4 +235,22 @@ export class ClinicianController {
       return sendError(res, error, 500);
     }
   }
+
+  // ------------------------------GET /clinicians/diagnoses-------------------
+
+  async getDiagnoses(req: Request, res: Response) {
+    try {
+      const { db } = await import("../../db");
+      const { diagnoses } = await import("../../db/schema/profile.schema");
+      
+      const diagnosesList = await db.select().from(diagnoses).orderBy(diagnoses.createdAt);
+
+      return sendSuccess(res, {
+        message: "Diagnoses fetched successfully",
+        data: diagnosesList,
+      });
+    } catch (error: any) {
+      return sendError(res, error, 500);
+    }
+  }
 }

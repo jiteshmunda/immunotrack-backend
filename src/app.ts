@@ -49,7 +49,7 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
   })
 );
-app.use(express.json({ limit: "10kb" }));
+app.use(express.json({ limit: "5mb" }));
 app.use(cookieParser());
 
 // Static well-known files for deep linking

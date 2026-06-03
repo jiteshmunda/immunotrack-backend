@@ -29,8 +29,8 @@ export class AuthController {
   async patientLogin(req: Request, res: Response) {
     try {
       const validated = patientLoginSchema.parse(req.body);
-      
-      const { accessToken, refreshToken, user, resetRequired } = await authService.login(
+
+      const result = await authService.login(
         validated.email,
         validated.password,
         ["patient"],
@@ -38,8 +38,12 @@ export class AuthController {
         req.headers["user-agent"]
       );
 
+      if (result.mfaRequired) {
+        return sendSuccess(res, { mfaRequired: true, tempToken: result.tempToken });
+      }
+
       // HIPAA: Set refresh token in HTTP-only cookie
-      res.cookie("refreshToken", refreshToken, {
+      res.cookie("refreshToken", result.refreshToken, {
         httpOnly: true,
         secure: ENV.NODE_ENV === "production",
         sameSite: "lax",
@@ -49,11 +53,11 @@ export class AuthController {
       await writeAudit(req, {
         action: "PATIENT_LOGIN",
         status: "success",
-        userId: user.user_id,
+        userId: result.user?.user_id,
         resourceType: "auth",
       });
 
-      return sendSuccess(res, { accessToken, user, resetRequired });
+      return sendSuccess(res, { accessToken: result.accessToken, user: result.user, resetRequired: result.resetRequired });
     } catch (error: any) {
       await writeAudit(req, {
         action: "PATIENT_LOGIN",
@@ -69,8 +73,8 @@ export class AuthController {
   async clinicianLogin(req: Request, res: Response) {
     try {
       const validated = clinicianLoginSchema.parse(req.body);
-      
-      const { accessToken, refreshToken, user, resetRequired } = await authService.login(
+
+      const result = await authService.login(
         validated.email,
         validated.password,
         ["clinician", "super admin", "admin"],
@@ -78,8 +82,12 @@ export class AuthController {
         req.headers["user-agent"]
       );
 
+      if (result.mfaRequired) {
+        return sendSuccess(res, { mfaRequired: true, tempToken: result.tempToken });
+      }
+
       // HIPAA: Set refresh token in HTTP-only cookie
-      res.cookie("refreshToken", refreshToken, {
+      res.cookie("refreshToken", result.refreshToken, {
         httpOnly: true,
         secure: ENV.NODE_ENV === "production",
         sameSite: "lax",
@@ -89,11 +97,11 @@ export class AuthController {
       await writeAudit(req, {
         action: "CLINICIAN_LOGIN",
         status: "success",
-        userId: user.user_id,
+        userId: result.user?.user_id,
         resourceType: "auth",
       });
 
-      return sendSuccess(res, { accessToken, user, resetRequired });
+      return sendSuccess(res, { accessToken: result.accessToken, user: result.user, resetRequired: result.resetRequired });
     } catch (error: any) {
       await writeAudit(req, {
         action: "CLINICIAN_LOGIN",
@@ -105,7 +113,59 @@ export class AuthController {
   }
 
 
-//  -----------POST /auth/invite/verify — Step 1 of Patient Onboarding--------------------------
+  // -------------------------------POST /auth/verify-mfa---------------------------------------
+
+  async verifyMfa(req: Request, res: Response) {
+    try {
+      // Need to define verifyMfaSchema in auth.schema.ts
+      const { verifyMfaSchema } = require("./auth.schema");
+      const validated = verifyMfaSchema.parse(req.body);
+
+      const { accessToken, refreshToken, user, resetRequired } = await authService.verifyMfaLogin(
+        validated.tempToken,
+        validated.otp,
+        req.ip,
+        req.headers["user-agent"]
+      );
+
+      res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: ENV.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      await writeAudit(req, {
+        action: "MFA_VERIFIED",
+        status: "success",
+        userId: user.user_id,
+      });
+
+      return sendSuccess(res, { accessToken, user, resetRequired });
+    } catch (error: any) {
+      await writeAudit(req, {
+        action: "MFA_VERIFIED",
+        status: "failure",
+      });
+
+      return sendError(res, error, 401);
+    }
+  }
+  async resendMfa(req: Request, res: Response) {
+    try {
+      const { tempToken } = req.body;
+      if (!tempToken) {
+        return sendError(res, new Error("Temporary token is required"), 400);
+      }
+      const result = await authService.resendMfa(tempToken);
+      return sendSuccess(res, result);
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
+
+
+  //  -----------POST /auth/invite/verify — Step 1 of Patient Onboarding--------------------------
 
   async verifyInvite(req: Request, res: Response) {
     try {
@@ -290,16 +350,17 @@ export class AuthController {
 
       return sendSuccess(res, { message: "Password has been reset successfully. Please log in with your new password." });
     } catch (error: any) {
-      const safeMessage = (error.message.includes("select") || error.message.includes("Failed query")) 
-        ? "Internal database error" 
+      const safeMessage = (error.message.includes("select") || error.message.includes("Failed query"))
+        ? "Internal database error"
         : error.message;
 
       await writeAudit(req, {
         action: "PASSWORD_RESET",
         status: "failure",
-        details: { error: safeMessage },
+        details: { error: error.message || "Unknown error" },
       });
-      return sendError(res, safeMessage, 400);
+      // Fixed: Passing the original error object instead of a string to properly support Zod and mapped errors
+      return sendError(res, error, 400);
     }
   }
 

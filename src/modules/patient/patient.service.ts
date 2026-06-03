@@ -39,6 +39,9 @@ export class PatientService {
       if (input.mfa_enabled !== undefined) {
         await tx.update(users).set({ mfaEnabled: input.mfa_enabled, updatedAt: new Date() }).where(eq(users.id, userId));
       }
+      if (input.terms_of_service !== undefined) {
+        await tx.update(users).set({ termsAccepted: input.terms_of_service, updatedAt: new Date() }).where(eq(users.id, userId));
+      }
 
       const updates: any = { updatedAt: new Date() };
       
@@ -123,6 +126,7 @@ export class PatientService {
       clinic_name: assignment?.clinicName || null,
       patient_id: patient.id,
       mfa_enabled: user.mfaEnabled,
+      terms_of_service: user.termsAccepted,
       date_of_birth: (() => {
         if (!patient.dateOfBirth) return null;
         const rawDob = decrypt(patient.dateOfBirth);

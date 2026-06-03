@@ -19,6 +19,9 @@ jobs:
           script: |
             cd /var/www/immunotrack/backend
 
+            echo "Removing local lockfile to avoid conflicts"
+            rm -f package-lock.json
+
             echo "Pull latest code"
             git pull origin deployment/dev
 

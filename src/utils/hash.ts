@@ -11,8 +11,23 @@ export async function verifyPassword(plain: string, hash: string): Promise<boole
 }
 
 export function generateTempPassword(): string {
-  const randomBytes = crypto.randomBytes(6).toString("hex"); // 12 chars lowercase & numbers
-  return `Temp${randomBytes}!`; // Ensures uppercase, lowercase, numbers, and special character
+  const chars = "abcdefghijklmnopqrstuvwxyz";
+  const caps = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const nums = "0123456789";
+  const specials = "!@#$%^&*";
+  
+  let pwd = "";
+  pwd += caps[crypto.randomInt(caps.length)];
+  pwd += nums[crypto.randomInt(nums.length)];
+  pwd += specials[crypto.randomInt(specials.length)];
+  
+  for(let i=0; i<9; i++) {
+    const pool = chars + nums + caps;
+    pwd += pool[crypto.randomInt(pool.length)];
+  }
+  
+  // Shuffle securely
+  return pwd.split('').sort(() => 0.5 - Math.random()).join('');
 }
 
 export async function checkPwnedPassword(password: string): Promise<boolean> {

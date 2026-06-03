@@ -64,6 +64,29 @@ export class EmailService {
     }
   }
 
+  async sendLoginMfaEmail(to: string, otp: string, firstName: string): Promise<void> {
+    const subject = "Your ImmunoTrack Login Code";
+    const body = this.getOtpTemplate(
+      otp,
+      "ImmunoTrack Login Verification",
+      `Hi ${firstName},<br><br>You are attempting to log in. Please use the following 6-character code to complete your login:`,
+      "This code will expire in 10 minutes. If you did not attempt to log in, please secure your account immediately."
+    );
+    await this.sendEmail({ to, subject, body });
+  }
+
+  async sendClinicianWelcomeEmail(to: string, name: string, tempPassword: string): Promise<void> {
+    const subject = "Welcome to ImmunoTrack - Your Temporary Password";
+    const body = this.getOtpTemplate(
+      tempPassword,
+      "Welcome to ImmunoTrack",
+      `Hi ${name},<br><br>An administrator has created an account for you. Please use the following temporary password to log in for the first time. You will be prompted to change it immediately after logging in.`,
+      "If you received this in error, please contact your clinic administrator.",
+      true
+    );
+    await this.sendEmail({ to, subject, body });
+  }
+
   /**
    * Generates a HIPAA-compliant invitation email template matching exact specification requirements
    */
@@ -223,7 +246,8 @@ export class EmailService {
     otp: string,
     title = "Password Reset Request",
     description = "We received a request to reset your password. Use the verification code below to proceed. This code is valid for 10 minutes.",
-    footerWarning = "If you did not request a password reset, please ignore this email or contact support if you have concerns."
+    footerWarning = "If you did not request a password reset, please ignore this email or contact support if you have concerns.",
+    isLongFormat = false
   ): string {
     return `
       <!DOCTYPE html>
@@ -259,8 +283,8 @@ export class EmailService {
             <p style="font-size: 16px; margin-bottom: 20px;">${description}</p>
 
             <div style="background-color: #F0F9F7; padding: 30px; border-radius: 8px; text-align: center; border: 1px dashed #7FE3C5; margin: 30px 0;">
-              <p style="margin-top: 0; margin-bottom: 10px; font-size: 14px; color: #666; text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">Your Verification Code</p>
-              <div style="font-size: 48px; font-weight: 800; color: #1B1E54; letter-spacing: 8px; font-family: monospace;">${otp}</div>
+              <p style="margin-top: 0; margin-bottom: 10px; font-size: 14px; color: #666; text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">${isLongFormat ? 'Your Temporary Password' : 'Your Verification Code'}</p>
+              <div style="font-size: ${isLongFormat ? '28px' : '48px'}; font-weight: 800; color: #1B1E54; letter-spacing: ${isLongFormat ? '2px' : '8px'}; font-family: monospace;">${otp}</div>
             </div>
 
             <p style="font-size: 14px; color: #666; font-style: italic;">

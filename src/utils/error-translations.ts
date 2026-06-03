@@ -25,6 +25,7 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   "EXPIRED": "This invitation code has expired.",
   "ALREADY_USED": "This invitation code has already been redeemed.",
   "RATE_LIMITED": "Too many attempts. Please try again later.",
+  "You must wait 30 minutes before resending this invitation.": "You must wait 30 minutes before resending this invitation.",
   "New password cannot be the same as your old password": "Your new password must be different from your old password.",
   "New email cannot be the same as current email": "The new email address cannot be the same as your current email.",
   "Email is already taken": "This email address is already in use by another account.",
@@ -60,5 +61,10 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   // --- File Uploads ---
   "No file uploaded": "Please select a photo to upload.",
   "Only image files are allowed!": "Only image files (JPG, PNG, WEBP) are allowed.",
-  "File too large": "The uploaded file is too large. Please select an image under 20MB."
+  "File too large": "The uploaded file is too large. Please select an image under 20MB.",
+
+  // --- Alerts ---
+  "ALERT_NOT_FOUND": "The requested alert was not found.",
+  "RESOLUTION_NOTE_MUST_BE_STRING": "Resolution note must be text.",
+  "RESOLUTION_NOTE_TOO_LONG": "Resolution note must not exceed 500 characters."
 };

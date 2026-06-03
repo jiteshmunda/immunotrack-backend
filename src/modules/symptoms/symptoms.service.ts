@@ -195,12 +195,10 @@ export class SymptomService {
         let subtype: string | null = null;
         let priority: string | null = null;
 
-        if (prevColor === "green" && currColor === "amber") {
+        if (currColor === "red") {
+          subtype = "red_zone"; priority = "Critical";
+        } else if (prevColor === "green" && currColor === "amber") {
           subtype = "threshold_crossing"; priority = "High";
-        } else if (prevColor === "amber" && currColor === "red") {
-          subtype = "threshold_crossing"; priority = "High";
-        } else if (prevColor === "green" && currColor === "red") {
-          subtype = "rapid_escalation"; priority = "Critical";
         }
 
         console.log(`[DEBUG Alert] Subtype evaluated: ${subtype} | Priority: ${priority}`);
@@ -211,7 +209,6 @@ export class SymptomService {
           .where(
             and(
               eq(alerts.patientId, patient.id),
-              eq(alerts.alertType, "declining_composite"),
               eq(alerts.domain, d.name),
               eq(alerts.status, "active")
             )
@@ -234,7 +231,7 @@ export class SymptomService {
           } else {
             await tx.insert(alerts).values({
               patientId: patient.id,
-              alertType: "declining_composite",
+              alertType: "symptom_deterioration",
               domain: d.name,
               alertSubtype: subtype,
               severityFrom: prevColor,

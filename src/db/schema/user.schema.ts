@@ -39,6 +39,12 @@ export const users = pgTable("users", {
   resetPasswordAttempts: integer("reset_password_attempts").default(0).notNull(),
   resetPasswordRequestedAt: timestamp("reset_password_requested_at"),
 
+  // MFA Login (OTP)
+  mfaEnabled: boolean("mfa_enabled").default(false).notNull(),
+  loginOtp: varchar("login_otp", { length: 64 }),
+  loginOtpExpires: timestamp("login_otp_expires"),
+  loginOtpAttempts: integer("login_otp_attempts").default(0).notNull(),
+
   profilePicture: text("profile_picture"),
 
   createdAt: timestamp("created_at").defaultNow().notNull(),

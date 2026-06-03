@@ -90,7 +90,7 @@ export class InvitationController {
 
       return sendSuccess(res, result);
     } catch (error: any) {
-      return sendError(res, error, 500);
+      return sendError(res, error, 400);
     }
   }
 

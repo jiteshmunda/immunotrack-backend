@@ -64,5 +64,15 @@ export const verifyEmailUpdateSchema = z.object({
   otp: z.string().length(6, "OTP must be 6 digits"),
 });
 
+export const verifyMfaSchema = z.object({
+  tempToken: z.string().min(1, "Temporary token is required"),
+  otp: z.string().length(6, "OTP must be 6 characters"),
+});
+
+export const resendMfaSchema = z.object({
+  tempToken: z.string().min(1, "Temporary token is required"),
+});
+
 export type RequestEmailUpdateInput = z.infer<typeof requestEmailUpdateSchema>;
 export type VerifyEmailUpdateInput = z.infer<typeof verifyEmailUpdateSchema>;
+export type VerifyMfaInput = z.infer<typeof verifyMfaSchema>;

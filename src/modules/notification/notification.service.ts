@@ -90,7 +90,10 @@ export class NotificationService {
           body: `
             <h2>Patient Alert</h2>
             <p>One of your patients has reported symptoms indicating a deterioration in their condition.</p>
-            <p>Please log in to the ImmunoTrack Clinician Portal to review their latest symptom logs and active alerts.</p>
+            <p>Please log in to the ImmunoTrack Clinician Portal immediately to review their latest symptom logs and active alerts.</p>
+            <br/>
+            <p>Best regards,</p>
+            <p><strong>The ImmunoTrack Team</strong></p>
           `
         }).catch(e => console.error("[NotificationService] Failed to send email alert:", e));
         }

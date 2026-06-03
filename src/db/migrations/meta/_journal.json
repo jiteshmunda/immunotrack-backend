@@ -225,6 +225,13 @@
       "when": 1780320420267,
       "tag": "0031_opposite_killer_shrike",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1780331282464,
+      "tag": "0032_heavy_overlord",
+      "breakpoints": true
     }
   ]
 }

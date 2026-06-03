@@ -228,7 +228,7 @@ export class EmailService {
 
             <!-- 11. Privacy statement -->
             <p style="font-size: 12px; color: #94A3B8; text-align: center; line-height: 1.6; margin-bottom: 20px;">
-              Your privacy is important to us. This invitation was sent by your clinician as part of your care. ImmunoTrack handles your health information in accordance with HIPAA. View our <a href="https://immunotrack.ai/privacy" style="color: #1B1E54; text-decoration: underline; font-weight: 600;">Privacy Policy</a>.
+              Your privacy is important to us. This invitation was sent by your clinician as part of your care. ImmunoTrack handles your health information in accordance with HIPAA. View our <a href="https://dev-api.immunotrack.ai/public/privacy.html" style="color: #1B1E54; text-decoration: underline; font-weight: 600;">Privacy Policy</a>.
             </p>
 
             <!-- 12. Support footer -->

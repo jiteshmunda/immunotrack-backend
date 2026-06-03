@@ -10,6 +10,7 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   "User not found": "The requested user account was not found.",
   "Password not set. Please complete enrollment.": "Your account password is not set yet. Please complete enrollment first.",
   "Current password is incorrect": "The current password you entered is incorrect.",
+  "Account locked. Please try again later.": "Your account is temporarily locked due to too many failed attempts. Please try again later.",
 
   // --- Registration & Invitation Onboarding ---
   "INVALID_VERIFICATION_TOKEN": "The verification token is invalid or has expired.",

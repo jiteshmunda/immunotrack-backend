@@ -52,6 +52,9 @@ app.use(
 app.use(express.json({ limit: "5mb" }));
 app.use(cookieParser());
 
+// Static public assets (e.g., logo for emails)
+app.use("/public", express.static(path.join(__dirname, "../public")));
+
 // Static well-known files for deep linking
 app.use("/.well-known", express.static(path.join(__dirname, "../deep-link-server-files/well-known"), {
   setHeaders: (res, filePath) => {

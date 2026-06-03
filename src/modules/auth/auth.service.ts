@@ -47,8 +47,7 @@ export class AuthService {
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       console.log("Login failed: user locked");
-      const diffMin = Math.ceil((user.lockedUntil.getTime() - new Date().getTime()) / 60000);
-      throw new Error(`Account locked. Please wait ${diffMin} minutes before trying again.`);
+      throw new Error("Account locked. Please try again later.");
     }
 
     if (!user.passwordHash) {
@@ -73,8 +72,11 @@ export class AuthService {
         .where(eq(users.id, user.id));
 
       if (lockedUntil) {
-        const diffMin = Math.ceil((lockedUntil.getTime() - new Date().getTime()) / 60000);
-        throw new Error(`Account locked due to too many failed attempts. Please wait ${diffMin} minutes.`);
+        if (newAttempts === 5) {
+          throw new Error("Too many failed attempts. Please wait 15 minutes before trying again.");
+        } else {
+          throw new Error("Account locked. Please try again later.");
+        }
       }
       throw new Error("Invalid email or password");
     }

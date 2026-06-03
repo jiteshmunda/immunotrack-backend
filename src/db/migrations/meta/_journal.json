@@ -232,6 +232,13 @@
       "when": 1780331282464,
       "tag": "0032_heavy_overlord",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1780487360805,
+      "tag": "0033_worried_surge",
+      "breakpoints": true
     }
   ]
 }

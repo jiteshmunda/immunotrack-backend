@@ -25,6 +25,7 @@ export const users = pgTable("users", {
   // Security flags
   isTempPassword: boolean("is_temp_password").default(false).notNull(),
   passwordChangedAt: timestamp("password_changed_at").defaultNow().notNull(),
+  termsAccepted: boolean("terms_accepted").default(false).notNull(),
 
   // Email Update (OTP)
   pendingEmail: text("pending_email"),

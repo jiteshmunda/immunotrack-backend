@@ -151,8 +151,11 @@ export class EmailService {
         <div style="max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px rgba(27,30,84,0.05);">
           
           <!-- Branded Logo Header -->
-          <div style="background-color: #1B1E54; padding: 30px; text-align: center;">
-            <h1 style="color: #7FE3C5; margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 28px; font-weight: 800; letter-spacing: 1px;">ImmunoTrack</h1>
+          <div style="background-color: #1B1E54; padding: 25px 30px; text-align: center; border-bottom: 1px solid #111438;">
+            <h1 style="margin: 0; display: inline-block; font-family: 'Montserrat', 'Poppins', 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 32px; font-weight: 700; letter-spacing: -0.5px; vertical-align: middle;">
+              <span style="color: #ffffff;">Immuno</span><span style="color: #4ebcb6;">Track</span>
+            </h1>
+            <img src="https://dev-api.immunotrack.ai/public/assets/logo.png" alt="ImmunoTrack Logo" style="max-height: 40px; width: auto; vertical-align: middle; margin-left: 12px; display: inline-block;">
           </div>
 
           <!-- Email Content Body -->
@@ -225,7 +228,7 @@ export class EmailService {
 
             <!-- 11. Privacy statement -->
             <p style="font-size: 12px; color: #94A3B8; text-align: center; line-height: 1.6; margin-bottom: 20px;">
-              Your privacy is important to us. This invitation was sent by your clinician as part of your care. ImmunoTrack handles your health information in accordance with HIPAA. View our <a href="https://immunotrack.ai/privacy" style="color: #1B1E54; text-decoration: underline; font-weight: 600;">Privacy Policy</a>.
+              Your privacy is important to us. This invitation was sent by your clinician as part of your care. ImmunoTrack handles your health information in accordance with HIPAA. View our <a href="https://dev-api.immunotrack.ai/public/privacy.html" style="color: #1B1E54; text-decoration: underline; font-weight: 600;">Privacy Policy</a>.
             </p>
 
             <!-- 12. Support footer -->
@@ -272,8 +275,11 @@ export class EmailService {
         <div style="max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e1e1e1; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
           
           <!-- Header -->
-          <div style="background-color: #1B1E54; padding: 30px; text-align: center;">
-            <h1 style="color: #7FE3C5; margin: 0; font-size: 28px; letter-spacing: 1px;">ImmunoTrack</h1>
+          <div style="background-color: #1B1E54; padding: 25px 30px; text-align: center; border-bottom: 1px solid #111438;">
+            <h1 style="margin: 0; display: inline-block; font-family: 'Montserrat', 'Poppins', 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 32px; font-weight: 700; letter-spacing: -0.5px; vertical-align: middle;">
+              <span style="color: #ffffff;">Immuno</span><span style="color: #4ebcb6;">Track</span>
+            </h1>
+            <img src="https://dev-api.immunotrack.ai/public/assets/logo.png" alt="ImmunoTrack Logo" style="max-height: 40px; width: auto; vertical-align: middle; margin-left: 12px; display: inline-block;">
           </div>
 
           <!-- Content -->
@@ -323,8 +329,9 @@ export class EmailService {
         <style>
           body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1B1E54; margin: 0; padding: 0; background-color: #f9f9f9; }
           .container { max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e1e1e1; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-          .header { background-color: #1B1E54; padding: 30px; text-align: center; }
-          .header h1 { color: #7FE3C5; margin: 0; font-size: 28px; letter-spacing: 1px; }
+          .header { background-color: #1B1E54; padding: 25px 30px; text-align: center; border-bottom: 1px solid #111438; }
+          .header h1 { color: #7FE3C5; margin: 0; display: inline-block; font-size: 28px; font-weight: 800; letter-spacing: 1px; vertical-align: middle; }
+          .header img { max-height: 40px; width: auto; vertical-align: middle; margin-right: 12px; display: inline-block; }
           .content { padding: 40px 30px; }
           .title { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: #e11d48; }
           .message { font-size: 16px; margin-bottom: 20px; }
@@ -334,7 +341,10 @@ export class EmailService {
       <body>
         <div class="container">
           <div class="header">
-            <h1>ImmunoTrack</h1>
+            <h1 style="margin: 0; display: inline-block; font-family: 'Montserrat', 'Poppins', 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 32px; font-weight: 700; letter-spacing: -0.5px; vertical-align: middle;">
+              <span style="color: #ffffff;">Immuno</span><span style="color: #4ebcb6;">Track</span>
+            </h1>
+            <img src="https://dev-api.immunotrack.ai/public/assets/logo.png" alt="ImmunoTrack Logo">
           </div>
           <div class="content">
             <p class="title">${title}</p>

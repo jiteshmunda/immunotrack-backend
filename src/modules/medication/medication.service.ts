@@ -864,7 +864,7 @@ export class MedicationService {
     const nonPrnMeds = metrics.filter(m => !m.isPrn);
     const overallPercentage = nonPrnMeds.length > 0
       ? nonPrnMeds.reduce((acc, m) => acc + (m.adherencePercentage || 0), 0) / nonPrnMeds.length
-      : 100;
+      : 0;
 
     const totalTaken = nonPrnMeds.reduce((sum, m) => sum + m.daysTaken, 0);
     const totalDays = nonPrnMeds.reduce((sum, m) => sum + m.calculationWindow.totalDays, 0);

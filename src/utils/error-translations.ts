@@ -11,6 +11,7 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   "Password not set. Please complete enrollment.": "Your account password is not set yet. Please complete enrollment first.",
   "Current password is incorrect": "The current password you entered is incorrect.",
   "Account locked. Please try again later.": "Your account is temporarily locked due to too many failed attempts. Please try again later.",
+  "Account archived. Please contact support.": "Your account has been archived. Please contact your clinic administrator",
 
   // --- Registration & Invitation Onboarding ---
   "INVALID_VERIFICATION_TOKEN": "The verification token is invalid or has expired.",

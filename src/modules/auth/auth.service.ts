@@ -45,6 +45,11 @@ export class AuthService {
       throw new Error("Invalid email or password");
     }
 
+    if (user.status === "archived") {
+      console.log("Login failed: user is archived");
+      throw new Error("Account archived. Please contact support.");
+    }
+
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       console.log("Login failed: user locked");
       throw new Error("Account locked. Please try again later.");

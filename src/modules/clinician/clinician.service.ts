@@ -218,10 +218,7 @@ export class ClinicianService {
     const targetClinicians = await db
       .select({ id: clinicians.id })
       .from(clinicians)
-      .where(or(
-        eq(clinicians.userId, userId),
-        eq(clinicians.createdBy, userId)
-      ));
+      .where(eq(clinicians.userId, userId));
 
     if (targetClinicians.length === 0) {
       return {
@@ -403,10 +400,7 @@ export class ClinicianService {
     const targetClinicians = await db
       .select({ id: clinicians.id })
       .from(clinicians)
-      .where(or(
-        eq(clinicians.userId, clinicianUserId),
-        eq(clinicians.createdBy, clinicianUserId)
-      ));
+      .where(eq(clinicians.userId, clinicianUserId));
     
     if (targetClinicians.length === 0) throw new Error("UNAUTHORIZED_ACCESS_TO_PATIENT_DATA");
     const clinicianIds = targetClinicians.map(c => c.id);
@@ -517,10 +511,7 @@ export class ClinicianService {
     // 1. Get Clinician
     const targetClinicians = await db.select({ id: clinicians.id })
       .from(clinicians)
-      .where(or(
-        eq(clinicians.userId, clinicianUserId),
-        eq(clinicians.createdBy, clinicianUserId)
-      ));
+      .where(eq(clinicians.userId, clinicianUserId));
       
     if (targetClinicians.length === 0) throw new Error("CLINICIAN_NOT_FOUND");
     const clinicianIds = targetClinicians.map(c => c.id);

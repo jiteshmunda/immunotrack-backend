@@ -53,6 +53,13 @@ export class AdminService {
     const clinicianUserIds = orgClinicians.map(c => c.userId).filter(Boolean) as string[];
     const clinicianIds = orgClinicians.map(c => c.id);
 
+    const orgSystemAdmins = await db
+      .select({ userId: systemAdmins.userId })
+      .from(systemAdmins)
+      .where(eq(systemAdmins.clinicId, adminClinicId));
+
+    const sysAdminUserIds = orgSystemAdmins.map(s => s.userId).filter(Boolean) as string[];
+
     let patientUserIds: string[] = [];
     let patientIds: string[] = [];
     
@@ -68,7 +75,7 @@ export class AdminService {
     }
     
     return {
-      userIds: Array.from(new Set([...clinicianUserIds, ...patientUserIds])),
+      userIds: Array.from(new Set([...clinicianUserIds, ...sysAdminUserIds, ...patientUserIds])),
       patientIds: Array.from(new Set(patientIds))
     };
   }

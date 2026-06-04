@@ -33,7 +33,7 @@ export async function resolveClinicianProfile(
     }
 
     const [clinician] = await db
-      .select({ 
+      .select({
         id: clinicians.id,
         name: clinicians.organizationName,
         clinicId: clinicians.clinicId
@@ -44,7 +44,7 @@ export async function resolveClinicianProfile(
 
     if (!clinician) {
       const role = (req as AuthenticatedRequest).user?.role;
-      if (role === "admin" || role === "super admin" || role === "system_admin") {
+      if (role === "admin" || role === "super admin") {
         return next();
       }
       return sendError(res, "CLINICIAN_PROFILE_NOT_FOUND", 404);
@@ -56,7 +56,7 @@ export async function resolveClinicianProfile(
       clinicianReq.clinicId = clinician.clinicId;
     }
     clinicianReq.clinicianName = clinician.name || "Your Provider";
-    
+
     next();
   } catch (error: any) {
     console.error("Clinician Profile Resolution Error:", error);

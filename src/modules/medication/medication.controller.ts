@@ -248,5 +248,32 @@ export class MedicationController {
       return sendError(res, error, 500);
     }
   }
-}
+  // ---------------------------------- PUT /medications/missed/:id/resolve --------------------------------
+  async resolveMissedLog(req: Request, res: Response) {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const id = req.params.id as string;
+      const { takenTime } = req.body;
 
+      if (!takenTime) {
+        throw new Error("takenTime is required");
+      }
+
+      const result = await medicationService.resolveMissedLog(authReq.user.userId, id, takenTime);
+
+      await writeAudit(req, {
+        action: "MISSED_LOG_RESOLVED",
+        status: "success",
+        userId: authReq.user.userId,
+        resourceId: id,
+        resourceType: "missed_medication_log",
+      });
+
+      return sendSuccess(res, result);
+    } catch (error: any) {
+      const status = error.message.includes("EXPIRED") ? 400 : 
+                    error.message.includes("NOT_FOUND") ? 404 : 400;
+      return sendError(res, error, status);
+    }
+  }
+}

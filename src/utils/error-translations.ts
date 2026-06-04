@@ -67,5 +67,10 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   // --- Alerts ---
   "ALERT_NOT_FOUND": "The requested alert was not found.",
   "RESOLUTION_NOTE_MUST_BE_STRING": "Resolution note must be text.",
-  "RESOLUTION_NOTE_TOO_LONG": "Resolution note must not exceed 500 characters."
+  "RESOLUTION_NOTE_TOO_LONG": "Resolution note must not exceed 500 characters.",
+
+  // --- Missed Logs ---
+  "MISSED_LOG_NOT_FOUND_OR_UNAUTHORIZED": "We couldn't find this missed log, or you don't have permission to modify it.",
+  "MISSED_LOG_EXPIRED": "This missed log is older than 24 hours and can no longer be resolved.",
+  "takenTime is required": "Please provide the 'takenTime' in the request body."
 };

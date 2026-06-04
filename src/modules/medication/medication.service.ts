@@ -921,4 +921,56 @@ export class MedicationService {
       dose: decrypt(log.dose)
     }));
   }
+  // ---------------------------------- PUT /medications/missed/:id/resolve --------------------------------
+  async resolveMissedLog(userId: string, missedLogId: string, takenTime: string) {
+    const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
+    if (!patient) throw new Error("PATIENT_NOT_FOUND");
+
+    const [missedLog] = await db.select()
+      .from(missedMedicationLogs)
+      .where(and(
+        eq(missedMedicationLogs.id, missedLogId),
+        eq(missedMedicationLogs.patientId, patient.id)
+      ))
+      .limit(1);
+
+    if (!missedLog) throw new Error("MISSED_LOG_NOT_FOUND_OR_UNAUTHORIZED");
+
+    // Expiration check: Must be within 24 hours
+    const msSinceMissed = Date.now() - new Date(missedLog.missedTime).getTime();
+    const hoursSinceMissed = msSinceMissed / (1000 * 60 * 60);
+
+    if (hoursSinceMissed > 24) {
+      throw new Error("MISSED_LOG_EXPIRED");
+    }
+
+    await db.transaction(async (tx) => {
+      await tx.delete(missedMedicationLogs).where(eq(missedMedicationLogs.id, missedLogId));
+
+      const startOfDay = new Date(missedLog.missedDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(missedLog.missedDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const [targetLog] = await tx.select()
+        .from(medicationLogs)
+        .where(and(
+          eq(medicationLogs.patientId, patient.id),
+          eq(medicationLogs.medicationId, missedLog.medicationId),
+          eq(medicationLogs.status, "missed"),
+          between(medicationLogs.loggedAt, startOfDay, endOfDay)
+        ))
+        .limit(1);
+
+      if (targetLog) {
+        await tx.delete(medicationLogs).where(eq(medicationLogs.id, targetLog.id));
+      }
+    });
+
+    return this.logMedication(userId, {
+      medicationId: missedLog.medicationId,
+      status: "taken",
+      takenTime: takenTime,
+    });
+  }
 }

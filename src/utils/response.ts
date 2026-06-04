@@ -8,7 +8,7 @@ export const sendSuccess = (res: Response, data: object, status = 200) =>
 
 
 export const sendError = (res: Response, error: any, status = 400) => {
-  const { sanitizedMessage, technicalDetails, statusCode } = sanitizeError(error, status);
+  const { sanitizedMessage, technicalDetails, statusCode, validationErrors } = sanitizeError(error, status);
   
   const redactedTechnicalDetails = redactData(technicalDetails);
 
@@ -18,10 +18,16 @@ export const sendError = (res: Response, error: any, status = 400) => {
     timestamp: new Date().toISOString()
   });
 
-  return res.status(statusCode).json({ 
-    success: false, 
-    message: sanitizedMessage 
-  });
+  const responseBody: any = {
+    success: false,
+    message: sanitizedMessage
+  };
+
+  if (validationErrors) {
+    responseBody.errors = validationErrors;
+  }
+
+  return res.status(statusCode).json(responseBody);
 };
 
 
@@ -29,15 +35,35 @@ function sanitizeError(error: any, defaultStatus: number) {
   let sanitizedMessage = "An unexpected error occurred";
   let technicalDetails: any = { name: "Error" };
   let statusCode = defaultStatus;
+  let validationErrors: any = undefined;
 
   if (error instanceof ZodError) {
-    sanitizedMessage = error.issues
-      .map((e: any) => {
-        const pathKey = e.path.join(".");
-        const combined = `${pathKey}: ${e.message}`;
-        return ERROR_TRANSLATIONS[combined] || ERROR_TRANSLATIONS[e.message] || combined;
-      })
-      .join(", ");
+    sanitizedMessage = "Validation failed. Please check your inputs.";
+    
+    validationErrors = error.issues.map((e: any) => {
+      const pathKey = e.path.join(".");
+      const combined = `${pathKey}: ${e.message}`;
+      
+      let msg = ERROR_TRANSLATIONS[combined] || ERROR_TRANSLATIONS[e.message];
+      
+      if (!msg) {
+        msg = e.message.replace(/\\"/g, "'").replace(/"/g, "'");
+        if (msg.includes("Invalid option: expected one of")) {
+          msg = "Please select a valid option.";
+        } else if (msg.includes("String must contain at least")) {
+          msg = "This field cannot be empty.";
+        } else if (msg.includes("Expected") && msg.includes("received")) {
+          msg = "Invalid data format provided.";
+        } else if (msg === "Required") {
+          msg = "This field is required.";
+        }
+      }
+
+      return {
+        field: pathKey,
+        message: msg
+      };
+    });
     
     technicalDetails = { 
       type: "ZodError", 
@@ -86,7 +112,7 @@ function sanitizeError(error: any, defaultStatus: number) {
     }
   }
 
-  return { sanitizedMessage, technicalDetails, statusCode };
+  return { sanitizedMessage, technicalDetails, statusCode, validationErrors };
 }
 
 

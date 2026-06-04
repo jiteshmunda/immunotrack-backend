@@ -1240,13 +1240,19 @@ export class AdminService {
       .select({
         id: clinicians.id,
         userId: clinicians.userId,
-        clinicId: clinicians.clinicId
+        clinicId: clinicians.clinicId,
+        status: users.status
       })
       .from(clinicians)
+      .innerJoin(users, eq(clinicians.userId, users.id))
       .where(eq(clinicians.id, clinicianId));
 
     if (targetClinicians.length === 0) {
       throw new Error("Clinician not found");
+    }
+
+    if (targetClinicians[0].status === "archived") {
+      throw new Error("Forbidden: Cannot modify an archived clinician");
     }
 
     const adminClinicId = await this.getAdminClinicId(adminId);
@@ -1280,13 +1286,19 @@ export class AdminService {
       .select({
         id: clinicians.id,
         clinicId: clinicians.clinicId,
-        userId: clinicians.userId
+        userId: clinicians.userId,
+        status: users.status
       })
       .from(clinicians)
+      .innerJoin(users, eq(clinicians.userId, users.id))
       .where(eq(clinicians.id, toClinicianId));
 
     if (targetClinicians.length === 0) {
       throw new Error("Target clinician not found");
+    }
+
+    if (targetClinicians[0].status === "archived") {
+      throw new Error("Forbidden: Cannot transfer patients to an archived clinician");
     }
 
     const adminClinicId = await this.getAdminClinicId(adminId);

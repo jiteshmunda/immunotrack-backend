@@ -57,7 +57,16 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   "UNAUTHORIZED_ACCESS_TO_PATIENT_DATA": "Access Denied: You are not assigned to this patient.",
   "Clinician ID is required": "Clinician ID is required.",
   "Clinician not found": "The requested clinician was not found.",
+  "Target clinician not found": "The target clinician for the transfer was not found.",
   "Forbidden: You do not have permission to delete this clinician": "Access Denied: You do not have permission to delete this clinician.",
+  "Forbidden: You do not have permission to view this clinician": "Access Denied: You do not have permission to view this clinician.",
+  "Forbidden: Cannot modify an archived clinician": "Access Denied: Cannot modify an archived clinician.",
+  "Forbidden: You do not have permission to modify this clinician": "Access Denied: You do not have permission to modify this clinician.",
+  "Forbidden: Cannot transfer patients to an archived clinician": "Access Denied: Cannot transfer patients to an archived clinician.",
+  "Forbidden: You do not have permission to assign patients to this clinician": "Access Denied: You do not have permission to assign patients to this clinician.",
+  "Forbidden: You do not have permission to view this clinician's patients": "Access Denied: You do not have permission to view this clinician's patients.",
+  "Forbidden: User not found or not in your organization": "Access Denied: User not found or not in your organization.",
+  "Forbidden: Patient not found or not in your organization": "Access Denied: Patient not found or not in your organization.",
 
   // --- File Uploads ---
   "No file uploaded": "Please select a photo to upload.",

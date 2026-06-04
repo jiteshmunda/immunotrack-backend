@@ -34,6 +34,7 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   "Password has been used recently. Please choose a new password.": "Password has been used recently. Please choose a new password.",
   "Password must be at least 12 characters for this role": "Password must be at least 12 characters for this role",
   "Password has appeared in a known data breach. Please choose a stronger password.": "Password has appeared in a known data breach. Please choose a stronger password.",
+  "A user with this email address already exists.": "An account with this email address already exists.",
 
   // --- Medication Plan Modules ---
   "PATIENT_NOT_FOUND": "We couldn't find your profile. Please complete your registration.",

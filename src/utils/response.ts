@@ -40,7 +40,9 @@ function sanitizeError(error: any, defaultStatus: number) {
   if (error instanceof ZodError) {
     sanitizedMessage = "Validation failed. Please check your inputs.";
     
-    validationErrors = error.issues.map((e: any) => {
+    const uniqueErrors = new Map<string, any>();
+    
+    error.issues.forEach((e: any) => {
       const pathKey = e.path.join(".");
       const combined = `${pathKey}: ${e.message}`;
       
@@ -59,11 +61,13 @@ function sanitizeError(error: any, defaultStatus: number) {
         }
       }
 
-      return {
-        field: pathKey,
-        message: msg
-      };
+      const dedupKey = `${pathKey}-${msg}`;
+      if (!uniqueErrors.has(dedupKey)) {
+        uniqueErrors.set(dedupKey, { field: pathKey, message: msg });
+      }
     });
+
+    validationErrors = Array.from(uniqueErrors.values());
     
     technicalDetails = { 
       type: "ZodError", 

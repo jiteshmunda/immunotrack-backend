@@ -36,6 +36,18 @@ export class ClinicianService {
     const tempPassword = generateTempPassword();
     
     const emailHash = hashForLookup(input.email);
+    
+    // Check if user already exists
+    const existingUser = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.emailHash, emailHash))
+      .limit(1);
+
+    if (existingUser.length > 0) {
+      throw new Error("A user with this email address already exists.");
+    }
+
     const encryptedEmail = encrypt(input.email);
     const hashedPassword = await hashPassword(tempPassword);
 

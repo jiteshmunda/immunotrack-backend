@@ -239,6 +239,7 @@ export class ClinicianService {
       .select({
         id: patients.id,
         fullName: users.fullName,
+        email: users.email,
         primaryDiagnosis: patients.primaryDiagnosis,
       })
       .from(patientClinicianAssignments)
@@ -317,6 +318,7 @@ export class ClinicianService {
       return {
         id: p.id,
         name: decrypt(p.fullName!),
+        email: p.email ? decrypt(p.email) : null,
         primary_diagnosis: p.primaryDiagnosis ? decrypt(p.primaryDiagnosis) : null,
         last_logged_date: lastLoggedDate,
         risk_score: riskScore,

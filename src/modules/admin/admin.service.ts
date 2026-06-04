@@ -382,7 +382,7 @@ export class AdminService {
     const active_patients = uniquePatients.length;
 
     if (active_patients === 0) {
-      return this.emptyDashboard();
+      return this.emptyDashboard(active_clinicians);
     }
     const patientIds = uniquePatients.map(p => p.id);
 
@@ -515,10 +515,10 @@ export class AdminService {
     };
   }
 
-  private emptyDashboard() {
+  private emptyDashboard(activeClinicians: number = 0) {
     return {
       active_patients: 0,
-      active_clinicians: 0,
+      active_clinicians: activeClinicians,
       daily_logs: 0,
       adherence_rate: 0,
       avg_symptom_score: 0,

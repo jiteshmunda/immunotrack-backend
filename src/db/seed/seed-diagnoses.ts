@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { diagnoses } from "../db/schema/profile.schema";
-import { loadSecrets, ENV } from "../config/env";
+import { diagnoses } from "../schema/profile.schema";
+import { loadSecrets, ENV } from "../../config/env";
 
 const seedData = [
   { name: "Allergic Rhinitis", icd10Code: "J30.1", category: "allergic_rhinitis" },

@@ -1,6 +1,6 @@
 import { db } from "../../db";
 import { users } from "../../db/schema/user.schema";
-import { clinicians, patients, patientClinicianAssignments } from "../../db/schema/profile.schema";
+import { clinicians, patients, patientClinicianAssignments, systemAdmins } from "../../db/schema/profile.schema";
 import { dailyLogs, patientMedications, medicationLogs } from "../../db/schema/tracking.schema";
 import { clinics } from "../../db/schema/clinic.schema";
 import { roles } from "../../db/schema/role.schema";
@@ -84,12 +84,21 @@ export class ClinicianService {
       const [adminRecord] = await tx
         .select({ clinicId: clinicians.clinicId })
         .from(clinicians)
-        .innerJoin(users, eq(clinicians.userId, users.id))
-        .where(and(eq(clinicians.userId, creatorId), eq(users.roleId, (await tx.select().from(roles).where(eq(roles.name, "admin")).limit(1))[0]?.id)))
+        .where(eq(clinicians.userId, creatorId))
         .limit(1);
 
       if (adminRecord && adminRecord.clinicId) {
         clinicId = adminRecord.clinicId;
+      } else {
+        const [systemAdminRecord] = await tx
+          .select({ clinicId: systemAdmins.clinicId })
+          .from(systemAdmins)
+          .where(eq(systemAdmins.userId, creatorId))
+          .limit(1);
+        
+        if (systemAdminRecord && systemAdminRecord.clinicId) {
+          clinicId = systemAdminRecord.clinicId;
+        }
       }
 
       // 5. Create Clinician Profile

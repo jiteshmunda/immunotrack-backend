@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { AdminService } from "./admin.service";
 import { createClinicianSchema } from "../clinician/clinician.schema";
+import { createSystemAdminSchema } from "./admin.schema";
 import { sendSuccess, sendError } from "../../utils/response";
 import { writeAudit } from "../../utils/audit";
 import { AuthenticatedRequest } from "../../common/middleware/auth.middleware";
@@ -33,6 +34,33 @@ export class AdminController {
       return sendError(res, error, 400);
     }
   }
+
+  async createSystemAdmin(req: Request, res: Response) {
+    try {
+      const validated = createSystemAdminSchema.parse(req.body);
+      
+      const result = await adminService.createSystemAdmin(validated);
+
+      await writeAudit(req, {
+        action: "CREATE_SYSTEM_ADMIN",
+        status: "success",
+        userId: (req as AuthenticatedRequest).user.userId,
+        resourceType: "system_admin",
+        resourceId: result.adminId,
+      });
+
+      return sendSuccess(res, {
+        message: "System Admin created successfully",
+        data: {
+          adminId: result.adminId,
+          temporaryPassword: result.tempPassword,
+        },
+      });
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
+
 
   async getClinicians(req: Request, res: Response) {
     try {

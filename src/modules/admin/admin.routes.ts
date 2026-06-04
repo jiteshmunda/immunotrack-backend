@@ -12,6 +12,13 @@ router.post(
   adminController.create.bind(adminController)
 );
 
+router.post(
+  "/system",
+  authenticateJWT,
+  requireRole(["super admin"]),
+  adminController.createSystemAdmin.bind(adminController)
+);
+
 router.get(
   "/clinicians",
   authenticateJWT,

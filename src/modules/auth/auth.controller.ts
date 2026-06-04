@@ -77,7 +77,7 @@ export class AuthController {
       const result = await authService.login(
         validated.email,
         validated.password,
-        ["clinician", "super admin", "admin"],
+        ["clinician", "super admin", "admin", "system_admin"],
         req.ip,
         req.headers["user-agent"]
       );

@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 const defaultRoles = [
   { name: "super admin", description: "System administrator with full access" },
   { name: "admin", description: "Clinic administrator managing clinicians" },
+  { name: "system_admin", description: "Pure clinic administrator without a clinician profile" },
   { name: "clinician", description: "Healthcare professional managing patients" },
   { name: "patient", description: "User receiving care and tracking symptoms" },
 ];

@@ -64,6 +64,14 @@ export const clinicians = pgTable("clinicians", {
   createdAt:        timestamp("created_at").defaultNow().notNull(),
 });
 
+// ── System Admins ──────────────────────────────────────────────
+export const systemAdmins = pgTable("system_admins", {
+  id:               uuid("id").primaryKey().defaultRandom(),
+  userId:           uuid("user_id").notNull().references(() => users.id),
+  clinicId:         uuid("clinic_id").references(() => clinics.id),
+  createdAt:        timestamp("created_at").defaultNow().notNull(),
+});
+
 // ── Care Teams ───────────────────────────────────────────────
 export const careTeams = pgTable("care_teams", {
   id:        uuid("id").primaryKey().defaultRandom(),

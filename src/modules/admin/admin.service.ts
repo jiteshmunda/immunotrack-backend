@@ -1,6 +1,6 @@
 import { db } from "../../db";
 import { users } from "../../db/schema/user.schema";
-import { clinicians, patients, patientClinicianAssignments } from "../../db/schema/profile.schema";
+import { clinicians, patients, patientClinicianAssignments, systemAdmins } from "../../db/schema/profile.schema";
 import { clinics } from "../../db/schema/clinic.schema";
 import { roles } from "../../db/schema/role.schema";
 import { dailyLogs, patientMedications, medicationLogs } from "../../db/schema/tracking.schema";
@@ -12,6 +12,7 @@ import { hashForLookup, encrypt, decrypt } from "../../utils/encryption";
 import { hashPassword, generateTempPassword } from "../../utils/hash";
 import { eq, sql, and, or, between, inArray, gte, lte, desc } from "drizzle-orm";
 import { CreateClinicianInput } from "../clinician/clinician.schema";
+import { CreateSystemAdminInput } from "./admin.schema";
 import { MedicationService } from "../medication/medication.service";
 import { calculateRiskScore, getSeverityLevel } from "../symptoms/utils/symptom-scores";
 import { getAverageResponseTime } from "../../common/middleware/metrics.middleware";
@@ -26,10 +27,21 @@ export class AdminService {
       .where(eq(clinicians.userId, adminId))
       .limit(1);
 
-    if (!adminClinician || !adminClinician.clinicId) {
-      throw new Error("Admin organization not found");
+    if (adminClinician && adminClinician.clinicId) {
+      return adminClinician.clinicId;
     }
-    return adminClinician.clinicId;
+    
+    const [systemAdmin] = await db
+      .select({ clinicId: systemAdmins.clinicId })
+      .from(systemAdmins)
+      .where(eq(systemAdmins.userId, adminId))
+      .limit(1);
+
+    if (systemAdmin && systemAdmin.clinicId) {
+      return systemAdmin.clinicId;
+    }
+
+    throw new Error("Admin organization not found");
   }
 
   private async getOrgScopes(adminClinicId: string): Promise<{ userIds: string[], patientIds: string[] }> {
@@ -139,6 +151,80 @@ export class AdminService {
         clinicalRole: input.role,
         specialty: input.specialty,
         organizationName: input.organizationName,
+      });
+
+      return {
+        adminId: newUser.id,
+        tempPassword,
+      };
+    });
+  }
+
+  async createSystemAdmin(input: CreateSystemAdminInput) {
+    return db.transaction(async (tx) => {
+      const existingUser = await tx
+        .select()
+        .from(users)
+        .where(eq(users.email, input.email))
+        .limit(1);
+
+      if (existingUser.length > 0) {
+        throw new Error("A user with this email address already exists.");
+      }
+
+      const [adminRole] = await tx
+        .select()
+        .from(roles)
+        .where(eq(roles.name, "system_admin"))
+        .limit(1);
+
+      if (!adminRole) {
+        throw new Error("System Admin role not found in database.");
+      }
+
+      const tempPassword = generateTempPassword();
+      const hashedPassword = await hashPassword(tempPassword);
+      
+      const emailHash = hashForLookup(input.email);
+      const encryptedEmail = encrypt(input.email);
+
+      const [newUser] = await tx
+        .insert(users)
+        .values({
+          email: encryptedEmail,
+          emailHash: emailHash,
+          fullName: encrypt(input.fullName),
+          passwordHash: hashedPassword,
+          roleId: adminRole.id,
+          status: "active",
+          mfaEnabled: false,
+          isTempPassword: true,
+          passwordChangedAt: new Date(),
+        })
+        .returning();
+
+      let clinicId: string;
+      const [existingClinic] = await tx
+        .select()
+        .from(clinics)
+        .where(eq(clinics.name, input.organizationName))
+        .limit(1);
+
+      if (existingClinic) {
+        clinicId = existingClinic.id;
+      } else {
+        const [newClinic] = await tx
+          .insert(clinics)
+          .values({
+            name: input.organizationName,
+          })
+          .returning();
+        clinicId = newClinic.id;
+      }
+
+      await tx.insert(systemAdmins).values({
+        userId: newUser.id,
+        clinicId: clinicId,
       });
 
       return {

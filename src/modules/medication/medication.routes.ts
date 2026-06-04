@@ -15,6 +15,7 @@ router.post("/", requireRole(["patient"]), controller.addMedication);
 router.delete("/:id", requireRole(["patient"]), controller.deleteMedication);
 
 router.get("/logs", requireRole(["patient"]), controller.getMedicationLogs);
+router.get("/missed", requireRole(["patient"]), controller.getRecentMissedMedications);
 router.post("/logs", requireRole(["patient"]), controller.logMedication);
 
 router.post("/reminders", requireRole(["patient"]), controller.setReminder);

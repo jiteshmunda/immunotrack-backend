@@ -237,4 +237,16 @@ export class MedicationController {
       return sendError(res, error, status);
     }
   }
+
+  // ---------------------------------- GET /medications/missed --------------------------------------
+  async getRecentMissedMedications(req: Request, res: Response) {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const result = await medicationService.getRecentMissedMedications(authReq.user.userId);
+      return sendSuccess(res, result);
+    } catch (error: any) {
+      return sendError(res, error, 500);
+    }
+  }
 }
+

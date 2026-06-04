@@ -573,13 +573,16 @@ export class AdminService {
     
     const system_uptime = `${rawUptime} (99.9%)`;
 
-    // 8. Daily Symptom Log Trends (Last 7 Days)
+    // 8. Daily Symptom Log Trends (Last 30 Days)
+    const logsLast30DaysForTrends = await db.select({ patientId: dailyLogs.patientId, loggedAt: dailyLogs.loggedAt }).from(dailyLogs)
+      .where(and(inArray(dailyLogs.patientId, patientIds), between(dailyLogs.loggedAt, startOf30DaysAgo, endOfToday)));
+
     const daily_symptom_log_trends: { date: string; count: number }[] = [];
-    const trendDays = 7;
+    const trendDays = 30;
     for (let i = trendDays - 1; i >= 0; i--) {
       const d = new Date(endOfToday.getTime() - i * 24 * 60 * 60 * 1000);
       const dStr = d.toISOString().split("T")[0];
-      const count = logsLast7Days.filter(l => {
+      const count = logsLast30DaysForTrends.filter(l => {
         // loggedAt might be Date or string, handle accordingly
         const logDate = l.loggedAt instanceof Date 
           ? l.loggedAt.toISOString().split("T")[0] 

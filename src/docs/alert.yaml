@@ -15,6 +15,12 @@ paths:
                 type: object
                 properties:
                   success: { type: boolean, example: true }
+                  count:
+                    type: object
+                    properties:
+                      high: { type: integer, example: 5 }
+                      critical: { type: integer, example: 2 }
+                      medium: { type: integer, example: 1 }
                   alerts:
                     type: array
                     items:

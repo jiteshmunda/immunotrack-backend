@@ -44,7 +44,7 @@ export async function resolveClinicianProfile(
 
     if (!clinician) {
       const role = (req as AuthenticatedRequest).user?.role;
-      if (role === "admin" || role === "super admin") {
+      if (role === "admin" || role === "super admin" || role === "system_admin") {
         return next();
       }
       return sendError(res, "CLINICIAN_PROFILE_NOT_FOUND", 404);

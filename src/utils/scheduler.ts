@@ -20,6 +20,16 @@ export function startAdherenceScheduler() {
     });
   });
 
+  // Schedule to run every night at 11:59 PM (59 23 * * *)
+  cron.schedule("59 23 * * *", () => {
+    console.log("[Scheduler] Triggering nightly auto-miss medication check...");
+    
+    exec("npx tsx src/scripts/nightly-auto-miss.ts", (error, stdout, stderr) => {
+      if (error) console.error("[Scheduler] Error executing nightly auto-miss script:", error);
+      if (stdout) console.log("[Scheduler] Nightly auto-miss output:\n", stdout);
+    });
+  });
+
   // Schedule to check medication reminders every minute (* * * * *)
   cron.schedule("* * * * *", async () => {
     try {

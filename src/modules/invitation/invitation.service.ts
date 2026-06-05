@@ -64,6 +64,18 @@ export class InvitationService {
       throw new Error("Patient already has a pending invitation. Please use the resend functionality to generate a fresh code.");
     }
 
+    // Check if user already exists in the system
+    const emailHash = hashForLookup(input.patient_email);
+    const existingUser = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.emailHash, emailHash))
+      .limit(1);
+
+    if (existingUser.length > 0) {
+      throw new Error("A user with this email address already exists.");
+    }
+
     // 3. Generate secure code
     const { raw, display } = this.generateInviteCode();
     const expiresAt = new Date();

@@ -1,6 +1,6 @@
 import { db } from "../../db";
 import { users } from "../../db/schema/user.schema";
-import { clinicians, patients, patientClinicianAssignments } from "../../db/schema/profile.schema";
+import { clinicians, patients, patientClinicianAssignments, systemAdmins } from "../../db/schema/profile.schema";
 import { clinics } from "../../db/schema/clinic.schema";
 import { roles } from "../../db/schema/role.schema";
 import { dailyLogs, patientMedications, medicationLogs } from "../../db/schema/tracking.schema";
@@ -12,6 +12,7 @@ import { hashForLookup, encrypt, decrypt } from "../../utils/encryption";
 import { hashPassword, generateTempPassword } from "../../utils/hash";
 import { eq, sql, and, or, between, inArray, gte, lte, desc } from "drizzle-orm";
 import { CreateClinicianInput } from "../clinician/clinician.schema";
+import { CreateSystemAdminInput } from "./admin.schema";
 import { MedicationService } from "../medication/medication.service";
 import { calculateRiskScore, getSeverityLevel } from "../symptoms/utils/symptom-scores";
 import { getAverageResponseTime } from "../../common/middleware/metrics.middleware";
@@ -26,10 +27,21 @@ export class AdminService {
       .where(eq(clinicians.userId, adminId))
       .limit(1);
 
-    if (!adminClinician || !adminClinician.clinicId) {
-      throw new Error("Admin organization not found");
+    if (adminClinician && adminClinician.clinicId) {
+      return adminClinician.clinicId;
     }
-    return adminClinician.clinicId;
+    
+    const [systemAdmin] = await db
+      .select({ clinicId: systemAdmins.clinicId })
+      .from(systemAdmins)
+      .where(eq(systemAdmins.userId, adminId))
+      .limit(1);
+
+    if (systemAdmin && systemAdmin.clinicId) {
+      return systemAdmin.clinicId;
+    }
+
+    throw new Error("Admin organization not found");
   }
 
   private async getOrgScopes(adminClinicId: string): Promise<{ userIds: string[], patientIds: string[] }> {
@@ -40,6 +52,13 @@ export class AdminService {
 
     const clinicianUserIds = orgClinicians.map(c => c.userId).filter(Boolean) as string[];
     const clinicianIds = orgClinicians.map(c => c.id);
+
+    const orgSystemAdmins = await db
+      .select({ userId: systemAdmins.userId })
+      .from(systemAdmins)
+      .where(eq(systemAdmins.clinicId, adminClinicId));
+
+    const sysAdminUserIds = orgSystemAdmins.map(s => s.userId).filter(Boolean) as string[];
 
     let patientUserIds: string[] = [];
     let patientIds: string[] = [];
@@ -56,7 +75,7 @@ export class AdminService {
     }
     
     return {
-      userIds: Array.from(new Set([...clinicianUserIds, ...patientUserIds])),
+      userIds: Array.from(new Set([...clinicianUserIds, ...sysAdminUserIds, ...patientUserIds])),
       patientIds: Array.from(new Set(patientIds))
     };
   }
@@ -65,6 +84,17 @@ export class AdminService {
     const tempPassword = generateTempPassword();
 
     const emailHash = hashForLookup(input.email);
+    
+    const existingUser = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.emailHash, emailHash))
+      .limit(1);
+
+    if (existingUser.length > 0) {
+      throw new Error("A user with this email address already exists.");
+    }
+
     const encryptedEmail = encrypt(input.email);
     const hashedPassword = await hashPassword(tempPassword);
 
@@ -128,6 +158,80 @@ export class AdminService {
         clinicalRole: input.role,
         specialty: input.specialty,
         organizationName: input.organizationName,
+      });
+
+      return {
+        adminId: newUser.id,
+        tempPassword,
+      };
+    });
+  }
+
+  async createSystemAdmin(input: CreateSystemAdminInput) {
+    return db.transaction(async (tx) => {
+      const existingUser = await tx
+        .select()
+        .from(users)
+        .where(eq(users.email, input.email))
+        .limit(1);
+
+      if (existingUser.length > 0) {
+        throw new Error("A user with this email address already exists.");
+      }
+
+      const [adminRole] = await tx
+        .select()
+        .from(roles)
+        .where(eq(roles.name, "system_admin"))
+        .limit(1);
+
+      if (!adminRole) {
+        throw new Error("System Admin role not found in database.");
+      }
+
+      const tempPassword = generateTempPassword();
+      const hashedPassword = await hashPassword(tempPassword);
+      
+      const emailHash = hashForLookup(input.email);
+      const encryptedEmail = encrypt(input.email);
+
+      const [newUser] = await tx
+        .insert(users)
+        .values({
+          email: encryptedEmail,
+          emailHash: emailHash,
+          fullName: encrypt(input.fullName),
+          passwordHash: hashedPassword,
+          roleId: adminRole.id,
+          status: "active",
+          mfaEnabled: false,
+          isTempPassword: true,
+          passwordChangedAt: new Date(),
+        })
+        .returning();
+
+      let clinicId: string;
+      const [existingClinic] = await tx
+        .select()
+        .from(clinics)
+        .where(eq(clinics.name, input.organizationName))
+        .limit(1);
+
+      if (existingClinic) {
+        clinicId = existingClinic.id;
+      } else {
+        const [newClinic] = await tx
+          .insert(clinics)
+          .values({
+            name: input.organizationName,
+          })
+          .returning();
+        clinicId = newClinic.id;
+      }
+
+      await tx.insert(systemAdmins).values({
+        userId: newUser.id,
+        clinicId: clinicId,
       });
 
       return {
@@ -382,7 +486,7 @@ export class AdminService {
     const active_patients = uniquePatients.length;
 
     if (active_patients === 0) {
-      return this.emptyDashboard();
+      return this.emptyDashboard(active_clinicians);
     }
     const patientIds = uniquePatients.map(p => p.id);
 
@@ -469,13 +573,16 @@ export class AdminService {
     
     const system_uptime = `${rawUptime} (99.9%)`;
 
-    // 8. Daily Symptom Log Trends (Last 7 Days)
+    // 8. Daily Symptom Log Trends (Last 30 Days)
+    const logsLast30DaysForTrends = await db.select({ patientId: dailyLogs.patientId, loggedAt: dailyLogs.loggedAt }).from(dailyLogs)
+      .where(and(inArray(dailyLogs.patientId, patientIds), between(dailyLogs.loggedAt, startOf30DaysAgo, endOfToday)));
+
     const daily_symptom_log_trends: { date: string; count: number }[] = [];
-    const trendDays = 7;
+    const trendDays = 30;
     for (let i = trendDays - 1; i >= 0; i--) {
       const d = new Date(endOfToday.getTime() - i * 24 * 60 * 60 * 1000);
       const dStr = d.toISOString().split("T")[0];
-      const count = logsLast7Days.filter(l => {
+      const count = logsLast30DaysForTrends.filter(l => {
         // loggedAt might be Date or string, handle accordingly
         const logDate = l.loggedAt instanceof Date 
           ? l.loggedAt.toISOString().split("T")[0] 
@@ -515,10 +622,10 @@ export class AdminService {
     };
   }
 
-  private emptyDashboard() {
+  private emptyDashboard(activeClinicians: number = 0) {
     return {
       active_patients: 0,
-      active_clinicians: 0,
+      active_clinicians: activeClinicians,
       daily_logs: 0,
       adherence_rate: 0,
       avg_symptom_score: 0,
@@ -1240,13 +1347,19 @@ export class AdminService {
       .select({
         id: clinicians.id,
         userId: clinicians.userId,
-        clinicId: clinicians.clinicId
+        clinicId: clinicians.clinicId,
+        status: users.status
       })
       .from(clinicians)
+      .innerJoin(users, eq(clinicians.userId, users.id))
       .where(eq(clinicians.id, clinicianId));
 
     if (targetClinicians.length === 0) {
       throw new Error("Clinician not found");
+    }
+
+    if (targetClinicians[0].status === "archived") {
+      throw new Error("Forbidden: Cannot modify an archived clinician");
     }
 
     const adminClinicId = await this.getAdminClinicId(adminId);
@@ -1280,13 +1393,19 @@ export class AdminService {
       .select({
         id: clinicians.id,
         clinicId: clinicians.clinicId,
-        userId: clinicians.userId
+        userId: clinicians.userId,
+        status: users.status
       })
       .from(clinicians)
+      .innerJoin(users, eq(clinicians.userId, users.id))
       .where(eq(clinicians.id, toClinicianId));
 
     if (targetClinicians.length === 0) {
       throw new Error("Target clinician not found");
+    }
+
+    if (targetClinicians[0].status === "archived") {
+      throw new Error("Forbidden: Cannot transfer patients to an archived clinician");
     }
 
     const adminClinicId = await this.getAdminClinicId(adminId);

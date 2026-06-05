@@ -9,7 +9,7 @@ export const updatePatientProfileSchema = z.object({
   medication_reminders_enabled: z.boolean().optional(),
   reminder_time_utc: z.string().optional(),
   fcm_token: z.string().optional(),
-  location: z.string().optional(),
+  location: z.string().regex(/^[a-zA-Z\s,]+$/, "Location can only contain letters, spaces, and commas").optional(),
   latitude: z.number().min(-90, "Latitude must be >= -90").max(90, "Latitude must be <= 90").optional(),
   longitude: z.number().min(-180, "Longitude must be >= -180").max(180, "Longitude must be <= 180").optional(),
   mfa_enabled: z.boolean().optional(),

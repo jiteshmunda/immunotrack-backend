@@ -104,20 +104,7 @@ export class AuthController {
         resourceType: "auth",
       });
 
-      let is_clinician = false;
-      const [clinicianRecord] = await db
-        .select({ isClinician: clinicians.isClinician })
-        .from(clinicians)
-        .where(eq(clinicians.userId, result.user.user_id))
-        .limit(1);
-      
-      if (clinicianRecord) {
-        is_clinician = clinicianRecord.isClinician;
-      }
-
-      const userResponse = { ...result.user, is_clinician };
-
-      return sendSuccess(res, { accessToken: result.accessToken, user: userResponse, resetRequired: result.resetRequired });
+      return sendSuccess(res, { accessToken: result.accessToken, user: result.user, resetRequired: result.resetRequired });
     } catch (error: any) {
       await writeAudit(req, {
         action: "CLINICIAN_LOGIN",

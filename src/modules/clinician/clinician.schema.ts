@@ -41,6 +41,7 @@ export const createClinicianSchema = z.object({
   ], {
     message: "Please select a valid clinical role",
   }),
+  is_medical_provider: z.boolean().optional(),
 });
 
 export type CreateClinicianInput = z.infer<typeof createClinicianSchema>;

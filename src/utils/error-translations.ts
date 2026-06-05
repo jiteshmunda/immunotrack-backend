@@ -57,6 +57,7 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   "PATIENT_ID_REQUIRED_FOR_CLINICIANS": "Please select a patient to view their adherence history.",
   "CLINICIAN_NOT_FOUND": "Your clinician profile could not be verified.",
   "UNAUTHORIZED_ACCESS_TO_PATIENT_DATA": "Access Denied: You are not assigned to this patient.",
+  "ACTIVE_PATIENTS_EXIST": "Cannot convert to Admin-Only: Clinician has active patients. Please transfer them to another provider first.",
   "Clinician ID is required": "Clinician ID is required.",
   "Clinician not found": "The requested clinician was not found.",
   "Target clinician not found": "The target clinician for the transfer was not found.",

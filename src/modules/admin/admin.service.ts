@@ -241,7 +241,7 @@ export class AdminService {
     });
   }
 
-  async getClinicians(adminId: string, filters?: { status?: string; role?: string; clinical_role?: string; search?: string }) {
+  async getClinicians(adminId: string, filters?: { status?: string; role?: string; clinical_role?: string; search?: string; is_medical_provider?: boolean }) {
     let roleId: string | undefined = undefined;
     if (filters?.role) {
       const [roleData] = await db.select({ id: roles.id }).from(roles).where(eq(roles.name, filters.role)).limit(1);
@@ -263,6 +263,9 @@ export class AdminService {
     if (roleId) {
       queryConditions.push(eq(users.roleId, roleId));
     }
+    if (filters?.is_medical_provider !== undefined) {
+      queryConditions.push(eq(clinicians.isMedicalProvider, filters.is_medical_provider));
+    }
 
     const adminClinicians = await db
       .select({
@@ -275,6 +278,7 @@ export class AdminService {
         specialty: clinicians.specialty,
         npi_number: clinicians.npiNumber,
         state_of_licensure: clinicians.stateOfLicensure,
+        is_medical_provider: clinicians.isMedicalProvider,
         created_at: clinicians.createdAt,
       })
       .from(clinicians)
@@ -1305,6 +1309,7 @@ export class AdminService {
         specialty: clinicians.specialty,
         npi_number: clinicians.npiNumber,
         state_of_licensure: clinicians.stateOfLicensure,
+        is_medical_provider: clinicians.isMedicalProvider,
         created_at: clinicians.createdAt,
         createdBy: clinicians.createdBy,
         phone: clinicians.phone,
@@ -1337,7 +1342,7 @@ export class AdminService {
     };
   }
 
-  async updateClinicianRole(adminId: string, clinicianId: string, newRoleName: string) {
+  async updateClinicianRole(adminId: string, clinicianId: string, newRoleName: string, isMedicalProvider?: boolean) {
     const validRoles = ["admin", "super admin", "clinician"];
     if (!validRoles.includes(newRoleName)) {
       throw new Error("Invalid role name");
@@ -1367,6 +1372,18 @@ export class AdminService {
       throw new Error("Forbidden: You do not have permission to modify this clinician");
     }
 
+    // Hard Block Validation for Admin-Only Conversion
+    if (isMedicalProvider === false) {
+      const activePatients = await db
+        .select({ id: patientClinicianAssignments.id })
+        .from(patientClinicianAssignments)
+        .where(eq(patientClinicianAssignments.clinicianId, clinicianId));
+
+      if (activePatients.length > 0) {
+        throw new Error("ACTIVE_PATIENTS_EXIST");
+      }
+    }
+
     const roleData = await db
       .select({ id: roles.id })
       .from(roles)
@@ -1376,12 +1393,21 @@ export class AdminService {
       throw new Error("Role not found in system");
     }
 
-    await db
-      .update(users)
-      .set({ roleId: roleData[0].id, updatedAt: new Date() })
-      .where(eq(users.id, targetClinicians[0].userId!));
+    await db.transaction(async (tx) => {
+      await tx
+        .update(users)
+        .set({ roleId: roleData[0].id, updatedAt: new Date() })
+        .where(eq(users.id, targetClinicians[0].userId!));
 
-    return { message: `Clinician role successfully updated to ${newRoleName}` };
+      if (isMedicalProvider !== undefined) {
+        await tx
+          .update(clinicians)
+          .set({ isMedicalProvider })
+          .where(eq(clinicians.id, clinicianId));
+      }
+    });
+
+    return { message: `Clinician role successfully updated to ${newRoleName}${isMedicalProvider === false ? ' and medical privileges removed' : ''}` };
   }
 
   async transferPatients(adminId: string, toClinicianId: string, patientIds: string[]) {

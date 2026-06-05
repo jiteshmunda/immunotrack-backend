@@ -8,6 +8,8 @@ import { swaggerSpec } from "./config/swagger";
 import { ENV } from "./config/env"
 import router from "./routes";
 import { trackMetrics } from "./common/middleware/metrics.middleware";
+import { sendError } from "./utils/response";
+
 
 const app = express();
 
@@ -33,7 +35,7 @@ app.use(
       if (!origin) return callback(null, true);
       
       const normalizedOrigin = origin.trim().replace(/\/$/, "");
-      const isAllowed = allowedOrigins.some(allowed => 
+      const isAllowed = allowedOrigins.some(allowed =>
         allowed.trim().replace(/\/$/, "").toLowerCase() === normalizedOrigin.toLowerCase()
       );
 
@@ -276,5 +278,14 @@ app.use("/health", (req, res) => {
 
 // API Routes
 app.use("/api/v1", router);
+
+
+// Global Error Handler for unhandled errors (e.g. Multer middleware)
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err) {
+    return sendError(res, err, 400);
+  }
+  next();
+});
 
 export default app; 

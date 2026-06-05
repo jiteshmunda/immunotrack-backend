@@ -11,19 +11,22 @@ export class AlertService {
   // -----------------------------GET /alerts------------------------------------------
   
   async getAlerts(clinicianUserId: string, role: string) {
-    const [requester] = await db
-      .select({ id: clinicians.id, clinicId: clinicians.clinicId })
+    const targetClinicians = await db
+      .select({ id: clinicians.id })
       .from(clinicians)
-      .where(eq(clinicians.userId, clinicianUserId))
-      .limit(1);
+      .where(eq(clinicians.userId, clinicianUserId));
 
-    if (!requester) throw new Error("CLINICIAN_NOT_FOUND");
+    if (targetClinicians.length === 0) throw new Error("CLINICIAN_NOT_FOUND");
+    const clinicianIds = targetClinicians.map(c => c.id);
 
-    let clinicianIds = [requester.id];
+    const assignedPatientsResult = await db
+      .select({ id: patientClinicianAssignments.patientId })
+      .from(patientClinicianAssignments)
+      .where(inArray(patientClinicianAssignments.clinicianId, clinicianIds));
 
+    const patientIds = Array.from(new Set(assignedPatientsResult.map(p => p.id)));
 
-
-    if (clinicianIds.length === 0) return [];
+    if (patientIds.length === 0) return [];
 
     const results = await db
       .select({
@@ -52,17 +55,13 @@ export class AlertService {
       .from(alerts)
       .innerJoin(patients, eq(alerts.patientId, patients.id))
       .innerJoin(users, eq(patients.userId, users.id))
-      .innerJoin(
-        patientClinicianAssignments,
-        eq(patients.id, patientClinicianAssignments.patientId)
-      )
       .leftJoin(
         patientMedications,
         eq(alerts.patientMedicationId, patientMedications.id)
       )
       .where(
         and(
-          inArray(patientClinicianAssignments.clinicianId, clinicianIds),
+          inArray(alerts.patientId, patientIds),
           inArray(alerts.status, ["active", "resolved"])
         )
       )

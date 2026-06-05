@@ -1,6 +1,6 @@
 import { db } from "../../db";
 import { users } from "../../db/schema/user.schema";
-import { clinicians, patients, patientClinicianAssignments } from "../../db/schema/profile.schema";
+import { clinicians, patients, patientClinicianAssignments, systemAdmins } from "../../db/schema/profile.schema";
 import { dailyLogs, patientMedications, medicationLogs } from "../../db/schema/tracking.schema";
 import { clinics } from "../../db/schema/clinic.schema";
 import { roles } from "../../db/schema/role.schema";
@@ -36,6 +36,18 @@ export class ClinicianService {
     const tempPassword = generateTempPassword();
     
     const emailHash = hashForLookup(input.email);
+    
+    // Check if user already exists
+    const existingUser = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.emailHash, emailHash))
+      .limit(1);
+
+    if (existingUser.length > 0) {
+      throw new Error("A user with this email address already exists.");
+    }
+
     const encryptedEmail = encrypt(input.email);
     const hashedPassword = await hashPassword(tempPassword);
 
@@ -72,12 +84,21 @@ export class ClinicianService {
       const [adminRecord] = await tx
         .select({ clinicId: clinicians.clinicId })
         .from(clinicians)
-        .innerJoin(users, eq(clinicians.userId, users.id))
-        .where(and(eq(clinicians.userId, creatorId), eq(users.roleId, (await tx.select().from(roles).where(eq(roles.name, "admin")).limit(1))[0]?.id)))
+        .where(eq(clinicians.userId, creatorId))
         .limit(1);
 
       if (adminRecord && adminRecord.clinicId) {
         clinicId = adminRecord.clinicId;
+      } else {
+        const [systemAdminRecord] = await tx
+          .select({ clinicId: systemAdmins.clinicId })
+          .from(systemAdmins)
+          .where(eq(systemAdmins.userId, creatorId))
+          .limit(1);
+        
+        if (systemAdminRecord && systemAdminRecord.clinicId) {
+          clinicId = systemAdminRecord.clinicId;
+        }
       }
 
       // 5. Create Clinician Profile
@@ -112,46 +133,74 @@ export class ClinicianService {
 
   // ---------------------------------------------------- GET /clinician/profile ---------------------------------------------------
   async getProfile(userId: string) {
-    const [result] = await db
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user) throw new Error("CLINICIAN_NOT_FOUND");
+
+    const [clinicianResult] = await db
       .select({
-        user: users,
         clinician: clinicians,
         clinic: clinics,
       })
-      .from(users)
-      .innerJoin(clinicians, eq(users.id, clinicians.userId))
+      .from(clinicians)
       .leftJoin(clinics, eq(clinicians.clinicId, clinics.id))
-      .where(eq(users.id, userId))
+      .where(eq(clinicians.userId, userId))
       .limit(1);
-
-    if (!result) throw new Error("CLINICIAN_NOT_FOUND");
-
-    const { user, clinician, clinic } = result;
 
     const fullNameDecrypted = decrypt(user.fullName!);
     const parts = fullNameDecrypted.split(" ");
     const firstName = parts[0] || "";
     const lastName = parts.slice(1).join(" ") || "";
 
-    return {
-      user_id: user.id,
-      email: decrypt(user.email!),
-      first_name: firstName,
-      last_name: lastName,
-      clinician_id: clinician.id,
-      clinic_name: clinic ? clinic.name : clinician.organizationName,
-      specialty: clinician.specialty,
-      license_number: clinician.licenseNumber ? decrypt(clinician.licenseNumber) : null,
-      npi_number: clinician.npiNumber ? decrypt(clinician.npiNumber) : null,
-      phone: clinician.phone ? decrypt(clinician.phone) : null,
-      state_of_licensure: clinician.stateOfLicensure,
-      role: clinician.clinicalRole,
-      notifications_enabled: clinician.notificationsEnabled,
-      email_notifications: clinician.emailNotifications,
-      mfa_enabled: user.mfaEnabled,
-      profile_picture: user.profilePicture ? decrypt(user.profilePicture) : null,
-      created_at: clinician.createdAt,
-    };
+    if (clinicianResult) {
+      const { clinician, clinic } = clinicianResult;
+      return {
+        user_id: user.id,
+        email: decrypt(user.email!),
+        first_name: firstName,
+        last_name: lastName,
+        clinician_id: clinician.id,
+        clinic_name: clinic ? clinic.name : clinician.organizationName,
+        specialty: clinician.specialty,
+        license_number: clinician.licenseNumber ? decrypt(clinician.licenseNumber) : null,
+        npi_number: clinician.npiNumber ? decrypt(clinician.npiNumber) : null,
+        phone: clinician.phone ? decrypt(clinician.phone) : null,
+        state_of_licensure: clinician.stateOfLicensure,
+        role: clinician.clinicalRole,
+        notifications_enabled: clinician.notificationsEnabled,
+        email_notifications: clinician.emailNotifications,
+        mfa_enabled: user.mfaEnabled,
+        profile_picture: user.profilePicture ? decrypt(user.profilePicture) : null,
+        created_at: clinician.createdAt,
+      };
+    }
+
+    const [sysAdminResult] = await db
+      .select({
+        sysAdmin: systemAdmins,
+        clinic: clinics,
+      })
+      .from(systemAdmins)
+      .leftJoin(clinics, eq(systemAdmins.clinicId, clinics.id))
+      .where(eq(systemAdmins.userId, userId))
+      .limit(1);
+
+    if (sysAdminResult) {
+      const { sysAdmin, clinic } = sysAdminResult;
+      return {
+        user_id: user.id,
+        email: decrypt(user.email!),
+        first_name: firstName,
+        last_name: lastName,
+        clinician_id: sysAdmin.id,
+        clinic_name: clinic ? clinic.name : null,
+        role: "System Admin",
+        mfa_enabled: user.mfaEnabled,
+        profile_picture: user.profilePicture ? decrypt(user.profilePicture) : null,
+        created_at: sysAdmin.createdAt,
+      };
+    }
+
+    throw new Error("CLINICIAN_NOT_FOUND");
   }
 
   // ---------------------------------------------------- POST /clinician/profile/photo ---------------------------------------------------
@@ -170,7 +219,16 @@ export class ClinicianService {
   // ---------------------------------------------------- PUT /clinician/profile ---------------------------------------------------
   async updateProfile(userId: string, input: UpdateClinicianProfileInput) {
     const [clinician] = await db.select().from(clinicians).where(eq(clinicians.userId, userId)).limit(1);
-    if (!clinician) throw new Error("CLINICIAN_NOT_FOUND");
+    
+    let isSystemAdmin = false;
+    if (!clinician) {
+      const [sysAdmin] = await db.select().from(systemAdmins).where(eq(systemAdmins.userId, userId)).limit(1);
+      if (sysAdmin) {
+        isSystemAdmin = true;
+      } else {
+        throw new Error("CLINICIAN_NOT_FOUND");
+      }
+    }
 
     return await db.transaction(async (tx) => {
       // 1. Update User (Full Name)
@@ -190,21 +248,23 @@ export class ClinicianService {
       }
 
       // 2. Update Clinician Profile
-      const updates: any = {};
-      if (input.specialty !== undefined) updates.specialty = input.specialty;
-      if (input.stateOfLicensure !== undefined) updates.stateOfLicensure = input.stateOfLicensure;
-      if (input.role !== undefined) updates.clinicalRole = input.role;
-      if (input.phone !== undefined) updates.phone = input.phone ? encrypt(input.phone) : null;
-      if (input.licenseNumber !== undefined) updates.licenseNumber = input.licenseNumber ? encrypt(input.licenseNumber) : null;
-      if (input.npiNumber !== undefined) updates.npiNumber = input.npiNumber ? encrypt(input.npiNumber) : null;
-      if (input.notifications_enabled !== undefined) updates.notificationsEnabled = input.notifications_enabled;
-      if (input.email_notifications !== undefined) updates.emailNotifications = input.email_notifications;
-      if (input.fcmToken !== undefined) updates.fcmToken = input.fcmToken;
+      if (!isSystemAdmin) {
+        const updates: any = {};
+        if (input.specialty !== undefined) updates.specialty = input.specialty;
+        if (input.stateOfLicensure !== undefined) updates.stateOfLicensure = input.stateOfLicensure;
+        if (input.role !== undefined) updates.clinicalRole = input.role;
+        if (input.phone !== undefined) updates.phone = input.phone ? encrypt(input.phone) : null;
+        if (input.licenseNumber !== undefined) updates.licenseNumber = input.licenseNumber ? encrypt(input.licenseNumber) : null;
+        if (input.npiNumber !== undefined) updates.npiNumber = input.npiNumber ? encrypt(input.npiNumber) : null;
+        if (input.notifications_enabled !== undefined) updates.notificationsEnabled = input.notifications_enabled;
+        if (input.email_notifications !== undefined) updates.emailNotifications = input.email_notifications;
+        if (input.fcmToken !== undefined) updates.fcmToken = input.fcmToken;
 
-      if (Object.keys(updates).length > 0) {
-        await tx.update(clinicians)
-          .set(updates)
-          .where(eq(clinicians.id, clinician.id));
+        if (Object.keys(updates).length > 0) {
+          await tx.update(clinicians)
+            .set(updates)
+            .where(eq(clinicians.id, clinician.id));
+        }
       }
 
       return { success: true, updated_fields: Object.keys(input) };
@@ -218,10 +278,7 @@ export class ClinicianService {
     const targetClinicians = await db
       .select({ id: clinicians.id })
       .from(clinicians)
-      .where(or(
-        eq(clinicians.userId, userId),
-        eq(clinicians.createdBy, userId)
-      ));
+      .where(eq(clinicians.userId, userId));
 
     if (targetClinicians.length === 0) {
       return {
@@ -239,6 +296,7 @@ export class ClinicianService {
       .select({
         id: patients.id,
         fullName: users.fullName,
+        email: users.email,
         primaryDiagnosis: patients.primaryDiagnosis,
       })
       .from(patientClinicianAssignments)
@@ -317,6 +375,7 @@ export class ClinicianService {
       return {
         id: p.id,
         name: decrypt(p.fullName!),
+        email: p.email ? decrypt(p.email) : null,
         primary_diagnosis: p.primaryDiagnosis ? decrypt(p.primaryDiagnosis) : null,
         last_logged_date: lastLoggedDate,
         risk_score: riskScore,
@@ -401,10 +460,7 @@ export class ClinicianService {
     const targetClinicians = await db
       .select({ id: clinicians.id })
       .from(clinicians)
-      .where(or(
-        eq(clinicians.userId, clinicianUserId),
-        eq(clinicians.createdBy, clinicianUserId)
-      ));
+      .where(eq(clinicians.userId, clinicianUserId));
     
     if (targetClinicians.length === 0) throw new Error("UNAUTHORIZED_ACCESS_TO_PATIENT_DATA");
     const clinicianIds = targetClinicians.map(c => c.id);
@@ -515,10 +571,7 @@ export class ClinicianService {
     // 1. Get Clinician
     const targetClinicians = await db.select({ id: clinicians.id })
       .from(clinicians)
-      .where(or(
-        eq(clinicians.userId, clinicianUserId),
-        eq(clinicians.createdBy, clinicianUserId)
-      ));
+      .where(eq(clinicians.userId, clinicianUserId));
       
     if (targetClinicians.length === 0) throw new Error("CLINICIAN_NOT_FOUND");
     const clinicianIds = targetClinicians.map(c => c.id);

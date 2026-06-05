@@ -33,7 +33,7 @@ export async function resolveClinicianProfile(
     }
 
     const [clinician] = await db
-      .select({ 
+      .select({
         id: clinicians.id,
         name: clinicians.organizationName,
         clinicId: clinicians.clinicId
@@ -56,7 +56,7 @@ export async function resolveClinicianProfile(
       clinicianReq.clinicId = clinician.clinicId;
     }
     clinicianReq.clinicianName = clinician.name || "Your Provider";
-    
+
     next();
   } catch (error: any) {
     console.error("Clinician Profile Resolution Error:", error);

@@ -296,6 +296,16 @@ export class AuthService {
     const lastName = decrypt(invite.patientLastName);
     const fullName = `${firstName} ${lastName}`;
 
+    const existingUser = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.emailHash, emailHash))
+      .limit(1);
+
+    if (existingUser.length > 0) {
+      throw new Error("A user with this email address already exists.");
+    }
+
     const isPwned = await checkPwnedPassword(input.password);
     if (isPwned) throw new Error("Password has appeared in a known data breach. Please choose a stronger password.");
 

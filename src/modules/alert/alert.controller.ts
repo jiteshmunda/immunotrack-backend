@@ -14,7 +14,13 @@ export class AlertController {
       const user = (req as any).user;
       const alerts = await alertService.getAlerts(user.userId, user.role);
       
-      return sendSuccess(res, { alerts });
+      const count = {
+        high: alerts.filter(a => (a.severity || '').toLowerCase() === 'high' && a.status === 'active').length,
+        critical: alerts.filter(a => (a.severity || '').toLowerCase() === 'critical' && a.status === 'active').length,
+        medium: alerts.filter(a => (a.severity || '').toLowerCase() === 'medium' && a.status === 'active').length,
+      };
+
+      return sendSuccess(res, { count, alerts });
     } catch (error: any) {
       return sendError(res, error, 400);
     }

@@ -34,6 +34,7 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   "Password has been used recently. Please choose a new password.": "Password has been used recently. Please choose a new password.",
   "Password must be at least 12 characters for this role": "Password must be at least 12 characters for this role",
   "Password has appeared in a known data breach. Please choose a stronger password.": "Password has appeared in a known data breach. Please choose a stronger password.",
+  "A user with this email address already exists.": "An account with this email address already exists.",
 
   // --- Medication Plan Modules ---
   "PATIENT_NOT_FOUND": "We couldn't find your profile. Please complete your registration.",
@@ -57,7 +58,16 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   "UNAUTHORIZED_ACCESS_TO_PATIENT_DATA": "Access Denied: You are not assigned to this patient.",
   "Clinician ID is required": "Clinician ID is required.",
   "Clinician not found": "The requested clinician was not found.",
+  "Target clinician not found": "The target clinician for the transfer was not found.",
   "Forbidden: You do not have permission to delete this clinician": "Access Denied: You do not have permission to delete this clinician.",
+  "Forbidden: You do not have permission to view this clinician": "Access Denied: You do not have permission to view this clinician.",
+  "Forbidden: Cannot modify an archived clinician": "Access Denied: Cannot modify an archived clinician.",
+  "Forbidden: You do not have permission to modify this clinician": "Access Denied: You do not have permission to modify this clinician.",
+  "Forbidden: Cannot transfer patients to an archived clinician": "Access Denied: Cannot transfer patients to an archived clinician.",
+  "Forbidden: You do not have permission to assign patients to this clinician": "Access Denied: You do not have permission to assign patients to this clinician.",
+  "Forbidden: You do not have permission to view this clinician's patients": "Access Denied: You do not have permission to view this clinician's patients.",
+  "Forbidden: User not found or not in your organization": "Access Denied: User not found or not in your organization.",
+  "Forbidden: Patient not found or not in your organization": "Access Denied: Patient not found or not in your organization.",
 
   // --- File Uploads ---
   "No file uploaded": "Please select a photo to upload.",
@@ -67,5 +77,10 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   // --- Alerts ---
   "ALERT_NOT_FOUND": "The requested alert was not found.",
   "RESOLUTION_NOTE_MUST_BE_STRING": "Resolution note must be text.",
-  "RESOLUTION_NOTE_TOO_LONG": "Resolution note must not exceed 500 characters."
+  "RESOLUTION_NOTE_TOO_LONG": "Resolution note must not exceed 500 characters.",
+
+  // --- Missed Logs ---
+  "MISSED_LOG_NOT_FOUND_OR_UNAUTHORIZED": "We couldn't find this missed log, or you don't have permission to modify it.",
+  "MISSED_LOG_EXPIRED": "This missed log is older than 24 hours and can no longer be resolved.",
+  "takenTime is required": "Please provide the 'takenTime' in the request body."
 };

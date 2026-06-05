@@ -1,0 +1,206 @@
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+import { ENV, loadSecrets } from "../config/env";
+import * as schema from "../db/schema";
+import { eq, and, sql, between, desc } from "drizzle-orm";
+import { isPRNMedication } from "../utils/adherence";
+import { getDailyFrequency } from "../common/constants/medication";
+
+async function run() {
+  console.log("Starting Nightly Auto-Miss Medication Check...");
+  
+  try {
+    await loadSecrets();
+  } catch (err) {
+    console.error("Failed to load environment secrets:", err);
+    process.exit(1);
+  }
+
+  const pool = new Pool({
+    connectionString: ENV.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+  });
+  
+  const db = drizzle(pool, { schema });
+
+  try {
+    const activePatients = await db
+      .select({ id: schema.patients.id })
+      .from(schema.patients);
+
+    console.log(`Found ${activePatients.length} active patients.`);
+
+    // Determine "yesterday" bounds
+    const now = new Date();
+    // Use yesterday for checking daily meds
+    const yesterdayDate = new Date(now);
+    yesterdayDate.setDate(now.getDate() - 1);
+    
+    const startOfYesterday = new Date(yesterdayDate);
+    startOfYesterday.setHours(0, 0, 0, 0);
+
+    const endOfYesterday = new Date(yesterdayDate);
+    endOfYesterday.setHours(23, 59, 59, 999);
+
+    const yesterdayStr = yesterdayDate.toISOString().split("T")[0];
+
+    for (const patient of activePatients) {
+      const activeMeds = await db
+        .select()
+        .from(schema.patientMedications)
+        .where(
+          and(
+            eq(schema.patientMedications.patientId, patient.id),
+            eq(schema.patientMedications.active, true)
+          )
+        );
+
+      for (const med of activeMeds) {
+        if (isPRNMedication(med.frequency || "")) {
+          continue; // Skip PRN
+        }
+
+        // Check if medication has started yet
+        if (!med.startDate) continue; // Safety check for TS
+        const startDate = new Date(med.startDate);
+        startDate.setHours(0, 0, 0, 0);
+        
+        const diffTime = startOfYesterday.getTime() - startDate.getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays < 0) {
+          continue; // Medication started after yesterday
+        }
+
+        const freqLower = (med.frequency || "").toLowerCase();
+        
+        const isTwiceWeekly = freqLower.includes("twice weekly");
+        const isWeekly = !isTwiceWeekly && (freqLower.includes("weekly") || freqLower.includes("every week") || freqLower.includes("every 1 week"));
+        const isBiWeekly = freqLower.includes("every 2 weeks") || freqLower.includes("every 2-4 weeks");
+        const isMonthly = freqLower.includes("every 4 weeks") || freqLower.includes("monthly") || freqLower.includes("every month");
+        const isQuarterly = freqLower.includes("every 3 months");
+        
+        const isLowFrequency = isWeekly || isBiWeekly || isMonthly || isQuarterly || isTwiceWeekly;
+
+        // 1. Daily Medications
+        if (!isLowFrequency && (freqLower.includes("daily") || freqLower.includes("day") || freqLower.includes("times") || freqLower.includes("every"))) {
+          const expectedDoses = getDailyFrequency(med.frequency || "");
+          
+          if (expectedDoses > 0) {
+            // Check logs for yesterday
+            const logsYesterday = await db
+              .select({ status: schema.medicationLogs.status })
+              .from(schema.medicationLogs)
+              .where(
+                and(
+                  eq(schema.medicationLogs.medicationId, med.id),
+                  between(schema.medicationLogs.loggedAt, startOfYesterday, endOfYesterday)
+                )
+              );
+
+            // Both manual taken and missed count towards fulfilling the expected dose
+            const actualLogs = logsYesterday.length;
+            const deficit = Math.max(0, Math.ceil(expectedDoses) - actualLogs);
+
+            if (deficit > 0) {
+              console.log(`Patient ${patient.id} deficit ${deficit} for daily med ${med.id}`);
+              
+              await db.transaction(async (tx) => {
+                for (let i = 0; i < deficit; i++) {
+                  // Insert into medicationLogs so adherence is correctly penalized
+                  await tx.insert(schema.medicationLogs).values({
+                    patientId: patient.id,
+                    medicationId: med.id,
+                    status: "missed",
+                    missedReason: "Forgot to log dose",
+                    loggedAt: endOfYesterday, // Backdate to end of yesterday
+                  });
+
+                  // Insert into missedMedicationLogs for explicit tracking
+                  await tx.insert(schema.missedMedicationLogs).values({
+                    patientId: patient.id,
+                    medicationId: med.id,
+                    reason: "Forgot to log dose",
+                    missedDate: yesterdayStr,
+                    missedTime: endOfYesterday,
+                    isAutoGenerated: true,
+                  });
+                }
+              });
+            }
+          }
+        } 
+        
+        // 2. Low-Frequency / Weekly / Monthly Medications
+        else if (isLowFrequency) {
+          const lookbackDays = isQuarterly ? 90 : isMonthly ? 30 : isBiWeekly ? 14 : 7;
+          
+          // Only trigger if yesterday was the exact end of a clinical window
+          if (diffDays >= 0 && (diffDays + 1) % lookbackDays === 0) {
+            const windowStart = new Date(yesterdayDate);
+            windowStart.setDate(windowStart.getDate() - lookbackDays + 1); // +1 because yesterday is the last day of window
+            windowStart.setHours(0, 0, 0, 0);
+
+            const logsInWindow = await db
+              .select({ status: schema.medicationLogs.status })
+              .from(schema.medicationLogs)
+              .where(
+                and(
+                  eq(schema.medicationLogs.medicationId, med.id),
+                  between(schema.medicationLogs.loggedAt, windowStart, endOfYesterday)
+                )
+              );
+
+            const expectedDoses = isTwiceWeekly ? 2 : 1;
+            const actualLogs = logsInWindow.length;
+            const deficit = Math.max(0, expectedDoses - actualLogs);
+
+            if (deficit > 0) {
+              console.log(`Patient ${patient.id} missed clinical window (${lookbackDays} days) for med ${med.id}, deficit: ${deficit}`);
+              
+              await db.transaction(async (tx) => {
+                for (let i = 0; i < deficit; i++) {
+                  // Insert into medicationLogs
+                  await tx.insert(schema.medicationLogs).values({
+                    patientId: patient.id,
+                    medicationId: med.id,
+                    status: "missed",
+                    missedReason: "Forgot to log dose",
+                    loggedAt: endOfYesterday,
+                  });
+
+                  // Insert into missedMedicationLogs
+                  await tx.insert(schema.missedMedicationLogs).values({
+                    patientId: patient.id,
+                    medicationId: med.id,
+                    reason: "Forgot to log dose",
+                    missedDate: yesterdayStr,
+                    missedTime: endOfYesterday,
+                    isAutoGenerated: true,
+                  });
+                }
+              });
+            }
+          }
+        }
+      }
+    }
+
+    console.log("Nightly Auto-Miss Check completed successfully!");
+  } catch (error) {
+    console.error("Nightly auto-miss check failed:", error);
+  } finally {
+    if (!process.argv.includes("--watch")) {
+      await pool.end();
+    }
+  }
+}
+
+run().then(() => {
+  if (process.argv.includes("--watch")) {
+    console.log("Watch mode enabled. Repeating auto-miss check every hour...");
+    setInterval(() => {
+      run();
+    }, 60 * 60 * 1000);
+  }
+});

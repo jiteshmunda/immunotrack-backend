@@ -16,15 +16,17 @@ export const createClinicianSchema = z.object({
   
   licenseNumber: z
     .string()
-    .min(1, "License number is required")
-    .regex(/^[a-zA-Z0-9]+$/, "License number must be alphanumeric").optional(),
+    .min(4, "Please enter a valid State License number (4-20 alphanumeric characters or hyphens).")
+    .max(20, "Please enter a valid State License number (4-20 alphanumeric characters or hyphens).")
+    .regex(/^[a-zA-Z0-9-]+$/, "Please enter a valid State License number (4-20 alphanumeric characters or hyphens).")
+    .optional(),
     
   organizationName: z.string().optional(),
   
   npiNumber: z
     .string()
-    .length(10, "NPI number must be exactly 10 digits")
-    .regex(/^\d+$/, "NPI number must only contain digits"),
+    .length(10, "Please enter a valid 10-digit U.S. NPI number starting with 1 or 2.")
+    .regex(/^[12]\d{9}$/, "Please enter a valid 10-digit U.S. NPI number starting with 1 or 2."),
   
   phone: z.string().min(10, "Phone number must be at least 10 digits long").regex(/^\+?[1-9]\d{1,14}$/, "Please enter a valid phone number including country code (e.g. +1234567890)").optional(),
   
@@ -60,12 +62,14 @@ export const updateClinicianProfileSchema = z.object({
     .optional(),
   licenseNumber: z
     .string()
-    .regex(/^[a-zA-Z0-9]+$/, "License number must be alphanumeric")
+    .min(4, "Please enter a valid State License number (4-20 alphanumeric characters or hyphens).")
+    .max(20, "Please enter a valid State License number (4-20 alphanumeric characters or hyphens).")
+    .regex(/^[a-zA-Z0-9-]+$/, "Please enter a valid State License number (4-20 alphanumeric characters or hyphens).")
     .optional(),
   npiNumber: z
     .string()
-    .length(10, "NPI number must be exactly 10 digits")
-    .regex(/^\d+$/, "NPI number must only contain digits")
+    .length(10, "Please enter a valid 10-digit U.S. NPI number starting with 1 or 2.")
+    .regex(/^[12]\d{9}$/, "Please enter a valid 10-digit U.S. NPI number starting with 1 or 2.")
     .optional(),
   phone: z.string().min(10, "Phone number must be at least 10 digits long").regex(/^\+?[1-9]\d{1,14}$/, "Please enter a valid phone number including country code (e.g. +1234567890)").optional(),
   stateOfLicensure: z.string().min(2, "State must be at least 2 characters").regex(/^[a-zA-Z\\s]+$/, "State must only contain letters and spaces").optional(),

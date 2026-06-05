@@ -5,6 +5,8 @@ import { userSessions } from "../../db/schema/session.schema";
 import { eq } from "drizzle-orm";
 import { sendError } from "../../utils/response";
 
+import { users } from "../../db/schema/user.schema";
+
 export interface AuthenticatedRequest extends Request {
   user: {
     userId: string;
@@ -29,14 +31,18 @@ export async function authenticateJWT(
   try {
     const decoded = verifyToken(token);
 
-    // Stateful Revocation: Check if session still exists in DB
-    const [session] = await db
-      .select()
+    // Stateful Revocation: Check if session still exists in DB and user is not archived
+    const [sessionData] = await db
+      .select({
+        session: userSessions,
+        userStatus: users.status
+      })
       .from(userSessions)
+      .innerJoin(users, eq(userSessions.userId, users.id))
       .where(eq(userSessions.id, decoded.sid))
       .limit(1);
 
-    if (!session) {
+    if (!sessionData) {
       const [activeSession] = await db
         .select()
         .from(userSessions)
@@ -51,6 +57,10 @@ export async function authenticateJWT(
         );
       }
       return sendError(res, "Session expired or revoked", 401);
+    }
+
+    if (sessionData.userStatus === "archived") {
+      return sendError(res, "Account archived. Please contact support.", 403);
     }
 
     (req as AuthenticatedRequest).user = decoded;

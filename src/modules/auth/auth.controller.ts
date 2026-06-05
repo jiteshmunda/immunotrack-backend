@@ -1,4 +1,7 @@
 import { Request, Response } from "express";
+import { db } from "../../db";
+import { clinicians } from "../../db/schema/profile.schema";
+import { eq } from "drizzle-orm";
 import { AuthService } from "./auth.service";
 import { InvitationService } from "../invitation/invitation.service";
 import { 

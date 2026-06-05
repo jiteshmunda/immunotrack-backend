@@ -27,9 +27,11 @@ export class AuthService {
       .select({
         user: users,
         role: roles,
+        isClinicianFlag: clinicians.isClinician,
       })
       .from(users)
       .innerJoin(roles, eq(users.roleId, roles.id))
+      .leftJoin(clinicians, eq(users.id, clinicians.userId))
       .where(eq(users.emailHash, emailHash))
       .limit(1);
 
@@ -38,11 +40,25 @@ export class AuthService {
       throw new Error("Invalid email or password");
     }
 
-    const { user, role } = result;
+    const { user, role, isClinicianFlag } = result;
+    const isClinician = isClinicianFlag ?? false;
+    const isAdmin = role.name.includes("admin");
+
+    let accessLevel = "Patient";
+    if (isAdmin) {
+      accessLevel = isClinician ? "Admin + Clinician" : "Admin";
+    } else if (role.name === "clinician" || isClinician) {
+      accessLevel = "Clinician";
+    }
 
     if (!allowedRoles.includes(role.name)) {
       console.log("Login failed: role not allowed. Role:", role.name, "Allowed:", allowedRoles);
       throw new Error("Invalid email or password");
+    }
+
+    if (user.status === "archived") {
+      console.log("Login failed: user is archived");
+      throw new Error("Account archived. Please contact support.");
     }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
@@ -147,6 +163,9 @@ export class AuthService {
       user: {
         user_id: user.id,
         role: role.name,
+        is_clinician: isClinician,
+        is_admin: isAdmin,
+        access_level: accessLevel,
       },
       resetRequired: user.isTempPassword,
     };
@@ -168,8 +187,30 @@ export class AuthService {
 
     const userId = decoded.userId;
 
-    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-    if (!user) throw new Error("User not found");
+    const [result] = await db
+      .select({
+        user: users,
+        role: roles,
+        isClinicianFlag: clinicians.isClinician,
+      })
+      .from(users)
+      .innerJoin(roles, eq(users.roleId, roles.id))
+      .leftJoin(clinicians, eq(users.id, clinicians.userId))
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!result) throw new Error("User not found");
+    const { user, role, isClinicianFlag } = result;
+    
+    const isClinician = isClinicianFlag ?? false;
+    const isAdmin = role.name.includes("admin");
+
+    let accessLevel = "Patient";
+    if (isAdmin) {
+      accessLevel = isClinician ? "Admin + Clinician" : "Admin";
+    } else if (role.name === "clinician" || isClinician) {
+      accessLevel = "Clinician";
+    }
 
     if (!user.loginOtp || !user.loginOtpExpires) {
       throw new Error("MFA not requested or expired");
@@ -223,7 +264,10 @@ export class AuthService {
       refreshToken: rawRefreshToken,
       user: {
         user_id: user.id,
-        role: decoded.role,
+        role: role.name,
+        is_clinician: isClinician,
+        is_admin: isAdmin,
+        access_level: accessLevel,
       },
       resetRequired: user.isTempPassword,
     };
@@ -399,9 +443,11 @@ export class AuthService {
       .select({
         user: users,
         role: roles,
+        isClinicianFlag: clinicians.isClinician,
       })
       .from(users)
       .innerJoin(roles, eq(users.roleId, roles.id))
+      .leftJoin(clinicians, eq(users.id, clinicians.userId))
       .where(eq(users.id, session.userId))
       .limit(1);
 
@@ -409,7 +455,16 @@ export class AuthService {
       throw new Error("User associated with session not found");
     }
 
-    const { user, role } = result;
+    const { user, role, isClinicianFlag } = result;
+    const isClinician = isClinicianFlag ?? false;
+    const isAdmin = role.name.includes("admin");
+
+    let accessLevel = "Patient";
+    if (isAdmin) {
+      accessLevel = isClinician ? "Admin + Clinician" : "Admin";
+    } else if (role.name === "clinician" || isClinician) {
+      accessLevel = "Clinician";
+    }
 
     await db.delete(userSessions).where(eq(userSessions.id, session.id));
 
@@ -439,6 +494,9 @@ export class AuthService {
       user: {
         user_id: user.id,
         role: role.name,
+        is_clinician: isClinician,
+        is_admin: isAdmin,
+        access_level: accessLevel,
       },
       resetRequired: user.isTempPassword,
     };

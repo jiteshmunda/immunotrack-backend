@@ -253,6 +253,20 @@
       "when": 1780573783892,
       "tag": "0035_jazzy_gamora",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1780635594469,
+      "tag": "0036_tranquil_rockslide",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1780642766131,
+      "tag": "0037_pale_madrox",
+      "breakpoints": true
     }
   ]
 }

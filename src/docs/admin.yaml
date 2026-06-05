@@ -26,6 +26,10 @@ paths:
                   type: string
                   enum: [Allergist, Immunologist, Primary Care, Nurse Practitioner, Other]
                   example: "Immunologist"
+                is_clinician:
+                  type: boolean
+                  example: true
+                  description: "Set to false to create a Pure Admin without medical privileges."
       responses:
         200:
           description: Admin created successfully
@@ -112,6 +116,10 @@ paths:
           schema:
             type: string
           description: Search by name, email, or specialty
+        - in: query
+          name: is_clinician
+          schema: { type: boolean }
+          description: Filter by whether the user is a medical provider (true) or a pure admin (false)
       responses:
         200:
           description: List of clinicians
@@ -136,7 +144,84 @@ paths:
                         specialty: { type: string, example: "Pediatrics" }
                         npi_number: { type: string, example: "1234567890" }
                         state_of_licensure: { type: string, example: "NY" }
+                        is_clinician: { type: boolean, example: true }
                         created_at: { type: string, format: date-time, example: "2026-05-12T13:30:00Z" }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
+
+  /admins/clinicians/with-patients:
+    get:
+      summary: List all clinicians with their assigned patients
+      description: Returns a list of clinicians created by the admin, including the list and count of patients assigned to each clinician.
+      tags: [Admin - Clinician Management]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, suspended, archived]
+          description: Filter by user account status
+        - in: query
+          name: role
+          schema:
+            type: string
+            enum: [admin, clinician, super admin]
+          description: Filter by system role
+        - in: query
+          name: clinical_role
+          schema:
+            type: string
+          description: Filter by clinical title (e.g., Immunologist)
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search by name, email, or specialty
+        - in: query
+          name: is_clinician
+          schema: { type: boolean }
+          description: Filter by whether the user is a medical provider (true) or a pure admin (false)
+      responses:
+        200:
+          description: List of clinicians with their patients
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Clinicians with patients fetched successfully" }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid, example: "c7f1718b-ccff-47e0-b31b-8929c853f9b4" }
+                        user_id: { type: string, format: uuid, example: "e9f1718b-ccff-47e0-b31b-8929c853f9b4" }
+                        full_name: { type: string, example: "Dr. Willson" }
+                        email: { type: string, format: email, example: "wilson@gmail.com" }
+                        status: { type: string, example: "active" }
+                        clinical_role: { type: string, example: "Immunologist" }
+                        specialty: { type: string, example: "Pediatrics" }
+                        npi_number: { type: string, example: "1234567890" }
+                        state_of_licensure: { type: string, example: "NY" }
+                        is_clinician: { type: boolean, example: true }
+                        created_at: { type: string, format: date-time, example: "2026-05-12T13:30:00Z" }
+                        patient_count: { type: integer, example: 5 }
+                        patients:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id: { type: string, format: uuid }
+                              user_id: { type: string, format: uuid }
+                              full_name: { type: string, example: "Jane Doe" }
+                              email: { type: string, format: email, example: "jane.doe@example.com" }
+                              status: { type: string, example: "active" }
+                              mrn: { type: string, example: "MRN-12345" }
+                              date_of_birth: { type: string, format: date }
         401: { description: Unauthorized }
         403: { description: Forbidden }
 
@@ -184,6 +269,53 @@ paths:
                   success: { type: boolean, example: true }
                   message: { type: string, example: "Clinician successfully deleted!!" }
         400: { description: Bad Request }
+        401: { description: Unauthorized }
+        403: { description: Forbidden }
+        404: { description: Not Found }
+
+  /admins/clinicians/{id}/role:
+    put:
+      summary: Update a clinician's role
+      description: Allows an admin to change a clinician's role and optionally remove their medical privileges.
+      tags: [Admin - Clinician Management]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_role_name]
+              properties:
+                new_role_name: { type: string, example: "admin" }
+                is_clinician: { type: boolean, example: false }
+      responses:
+        200:
+          description: Role updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Clinician role successfully updated to admin and medical privileges removed" }
+        400:
+          description: Bad Request (e.g., active patients exist)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  error: { type: string, example: "Cannot convert to Admin-Only: Clinician has active patients. Please transfer them to another provider first." }
         401: { description: Unauthorized }
         403: { description: Forbidden }
         404: { description: Not Found }
@@ -625,36 +757,7 @@ paths:
 
 
 
-  /admins/clinicians/{id}/role:
-    put:
-      summary: Update Clinician Role
-      description: Promote a clinician to an admin, or demote an admin to a clinician.
-      tags: [Admin - Clinician Management]
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                new_role_name:
-                  type: string
-                  example: admin
-      responses:
-        200:
-          description: Role successfully updated
-        400: { description: Bad Request }
-        403: { description: Forbidden }
-        404: { description: Not Found }
+
 
   /admins/clinicians/transfer-patients:
     post:

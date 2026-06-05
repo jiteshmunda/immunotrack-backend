@@ -117,6 +117,7 @@ export class ClinicianService {
         clinicalRole: input.role,
         specialty: input.specialty,
         organizationName: input.organizationName,
+        isClinician: input.is_clinician !== undefined ? input.is_clinician : true,
       });
 
       // Send the email asynchronously
@@ -166,6 +167,7 @@ export class ClinicianService {
         phone: clinician.phone ? decrypt(clinician.phone) : null,
         state_of_licensure: clinician.stateOfLicensure,
         role: clinician.clinicalRole,
+        is_clinician: clinician.isClinician,
         notifications_enabled: clinician.notificationsEnabled,
         email_notifications: clinician.emailNotifications,
         mfa_enabled: user.mfaEnabled,
@@ -194,6 +196,7 @@ export class ClinicianService {
         clinician_id: sysAdmin.id,
         clinic_name: clinic ? clinic.name : null,
         role: "System Admin",
+        is_clinician: false,
         mfa_enabled: user.mfaEnabled,
         profile_picture: user.profilePicture ? decrypt(user.profilePicture) : null,
         created_at: sysAdmin.createdAt,

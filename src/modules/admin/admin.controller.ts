@@ -270,10 +270,11 @@ export class AdminController {
         message: result.message
       });
     } catch (error: any) {
-      if (error.message.includes("Forbidden")) {
+      const msg = error?.message || (typeof error === 'string' ? error : "");
+      if (msg.includes("Forbidden")) {
         return sendError(res, error, 403);
       }
-      if (error.message.includes("not found")) {
+      if (msg.includes("not found")) {
         return sendError(res, error, 404);
       }
       return sendError(res, error, 400);

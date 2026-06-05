@@ -26,6 +26,10 @@ paths:
                   type: string
                   enum: [Allergist, Immunologist, Primary Care, Nurse Practitioner, Other]
                   example: "Immunologist"
+                is_medical_provider:
+                  type: boolean
+                  example: true
+                  description: "Set to false to create a Pure Admin without medical privileges."
       responses:
         200:
           description: Admin created successfully

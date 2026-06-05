@@ -158,6 +158,7 @@ export class AdminService {
         clinicalRole: input.role,
         specialty: input.specialty,
         organizationName: input.organizationName,
+        isMedicalProvider: input.is_medical_provider ?? true,
       });
 
       return {

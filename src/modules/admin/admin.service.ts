@@ -289,9 +289,9 @@ export class AdminService {
       .where(and(...queryConditions));
 
     let result = adminClinicians.map((clinician) => {
-      let accessLevel = "Clinician Only";
+      let accessLevel = "Clinician";
       if (clinician.roleName && clinician.roleName.includes("admin")) {
-        accessLevel = clinician.is_clinician ? "Admin + Clinician" : "Admin Only";
+        accessLevel = clinician.is_clinician ? "Admin + Clinician" : "Admin";
       }
 
       return {
@@ -1363,9 +1363,9 @@ export class AdminService {
       throw new Error("Forbidden: You do not have permission to view this clinician");
     }
 
-    let accessLevel = "Clinician Only";
+    let accessLevel = "Clinician";
     if (clinician.roleName && clinician.roleName.includes("admin")) {
-      accessLevel = clinician.is_clinician ? "Admin + Clinician" : "Admin Only";
+      accessLevel = clinician.is_clinician ? "Admin + Clinician" : "Admin";
     }
 
     return {
@@ -1601,9 +1601,9 @@ export class AdminService {
     let result = allUsers.map(u => {
       let accessLevel = "Patient/User";
       if (u.roleName && u.roleName.includes("admin")) {
-        accessLevel = u.isClinician ? "Admin + Clinician" : "Admin Only";
+        accessLevel = u.isClinician ? "Admin + Clinician" : "Admin";
       } else if (u.roleName === "clinician" || u.isClinician) {
-        accessLevel = "Clinician Only";
+        accessLevel = "Clinician";
       }
 
       return {
@@ -1669,9 +1669,9 @@ export class AdminService {
 
     let accessLevel = "Patient/User";
     if (user.roleName && user.roleName.includes("admin")) {
-      accessLevel = user.isClinician ? "Admin + Clinician" : "Admin Only";
+      accessLevel = user.isClinician ? "Admin + Clinician" : "Admin";
     } else if (user.roleName === "clinician" || user.isClinician) {
-      accessLevel = "Clinician Only";
+      accessLevel = "Clinician";
     }
 
     return {

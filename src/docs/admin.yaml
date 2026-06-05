@@ -678,36 +678,7 @@ paths:
 
 
 
-  /admins/clinicians/{id}/role:
-    put:
-      summary: Update Clinician Role
-      description: Promote a clinician to an admin, or demote an admin to a clinician.
-      tags: [Admin - Clinician Management]
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                new_role_name:
-                  type: string
-                  example: admin
-      responses:
-        200:
-          description: Role successfully updated
-        400: { description: Bad Request }
-        403: { description: Forbidden }
-        404: { description: Not Found }
+
 
   /admins/clinicians/transfer-patients:
     post:

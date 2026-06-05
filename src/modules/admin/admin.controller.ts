@@ -84,6 +84,29 @@ export class AdminController {
     }
   }
 
+  async getCliniciansWithPatients(req: Request, res: Response) {
+    try {
+      const adminId = (req as AuthenticatedRequest).user.userId;
+      const filters = {
+        status: req.query.status as string,
+        role: req.query.role as string,
+        clinical_role: req.query.clinical_role as string | undefined,
+        search: req.query.search as string | undefined,
+        is_clinician: req.query.is_clinician !== undefined ? req.query.is_clinician === 'true' : undefined,
+      };
+      
+      const clinicians = await adminService.getCliniciansWithPatients(adminId, filters);
+      
+      return sendSuccess(res, {
+        message: "Clinicians with patients fetched successfully",
+        data: clinicians,
+      });
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
+
+
   async getAnalytics(req: Request, res: Response) {
     try {
       const adminId = (req as AuthenticatedRequest).user.userId;

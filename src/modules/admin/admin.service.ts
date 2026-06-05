@@ -305,6 +305,23 @@ export class AdminService {
     return result;
   }
 
+  async getCliniciansWithPatients(adminId: string, filters?: { status?: string; role?: string; clinical_role?: string; search?: string; is_clinician?: boolean }) {
+    const cliniciansList = await this.getClinicians(adminId, filters);
+    
+    const cliniciansWithPatients = await Promise.all(
+      cliniciansList.map(async (clinician) => {
+        try {
+          const patientsList = await this.getClinicianPatients(adminId, clinician.id);
+          return { ...clinician, patient_count: patientsList.length, patients: patientsList };
+        } catch (error) {
+          return { ...clinician, patient_count: 0, patients: [] };
+        }
+      })
+    );
+
+    return cliniciansWithPatients;
+  }
+
   async getAnalytics(adminId: string) {
     const adminClinicId = await this.getAdminClinicId(adminId);
     const adminClinicians = await db

@@ -281,17 +281,28 @@ export class AdminService {
         state_of_licensure: clinicians.stateOfLicensure,
         is_clinician: clinicians.isClinician,
         created_at: clinicians.createdAt,
+        roleName: roles.name,
       })
       .from(clinicians)
       .innerJoin(users, eq(clinicians.userId, users.id))
+      .leftJoin(roles, eq(users.roleId, roles.id))
       .where(and(...queryConditions));
 
-    let result = adminClinicians.map((clinician) => ({
-      ...clinician,
-      full_name: decrypt(clinician.full_name!),
-      email: decrypt(clinician.email!),
-      npi_number: clinician.npi_number ? decrypt(clinician.npi_number) : null,
-    }));
+    let result = adminClinicians.map((clinician) => {
+      let accessLevel = "Clinician Only";
+      if (clinician.roleName && clinician.roleName.includes("admin")) {
+        accessLevel = clinician.is_clinician ? "Admin + Clinician" : "Admin Only";
+      }
+
+      return {
+        ...clinician,
+        full_name: decrypt(clinician.full_name!),
+        email: decrypt(clinician.email!),
+        npi_number: clinician.npi_number ? decrypt(clinician.npi_number) : null,
+        access_level: accessLevel,
+        roleName: undefined,
+      };
+    });
 
     if (filters?.search) {
       const searchLower = filters.search.toLowerCase();
@@ -1332,11 +1343,13 @@ export class AdminService {
         createdBy: clinicians.createdBy,
         phone: clinicians.phone,
         clinic_name: clinics.name,
-        clinicId: clinicians.clinicId
+        clinicId: clinicians.clinicId,
+        roleName: roles.name
       })
       .from(clinicians)
       .innerJoin(users, eq(clinicians.userId, users.id))
       .leftJoin(clinics, eq(clinicians.clinicId, clinics.id))
+      .leftJoin(roles, eq(users.roleId, roles.id))
       .where(eq(clinicians.id, clinicianId));
 
     if (clinicianData.length === 0) {
@@ -1350,12 +1363,19 @@ export class AdminService {
       throw new Error("Forbidden: You do not have permission to view this clinician");
     }
 
+    let accessLevel = "Clinician Only";
+    if (clinician.roleName && clinician.roleName.includes("admin")) {
+      accessLevel = clinician.is_clinician ? "Admin + Clinician" : "Admin Only";
+    }
+
     return {
       ...clinician,
       full_name: decrypt(clinician.full_name!),
       email: decrypt(clinician.email!),
       npi_number: clinician.npi_number ? decrypt(clinician.npi_number) : null,
       phone: clinician.phone ? decrypt(clinician.phone) : null,
+      access_level: accessLevel,
+      roleName: undefined,
       createdBy: undefined,
     };
   }
@@ -1566,9 +1586,11 @@ export class AdminService {
         roleName: roles.name,
         createdAt: users.createdAt,
         lastLoginAt: users.lastLoginAt,
+        isClinician: clinicians.isClinician,
       })
       .from(users)
-      .leftJoin(roles, eq(users.roleId, roles.id));
+      .leftJoin(roles, eq(users.roleId, roles.id))
+      .leftJoin(clinicians, eq(users.id, clinicians.userId));
       
     if (queryConditions.length > 0) {
       query = query.where(and(...queryConditions)) as any;
@@ -1576,11 +1598,22 @@ export class AdminService {
 
     const allUsers = await query;
 
-    let result = allUsers.map(u => ({
-      ...u,
-      fullName: u.fullName ? decrypt(u.fullName) : null,
-      email: u.email ? decrypt(u.email) : null,
-    }));
+    let result = allUsers.map(u => {
+      let accessLevel = "Patient/User";
+      if (u.roleName && u.roleName.includes("admin")) {
+        accessLevel = u.isClinician ? "Admin + Clinician" : "Admin Only";
+      } else if (u.roleName === "clinician" || u.isClinician) {
+        accessLevel = "Clinician Only";
+      }
+
+      return {
+        ...u,
+        fullName: u.fullName ? decrypt(u.fullName) : null,
+        email: u.email ? decrypt(u.email) : null,
+        access_level: accessLevel,
+        isClinician: undefined
+      };
+    });
 
     if (filters?.search) {
       const searchLower = filters.search.toLowerCase().trim();
@@ -1622,9 +1655,11 @@ export class AdminService {
         createdAt: users.createdAt,
         lastLoginAt: users.lastLoginAt,
         failedLoginAttempts: users.failedLoginAttempts,
+        isClinician: clinicians.isClinician,
       })
       .from(users)
       .leftJoin(roles, eq(users.roleId, roles.id))
+      .leftJoin(clinicians, eq(users.id, clinicians.userId))
       .where(eq(users.id, userId))
       .limit(1);
 
@@ -1632,10 +1667,19 @@ export class AdminService {
       throw new Error("User not found");
     }
 
+    let accessLevel = "Patient/User";
+    if (user.roleName && user.roleName.includes("admin")) {
+      accessLevel = user.isClinician ? "Admin + Clinician" : "Admin Only";
+    } else if (user.roleName === "clinician" || user.isClinician) {
+      accessLevel = "Clinician Only";
+    }
+
     return {
       ...user,
       fullName: user.fullName ? decrypt(user.fullName) : null,
       email: user.email ? decrypt(user.email) : null,
+      access_level: accessLevel,
+      isClinician: undefined
     };
   }
 

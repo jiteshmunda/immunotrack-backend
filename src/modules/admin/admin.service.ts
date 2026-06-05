@@ -1298,9 +1298,12 @@ export class AdminService {
       .select({
         id: clinicians.id,
         userId: clinicians.userId,
-        clinicId: clinicians.clinicId
+        clinicId: clinicians.clinicId,
+        roleName: roles.name
       })
       .from(clinicians)
+      .innerJoin(users, eq(clinicians.userId, users.id))
+      .leftJoin(roles, eq(users.roleId, roles.id))
       .where(eq(clinicians.id, clinicianId));
 
     if (targetClinicians.length === 0) {
@@ -1314,6 +1317,28 @@ export class AdminService {
       throw new Error("Forbidden: You do not have permission to delete this clinician");
     }
 
+    if (clinician.roleName && (clinician.roleName.includes("admin") || clinician.roleName.includes("system_admin"))) {
+      const [requester] = await db
+        .select({ roleName: roles.name })
+        .from(users)
+        .leftJoin(roles, eq(users.roleId, roles.id))
+        .where(eq(users.id, adminId))
+        .limit(1);
+
+      if (!requester || requester.roleName !== "super admin") {
+        throw new Error("FORBIDDEN_ADMIN_DELETION");
+      }
+    }
+
+    const activePatients = await db
+      .select({ id: patientClinicianAssignments.id })
+      .from(patientClinicianAssignments)
+      .where(eq(patientClinicianAssignments.clinicianId, clinicianId));
+
+    if (activePatients.length > 0) {
+      throw new Error("CLINICIAN_HAS_ACTIVE_PATIENTS");
+    }
+
     await db
       .update(users)
       .set({ status: "archived", updatedAt: new Date() })
@@ -1323,7 +1348,7 @@ export class AdminService {
       .delete(patientClinicianAssignments)
       .where(eq(patientClinicianAssignments.clinicianId, clinicianId));
 
-    return { message: "Clinician successfully deleted and assigned patients have been unassigned." };
+    return { message: "Clinician successfully deleted." };
   }
 
   async getClinicianDetails(adminId: string, clinicianId: string) {
@@ -1599,7 +1624,7 @@ export class AdminService {
     const allUsers = await query;
 
     let result = allUsers.map(u => {
-      let accessLevel = "Patient/User";
+      let accessLevel = "Patient";
       if (u.roleName && u.roleName.includes("admin")) {
         accessLevel = u.isClinician ? "Admin + Clinician" : "Admin";
       } else if (u.roleName === "clinician" || u.isClinician) {
@@ -1667,7 +1692,7 @@ export class AdminService {
       throw new Error("User not found");
     }
 
-    let accessLevel = "Patient/User";
+    let accessLevel = "Patient";
     if (user.roleName && user.roleName.includes("admin")) {
       accessLevel = user.isClinician ? "Admin + Clinician" : "Admin";
     } else if (user.roleName === "clinician" || user.isClinician) {

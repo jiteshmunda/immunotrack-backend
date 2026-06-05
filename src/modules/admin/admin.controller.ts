@@ -224,7 +224,7 @@ export class AdminController {
         message: result.message,
       });
     } catch (error: any) {
-      if (error.message.includes("Forbidden")) {
+      if (error.message.includes("Forbidden") || error.message.includes("FORBIDDEN")) {
         return sendError(res, error, 403);
       }
       return sendError(res, error, 400);

@@ -11,6 +11,7 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   "Password not set. Please complete enrollment.": "Your account password is not set yet. Please complete enrollment first.",
   "Current password is incorrect": "The current password you entered is incorrect.",
   "Account locked. Please try again later.": "Your account is temporarily locked due to too many failed attempts. Please try again later.",
+  "Account archived. Please contact support.": "Your account has been archived. Please contact your clinic administrator",
 
   // --- Registration & Invitation Onboarding ---
   "INVALID_VERIFICATION_TOKEN": "The verification token is invalid or has expired.",
@@ -56,6 +57,9 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   "PATIENT_ID_REQUIRED_FOR_CLINICIANS": "Please select a patient to view their adherence history.",
   "CLINICIAN_NOT_FOUND": "Your clinician profile could not be verified.",
   "UNAUTHORIZED_ACCESS_TO_PATIENT_DATA": "Access Denied: You are not assigned to this patient.",
+  "ACTIVE_PATIENTS_EXIST": "Cannot convert to Admin-Only: Clinician has active patients. Please transfer them to another provider first.",
+  "CLINICIAN_HAS_ACTIVE_PATIENTS": "This clinician has patients under them. Please transfer them before suspending.",
+  "FORBIDDEN_ADMIN_DELETION": "Access Denied: Admins can only be deleted by a Super Admin.",
   "Clinician ID is required": "Clinician ID is required.",
   "Clinician not found": "The requested clinician was not found.",
   "Target clinician not found": "The target clinician for the transfer was not found.",

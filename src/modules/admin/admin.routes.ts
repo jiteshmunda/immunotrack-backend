@@ -27,6 +27,13 @@ router.get(
 );
 
 router.get(
+  "/clinicians/with-patients",
+  authenticateJWT,
+  requireRole(["admin", "super admin", "system_admin"]),
+  adminController.getCliniciansWithPatients.bind(adminController)
+);
+
+router.get(
   "/dashboard/population",
   authenticateJWT,
   requireRole(["admin", "super admin", "system_admin"]),
@@ -85,7 +92,7 @@ router.get(
 router.put(
   "/clinicians/:id/role",
   authenticateJWT,
-  requireRole(["admin", "super admin", "system_admin"]),
+  requireRole(["super admin"]),
   adminController.updateClinicianRole.bind(adminController)
 );
 

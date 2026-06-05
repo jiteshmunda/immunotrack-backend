@@ -60,7 +60,7 @@ export const clinicians = pgTable("clinicians", {
   organizationName: varchar("organization_name", { length: 255 }),
   notificationsEnabled: boolean("notifications_enabled").default(true).notNull(),
   emailNotifications: boolean("email_notifications").default(true).notNull(),
-  isMedicalProvider: boolean("is_medical_provider").default(true).notNull(),
+  isClinician: boolean("is_clinician").default(true).notNull(),
   fcmToken:         text("fcm_token"),
   createdAt:        timestamp("created_at").defaultNow().notNull(),
 });

@@ -1,4 +1,7 @@
 import { Request, Response } from "express";
+import { db } from "../../db";
+import { clinicians } from "../../db/schema/profile.schema";
+import { eq } from "drizzle-orm";
 import { AuthService } from "./auth.service";
 import { InvitationService } from "../invitation/invitation.service";
 import { 
@@ -101,7 +104,20 @@ export class AuthController {
         resourceType: "auth",
       });
 
-      return sendSuccess(res, { accessToken: result.accessToken, user: result.user, resetRequired: result.resetRequired });
+      let is_clinician = false;
+      const [clinicianRecord] = await db
+        .select({ isClinician: clinicians.isClinician })
+        .from(clinicians)
+        .where(eq(clinicians.userId, result.user.user_id))
+        .limit(1);
+      
+      if (clinicianRecord) {
+        is_clinician = clinicianRecord.isClinician;
+      }
+
+      const userResponse = { ...result.user, is_clinician };
+
+      return sendSuccess(res, { accessToken: result.accessToken, user: userResponse, resetRequired: result.resetRequired });
     } catch (error: any) {
       await writeAudit(req, {
         action: "CLINICIAN_LOGIN",

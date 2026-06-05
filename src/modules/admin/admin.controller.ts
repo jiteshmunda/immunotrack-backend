@@ -68,9 +68,9 @@ export class AdminController {
       const filters = {
         status: req.query.status as string,
         role: req.query.role as string,
-        clinical_role: req.query.clinical_role as string,
-        search: req.query.search as string,
-        is_medical_provider: req.query.is_medical_provider !== undefined ? req.query.is_medical_provider === 'true' : undefined,
+        clinical_role: req.query.clinical_role as string | undefined,
+        search: req.query.search as string | undefined,
+        is_clinician: req.query.is_clinician !== undefined ? req.query.is_clinician === 'true' : undefined,
       };
       
       const clinicians = await adminService.getClinicians(adminId, filters);
@@ -246,7 +246,7 @@ export class AdminController {
     try {
       const adminId = (req as any).user.userId;
       const clinicianId = req.params.id as string;
-      const { new_role_name, is_medical_provider } = req.body;
+      const { new_role_name, is_clinician } = req.body;
 
       if (!clinicianId) {
         throw new Error("Clinician ID is required");
@@ -255,7 +255,7 @@ export class AdminController {
         throw new Error("new_role_name is required");
       }
 
-      const result = await adminService.updateClinicianRole(adminId, clinicianId, new_role_name, is_medical_provider);
+      const result = await adminService.updateClinicianRole(adminId, clinicianId, new_role_name, is_clinician);
 
       await writeAudit(req, {
         action: "CLINICIAN_ROLE_UPDATED",
@@ -263,7 +263,7 @@ export class AdminController {
         userId: adminId,
         resourceType: "clinician",
         resourceId: clinicianId,
-        details: { new_role_name, is_medical_provider }
+        details: { new_role_name, is_clinician }
       });
 
       return sendSuccess(res, {

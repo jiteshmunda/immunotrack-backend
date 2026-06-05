@@ -26,7 +26,7 @@ paths:
                   type: string
                   enum: [Allergist, Immunologist, Primary Care, Nurse Practitioner, Other]
                   example: "Immunologist"
-                is_medical_provider:
+                is_clinician:
                   type: boolean
                   example: true
                   description: "Set to false to create a Pure Admin without medical privileges."
@@ -117,9 +117,8 @@ paths:
             type: string
           description: Search by name, email, or specialty
         - in: query
-          name: is_medical_provider
-          schema:
-            type: boolean
+          name: is_clinician
+          schema: { type: boolean }
           description: Filter by whether the user is a medical provider (true) or a pure admin (false)
       responses:
         200:
@@ -145,7 +144,7 @@ paths:
                         specialty: { type: string, example: "Pediatrics" }
                         npi_number: { type: string, example: "1234567890" }
                         state_of_licensure: { type: string, example: "NY" }
-                        is_medical_provider: { type: boolean, example: true }
+                        is_clinician: { type: boolean, example: true }
                         created_at: { type: string, format: date-time, example: "2026-05-12T13:30:00Z" }
         401: { description: Unauthorized }
         403: { description: Forbidden }
@@ -221,7 +220,7 @@ paths:
               required: [new_role_name]
               properties:
                 new_role_name: { type: string, example: "admin" }
-                is_medical_provider: { type: boolean, example: false }
+                is_clinician: { type: boolean, example: false }
       responses:
         200:
           description: Role updated successfully

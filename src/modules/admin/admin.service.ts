@@ -158,7 +158,7 @@ export class AdminService {
         clinicalRole: input.role,
         specialty: input.specialty,
         organizationName: input.organizationName,
-        isMedicalProvider: input.is_medical_provider ?? true,
+        isClinician: input.is_clinician ?? true,
       });
 
       return {
@@ -242,7 +242,7 @@ export class AdminService {
     });
   }
 
-  async getClinicians(adminId: string, filters?: { status?: string; role?: string; clinical_role?: string; search?: string; is_medical_provider?: boolean }) {
+  async getClinicians(adminId: string, filters?: { status?: string; role?: string; clinical_role?: string; search?: string; is_clinician?: boolean }) {
     let roleId: string | undefined = undefined;
     if (filters?.role) {
       const [roleData] = await db.select({ id: roles.id }).from(roles).where(eq(roles.name, filters.role)).limit(1);
@@ -264,8 +264,8 @@ export class AdminService {
     if (roleId) {
       queryConditions.push(eq(users.roleId, roleId));
     }
-    if (filters?.is_medical_provider !== undefined) {
-      queryConditions.push(eq(clinicians.isMedicalProvider, filters.is_medical_provider));
+    if (filters?.is_clinician !== undefined) {
+      queryConditions.push(eq(clinicians.isClinician, filters.is_clinician));
     }
 
     const adminClinicians = await db
@@ -279,7 +279,7 @@ export class AdminService {
         specialty: clinicians.specialty,
         npi_number: clinicians.npiNumber,
         state_of_licensure: clinicians.stateOfLicensure,
-        is_medical_provider: clinicians.isMedicalProvider,
+        is_clinician: clinicians.isClinician,
         created_at: clinicians.createdAt,
       })
       .from(clinicians)
@@ -1310,7 +1310,7 @@ export class AdminService {
         specialty: clinicians.specialty,
         npi_number: clinicians.npiNumber,
         state_of_licensure: clinicians.stateOfLicensure,
-        is_medical_provider: clinicians.isMedicalProvider,
+        is_clinician: clinicians.isClinician,
         created_at: clinicians.createdAt,
         createdBy: clinicians.createdBy,
         phone: clinicians.phone,
@@ -1343,7 +1343,7 @@ export class AdminService {
     };
   }
 
-  async updateClinicianRole(adminId: string, clinicianId: string, newRoleName: string, isMedicalProvider?: boolean) {
+  async updateClinicianRole(adminId: string, clinicianId: string, newRoleName: string, isClinician?: boolean) {
     const validRoles = ["admin", "super admin", "clinician"];
     if (!validRoles.includes(newRoleName)) {
       throw new Error("Invalid role name");
@@ -1374,7 +1374,7 @@ export class AdminService {
     }
 
     // Hard Block Validation for Admin-Only Conversion
-    if (isMedicalProvider === false) {
+    if (isClinician === false) {
       const activePatients = await db
         .select({ id: patientClinicianAssignments.id })
         .from(patientClinicianAssignments)
@@ -1400,15 +1400,15 @@ export class AdminService {
         .set({ roleId: roleData[0].id, updatedAt: new Date() })
         .where(eq(users.id, targetClinicians[0].userId!));
 
-      if (isMedicalProvider !== undefined) {
+      if (isClinician !== undefined) {
         await tx
           .update(clinicians)
-          .set({ isMedicalProvider })
+          .set({ isClinician })
           .where(eq(clinicians.id, clinicianId));
       }
     });
 
-    return { message: `Clinician role successfully updated to ${newRoleName}${isMedicalProvider === false ? ' and medical privileges removed' : ''}` };
+    return { message: `Clinician role successfully updated to ${newRoleName}${isClinician === false ? ' and medical privileges removed' : ''}` };
   }
 
   async transferPatients(adminId: string, toClinicianId: string, patientIds: string[]) {

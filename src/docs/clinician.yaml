@@ -26,7 +26,7 @@ paths:
                   type: string
                   enum: [Allergist, Immunologist, Primary Care, Nurse Practitioner, Other]
                   example: "Allergist"
-                is_medical_provider: { type: boolean, example: true, description: "Set to false to create a Pure Admin without medical privileges." }
+                is_clinician: { type: boolean, example: true, description: "Set to false to create a Pure Admin without medical privileges." }
       responses:
         200:
           description: Clinician created successfully
@@ -77,7 +77,7 @@ paths:
                       phone: { type: string, nullable: true }
                       state_of_licensure: { type: string, nullable: true }
                       role: { type: string, nullable: true }
-                      is_medical_provider: { type: boolean }
+                      is_clinician: { type: boolean }
                       notifications_enabled: { type: boolean }
                       email_notifications: { type: boolean }
                       mfa_enabled: { type: boolean }

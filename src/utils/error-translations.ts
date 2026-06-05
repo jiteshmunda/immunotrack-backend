@@ -58,7 +58,7 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   "CLINICIAN_NOT_FOUND": "Your clinician profile could not be verified.",
   "UNAUTHORIZED_ACCESS_TO_PATIENT_DATA": "Access Denied: You are not assigned to this patient.",
   "ACTIVE_PATIENTS_EXIST": "Cannot convert to Admin-Only: Clinician has active patients. Please transfer them to another provider first.",
-  "CLINICIAN_HAS_ACTIVE_PATIENTS": "This clinician has patients under them. Please transfer them before deleting.",
+  "CLINICIAN_HAS_ACTIVE_PATIENTS": "This clinician has patients under them. Please transfer them before suspending.",
   "FORBIDDEN_ADMIN_DELETION": "Access Denied: Admins can only be deleted by a Super Admin.",
   "Clinician ID is required": "Clinician ID is required.",
   "Clinician not found": "The requested clinician was not found.",

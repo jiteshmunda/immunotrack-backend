@@ -1721,6 +1721,26 @@ export class AdminService {
       throw new Error("Forbidden: User not found or not in your organization");
     }
 
+    if (status === "archived") {
+      const [clinicianEntry] = await db
+        .select({ id: clinicians.id })
+        .from(clinicians)
+        .where(eq(clinicians.userId, userId))
+        .limit(1);
+
+      if (clinicianEntry) {
+        const activePatients = await db
+          .select({ id: patientClinicianAssignments.id })
+          .from(patientClinicianAssignments)
+          .where(eq(patientClinicianAssignments.clinicianId, clinicianEntry.id))
+          .limit(1);
+
+        if (activePatients.length > 0) {
+          throw new Error("CLINICIAN_HAS_ACTIVE_PATIENTS");
+        }
+      }
+    }
+
     const [updatedUser] = await db
       .update(users)
       .set({ status, updatedAt: new Date() })

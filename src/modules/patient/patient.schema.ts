@@ -2,8 +2,8 @@ import { z } from "zod";
 
 export const updatePatientProfileSchema = z.object({
   zip_code: z.string().length(5, "Zip code must be 5 digits").optional(),
-  first_name: z.string().min(1, "Name cannot be empty").max(100, "Name must not exceed 100 characters").regex(/^[a-zA-Z\s]+$/, "Name can only contain alphabetic characters").optional(),
-  last_name: z.string().max(100, "Name must not exceed 100 characters").regex(/^[a-zA-Z\s]*$/, "Name can only contain alphabetic characters").optional(),
+  first_name: z.string().min(3, "Name must be at least 3 characters").max(100, "Name must not exceed 100 characters").regex(/^[a-zA-Z\\s]+$/, "Name can only contain alphabetic characters").optional(),
+  last_name: z.string().min(3, "Name must be at least 3 characters").max(100, "Name must not exceed 100 characters").regex(/^[a-zA-Z\\s]*$/, "Name can only contain alphabetic characters").optional(),
   sex: z.enum(["male", "female", "other", "unknown"]).optional(),
   phone: z.string().min(10, "Phone number must be at least 10 digits long").regex(/^\+?[1-9]\d{1,14}$/, "Please enter a valid phone number including country code (e.g. +1234567890)").optional(),
   medication_reminders_enabled: z.boolean().optional(),

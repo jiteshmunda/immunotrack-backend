@@ -40,7 +40,7 @@ function sanitizeError(error: any, defaultStatus: number) {
   if (error instanceof ZodError) {
     sanitizedMessage = "Validation failed. Please check your inputs.";
     
-    const uniqueErrors = new Map<string, any>();
+    const groupedErrors = new Map<string, string[]>();
     
     error.issues.forEach((e: any) => {
       const pathKey = e.path.join(".");
@@ -61,13 +61,47 @@ function sanitizeError(error: any, defaultStatus: number) {
         }
       }
 
-      const dedupKey = `${pathKey}-${msg}`;
-      if (!uniqueErrors.has(dedupKey)) {
-        uniqueErrors.set(dedupKey, { field: pathKey, message: msg });
+      if (!groupedErrors.has(pathKey)) {
+        groupedErrors.set(pathKey, []);
+      }
+      
+      if (!groupedErrors.get(pathKey)!.includes(msg)) {
+        groupedErrors.get(pathKey)!.push(msg);
       }
     });
 
-    validationErrors = Array.from(uniqueErrors.values());
+    function combineMessages(messages: string[]): string {
+      if (!messages || messages.length === 0) return "";
+      if (messages.length === 1) return messages[0];
+
+      let result = messages[0];
+      
+      for (let i = 1; i < messages.length; i++) {
+        const prevWords = messages[i - 1].split(" ");
+        const currWords = messages[i].split(" ");
+        
+        let matchIndex = 0;
+        while (
+          matchIndex < prevWords.length && 
+          matchIndex < currWords.length && 
+          prevWords[matchIndex].toLowerCase() === currWords[matchIndex].toLowerCase()
+        ) {
+          matchIndex++;
+        }
+        
+        if (matchIndex > 0) {
+          result += ", " + currWords.slice(matchIndex).join(" ");
+        } else {
+          result += ", " + messages[i];
+        }
+      }
+      return result;
+    }
+
+    validationErrors = Array.from(groupedErrors.entries()).map(([field, messages]) => ({
+      field,
+      message: combineMessages(messages)
+    }));
     
     technicalDetails = { 
       type: "ZodError", 

@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { ZodError } from "zod";
 import { db } from "../../db";
 import { clinicians } from "../../db/schema/profile.schema";
 import { eq } from "drizzle-orm";
@@ -31,7 +32,22 @@ export class AuthController {
   
   async patientLogin(req: Request, res: Response) {
     try {
-      const validated = patientLoginSchema.parse(req.body);
+      const parseResult = patientLoginSchema.safeParse(req.body);
+
+      if (!parseResult.success) {
+        if (req.body && typeof req.body.email === "string" && typeof req.body.password === "string") {
+          try {
+            await authService.login(req.body.email, req.body.password, ["patient"], req.ip, req.headers["user-agent"]);
+          } catch (err: any) {
+            if (err.message.includes("15 minutes") || err.message.includes("Account locked")) {
+              throw err; 
+            }
+          }
+        }
+        throw parseResult.error;
+      }
+
+      const validated = parseResult.data;
 
       const result = await authService.login(
         validated.email,
@@ -75,7 +91,22 @@ export class AuthController {
   
   async clinicianLogin(req: Request, res: Response) {
     try {
-      const validated = clinicianLoginSchema.parse(req.body);
+      const parseResult = clinicianLoginSchema.safeParse(req.body);
+
+      if (!parseResult.success) {
+        if (req.body && typeof req.body.email === "string" && typeof req.body.password === "string") {
+          try {
+            await authService.login(req.body.email, req.body.password, ["clinician", "super admin", "admin"], req.ip, req.headers["user-agent"]);
+          } catch (err: any) {
+            if (err.message.includes("15 minutes") || err.message.includes("Account locked")) {
+              throw err; 
+            }
+          }
+        }
+        throw parseResult.error;
+      }
+
+      const validated = parseResult.data;
 
       const result = await authService.login(
         validated.email,

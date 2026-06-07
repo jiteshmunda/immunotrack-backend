@@ -11,12 +11,12 @@ async function main() {
     const { seedRoles } = await import("./roles.seed");
     const { seedAdmin } = await import("./admin.seed");
     const { seedMedications } = await import("./medications.seed");
-    const { migrateToAdmin } = await import("./migrate-to-admin");
+    // const { migrateToAdmin } = await import("./migrate-to-admin");
 
     await seedRoles();
     await seedAdmin();
     await seedMedications();
-    await migrateToAdmin();
+    // await migrateToAdmin();
     
     console.log("✅ Seeding completed successfully!");
     process.exit(0);

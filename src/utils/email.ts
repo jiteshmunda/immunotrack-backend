@@ -64,16 +64,7 @@ export class EmailService {
     }
   }
 
-  async sendLoginMfaEmail(to: string, otp: string, firstName: string): Promise<void> {
-    const subject = "Your ImmunoTrack Login Code";
-    const body = this.getOtpTemplate(
-      otp,
-      "ImmunoTrack Login Verification",
-      `Hi ${firstName},<br><br>You are attempting to log in. Please use the following 6-character code to complete your login:`,
-      "This code will expire in 10 minutes. If you did not attempt to log in, please secure your account immediately."
-    );
-    await this.sendEmail({ to, subject, body });
-  }
+
 
   async sendClinicianWelcomeEmail(to: string, name: string, tempPassword: string): Promise<void> {
     const subject = "Welcome to ImmunoTrack - Your Temporary Password";

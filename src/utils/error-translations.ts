@@ -2,6 +2,7 @@ export const ERROR_TRANSLATIONS: Record<string, string> = {
   // --- Authentication & Session Errors ---
   "Missing or invalid authorization header": "Please sign in to access this resource.",
   "Session expired or revoked": "Your session has expired. Please log in again.",
+  "Session revoked": "Session revoked",
   "Invalid or expired token": "Your session has expired. Please sign in again.",
   "Forbidden: Insufficient permissions": "Access Denied: You do not have permission to perform this action.",
   "Invalid email or password": "The email or password you entered is incorrect.",

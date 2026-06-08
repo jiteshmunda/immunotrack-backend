@@ -403,27 +403,53 @@ export class MedicationService {
       return newLog;
     });
 
-    // Check for max-dose warnings (e.g. for "Every 4-6 hours (max 3-4 times/day)")
+    // Check for max-dose warnings for all PRN frequencies
     let warning: string | null = null;
     const freqLower = (med.frequency || "").toLowerCase();
 
-    if (input.status === "taken" && (freqLower.includes("max 3-4 times") || freqLower.includes("max 3–4 times"))) {
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    if (input.status === "taken" && isPRNMedication(med.frequency || "")) {
+      let maxDoses = 0;
+      let intervalDesc = "";
 
-      const [takenLogsLast24h] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(medicationLogs)
-        .where(
-          and(
-            eq(medicationLogs.medicationId, med.id),
-            eq(medicationLogs.status, "taken"),
-            sql`${medicationLogs.loggedAt} >= ${twentyFourHoursAgo}`
-          )
-        );
+      if (freqLower.includes("max 3-4") || freqLower.includes("max 3–4") || freqLower.includes("max 3 -4")) {
+        maxDoses = 4;
+        intervalDesc = "3-4 times daily";
+      } else if (freqLower.includes("every 2-4 hours") || freqLower.includes("every 2–4 hours")) {
+        maxDoses = 12; // 24 divided by 2
+        intervalDesc = "every 2-4 hours (max 12 times daily)";
+      } else if (freqLower.includes("every 4-6 hours") || freqLower.includes("every 4–6 hours")) {
+        maxDoses = 6; // 24 divided by 4
+        intervalDesc = "every 4-6 hours (max 6 times daily)";
+      } else if (freqLower.includes("every 6-8 hours") || freqLower.includes("every 6–8 hours")) {
+        maxDoses = 4; // 24 divided by 6
+        intervalDesc = "every 6-8 hours (max 4 times daily)";
+      } else if (freqLower.includes("every 10-12 hours") || freqLower.includes("every 10–12 hours")) {
+        maxDoses = 2; // 24 divided by 12
+        intervalDesc = "every 10-12 hours (max 2 times daily)";
+      } else if (freqLower.includes("as needed") || freqLower.includes("prn")) {
+        // Generic PRN warning threshold
+        maxDoses = 8;
+        intervalDesc = "as needed (general safety threshold of 8 times daily)";
+      }
 
-      const takenCount = Number(takenLogsLast24h?.count || 0);
-      if (takenCount > 4) {
-        warning = `Warning: You have logged this medication ${takenCount} times in the last 24 hours. The maximum recommended dose is 3-4 times daily.`;
+      if (maxDoses > 0) {
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+        const [takenLogsLast24h] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(medicationLogs)
+          .where(
+            and(
+              eq(medicationLogs.medicationId, med.id),
+              eq(medicationLogs.status, "taken"),
+              sql`${medicationLogs.loggedAt} >= ${twentyFourHoursAgo}`
+            )
+          );
+
+        const takenCount = Number(takenLogsLast24h?.count || 0);
+        if (takenCount > maxDoses) {
+          warning = `Warning: You have logged this medication ${takenCount} times in the last 24 hours. The recommended safe limit is ${intervalDesc}.`;
+        }
       }
     }
 

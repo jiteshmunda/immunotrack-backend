@@ -43,7 +43,20 @@ export async function authenticateJWT(
       .limit(1);
 
     if (!sessionData) {
-      return sendError(res, "Session expired or revoked", 401);
+      const [activeSession] = await db
+        .select()
+        .from(userSessions)
+        .where(eq(userSessions.userId, decoded.userId))
+        .limit(1);
+
+      if (activeSession) {
+        return sendError(
+          res,
+          "Your session has expired. Please login again.",
+          401
+        );
+      }
+      return sendError(res, "Your session has expired. Please login again.", 401);
     }
 
     if (sessionData.userStatus === "archived") {

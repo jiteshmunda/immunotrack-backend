@@ -411,7 +411,7 @@ export class MedicationService {
       let maxDoses = 0;
       let intervalDesc = "";
 
-      if (freqLower.includes("max 3-4 times") || freqLower.includes("max 3–4 times")) {
+      if (freqLower.includes("max 3-4") || freqLower.includes("max 3–4") || freqLower.includes("max 3 -4")) {
         maxDoses = 4;
         intervalDesc = "3-4 times daily";
       } else if (freqLower.includes("every 2-4 hours") || freqLower.includes("every 2–4 hours")) {

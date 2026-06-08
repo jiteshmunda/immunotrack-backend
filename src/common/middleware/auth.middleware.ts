@@ -52,11 +52,11 @@ export async function authenticateJWT(
       if (activeSession) {
         return sendError(
           res,
-          "You're already logged in on another device. Please log out from that device to continue here.",
+          "Your session has expired. Please login again.",
           401
         );
       }
-      return sendError(res, "Session expired or revoked", 401);
+      return sendError(res, "Your session has expired. Please login again.", 401);
     }
 
     if (sessionData.userStatus === "archived") {

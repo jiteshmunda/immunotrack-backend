@@ -263,10 +263,18 @@ export class PatientService {
     const currentMinutes = now.getMinutes().toString().padStart(2, '0');
     const currentTimeStr = `${currentHours}:${currentMinutes}`;
     
-    let nextMedication = activeReminders.find(r => (r.time as string) >= currentTimeStr);
-    
-    if (!nextMedication && activeReminders.length > 0) {
-      nextMedication = activeReminders[0];
+    let nextMedications: any[] = [];
+    if (activeReminders.length > 0) {
+      let startIndex = activeReminders.findIndex(r => (r.time as string) >= currentTimeStr);
+      if (startIndex === -1) {
+        startIndex = 0; 
+      }
+      
+      nextMedications.push(activeReminders[startIndex]);
+      if (activeReminders.length > 1) {
+        const secondIndex = (startIndex + 1) % activeReminders.length;
+        nextMedications.push(activeReminders[secondIndex]);
+      }
     }
 
     // 3. Fetch Latest AI Insight
@@ -294,10 +302,10 @@ export class PatientService {
         frequency: m.frequency,
         category: m.category
       })),
-      recent_medication: nextMedication ? {
-        name: nextMedication.medicationName,
-        time: nextMedication.time
-      } : null,
+      recent_medications: nextMedications.map(m => ({
+        name: m.medicationName,
+        time: m.time
+      })),
       ai_insight: insight
     };
   }

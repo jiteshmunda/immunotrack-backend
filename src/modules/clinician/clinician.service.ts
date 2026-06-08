@@ -301,6 +301,7 @@ export class ClinicianService {
         fullName: users.fullName,
         email: users.email,
         primaryDiagnosis: patients.primaryDiagnosis,
+        status: users.status,
       })
       .from(patientClinicianAssignments)
       .innerJoin(patients, eq(patientClinicianAssignments.patientId, patients.id))
@@ -384,6 +385,7 @@ export class ClinicianService {
         risk_score: riskScore,
         risk_level: riskLevel,
         alerts: alertsCount,
+        status: p.status,
       };
     });
 

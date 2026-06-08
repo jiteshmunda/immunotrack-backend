@@ -45,6 +45,11 @@ export const users = pgTable("users", {
   loginOtp: varchar("login_otp", { length: 64 }),
   loginOtpExpires: timestamp("login_otp_expires"),
   loginOtpAttempts: integer("login_otp_attempts").default(0).notNull(),
+  mfaType: varchar("mfa_type", { length: 20 }).default("email").notNull(),
+  mfaSecret: text("mfa_secret"),
+  mfaBackupCodes: text("mfa_backup_codes"),
+  mfaFailedAttempts: integer("mfa_failed_attempts").default(0).notNull(),
+  tempMfaSecret: text("temp_mfa_secret"),
 
   profilePicture: text("profile_picture"),
 

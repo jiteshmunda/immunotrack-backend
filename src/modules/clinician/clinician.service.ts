@@ -247,6 +247,9 @@ export class ClinicianService {
       }
 
       if (input.mfa_enabled !== undefined) {
+        if (input.mfa_enabled === false) {
+          throw new Error("MFA cannot be disabled for clinicians under clinical security policy.");
+        }
         await tx.update(users).set({ mfaEnabled: input.mfa_enabled, updatedAt: new Date() }).where(eq(users.id, userId));
       }
 

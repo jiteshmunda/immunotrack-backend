@@ -7,7 +7,7 @@ import { roles } from "../../db/schema/role.schema";
 import { patientClinicalNotes } from "../../db/schema/clinical-note.schema";
 import { hashForLookup, encrypt, decrypt } from "../../utils/encryption";
 import { hashPassword, generateTempPassword } from "../../utils/hash";
-import { eq, desc, and, sql, between, or, inArray } from "drizzle-orm";
+import { eq, desc, and, sql, between, or, inArray, ne } from "drizzle-orm";
 import crypto from "crypto";
 import { CreateClinicianInput, ClinicianAnalyticsResponse, UpdateClinicianProfileInput } from "./clinician.schema";
 import { calculateRiskScore, getSeverityLevel, getStatusColor } from "../symptoms/utils/symptom-scores";
@@ -247,6 +247,9 @@ export class ClinicianService {
       }
 
       if (input.mfa_enabled !== undefined) {
+        if (input.mfa_enabled === false) {
+          throw new Error("MFA cannot be disabled for clinicians under clinical security policy.");
+        }
         await tx.update(users).set({ mfaEnabled: input.mfa_enabled, updatedAt: new Date() }).where(eq(users.id, userId));
       }
 
@@ -301,11 +304,17 @@ export class ClinicianService {
         fullName: users.fullName,
         email: users.email,
         primaryDiagnosis: patients.primaryDiagnosis,
+        status: users.status,
       })
       .from(patientClinicianAssignments)
       .innerJoin(patients, eq(patientClinicianAssignments.patientId, patients.id))
       .innerJoin(users, eq(patients.userId, users.id))
-      .where(inArray(patientClinicianAssignments.clinicianId, clinicianIds));
+      .where(
+        and(
+          inArray(patientClinicianAssignments.clinicianId, clinicianIds),
+          ne(users.status, "archived")
+        )
+      );
 
     // Deduplicate patients since multiple clinicians under the admin might be assigned to the same patient
     const uniquePatientsMap = new Map();
@@ -384,6 +393,7 @@ export class ClinicianService {
         risk_score: riskScore,
         risk_level: riskLevel,
         alerts: alertsCount,
+        status: p.status,
       };
     });
 
@@ -589,7 +599,12 @@ export class ClinicianService {
       .from(patientClinicianAssignments)
       .innerJoin(patients, eq(patientClinicianAssignments.patientId, patients.id))
       .innerJoin(users, eq(patients.userId, users.id))
-      .where(inArray(patientClinicianAssignments.clinicianId, clinicianIds));
+      .where(
+        and(
+          inArray(patientClinicianAssignments.clinicianId, clinicianIds),
+          ne(users.status, "archived")
+        )
+      );
       
     const uniquePatientsMap = new Map();
     assignedPatientsResult.forEach(p => uniquePatientsMap.set(p.id, p));

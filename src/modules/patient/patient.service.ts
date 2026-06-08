@@ -253,6 +253,30 @@ export class PatientService {
     // 2. Fetch Active Medications
     const medications = await medicationService.getMedicationPlan(userId);
 
+    const reminders = await medicationService.getReminders(userId);
+    const activeReminders = reminders.filter(r => r.active && r.time);
+    
+    activeReminders.sort((a, b) => (a.time as string).localeCompare(b.time as string));
+    
+    const now = new Date();
+    const currentHours = now.getHours().toString().padStart(2, '0');
+    const currentMinutes = now.getMinutes().toString().padStart(2, '0');
+    const currentTimeStr = `${currentHours}:${currentMinutes}`;
+    
+    let nextMedications: any[] = [];
+    if (activeReminders.length > 0) {
+      let startIndex = activeReminders.findIndex(r => (r.time as string) >= currentTimeStr);
+      if (startIndex === -1) {
+        startIndex = 0; 
+      }
+      
+      nextMedications.push(activeReminders[startIndex]);
+      if (activeReminders.length > 1) {
+        const secondIndex = (startIndex + 1) % activeReminders.length;
+        nextMedications.push(activeReminders[secondIndex]);
+      }
+    }
+
     // 3. Fetch Latest AI Insight
     const [latestInsight] = await db.select()
       .from(aiInsights)
@@ -277,6 +301,10 @@ export class PatientService {
         dose: m.dose,
         frequency: m.frequency,
         category: m.category
+      })),
+      recent_medications: nextMedications.map(m => ({
+        name: m.medicationName,
+        time: m.time
       })),
       ai_insight: insight
     };

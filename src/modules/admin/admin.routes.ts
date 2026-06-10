@@ -1,9 +1,12 @@
 import { Router } from "express";
 import { AdminController } from "./admin.controller";
+import { ClinicianController } from "../clinician/clinician.controller";
 import { authenticateJWT, requireRole } from "../../common/middleware/auth.middleware";
+import { upload } from "../../common/middleware/upload.middleware";
 
 const router = Router();
 const adminController = new AdminController();
+const clinicianController = new ClinicianController();
 
 router.post(
   "/",
@@ -17,6 +20,35 @@ router.post(
   authenticateJWT,
   requireRole(["super admin"]),
   adminController.createSystemAdmin.bind(adminController)
+);
+
+router.get(
+  "/profile",
+  authenticateJWT,
+  requireRole(["admin", "super admin"]),
+  clinicianController.getProfile.bind(clinicianController)
+);
+
+router.put(
+  "/profile",
+  authenticateJWT,
+  requireRole(["admin", "super admin"]),
+  clinicianController.updateProfile.bind(clinicianController)
+);
+
+router.post(
+  "/profile/photo",
+  authenticateJWT,
+  requireRole(["admin", "super admin"]),
+  upload.single("photo"),
+  clinicianController.uploadPhoto.bind(clinicianController)
+);
+
+router.delete(
+  "/profile/photo",
+  authenticateJWT,
+  requireRole(["admin", "super admin"]),
+  clinicianController.deletePhoto.bind(clinicianController)
 );
 
 router.get(

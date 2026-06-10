@@ -72,6 +72,14 @@ async function run() {
           continue; // Medication started after yesterday
         }
 
+        if (med.endDate && yesterdayStr > med.endDate) {
+          console.log(`Skipping ${med.id}: course ended ${med.endDate}`);
+          await db.update(schema.patientMedications)
+            .set({ active: false })
+            .where(eq(schema.patientMedications.id, med.id));
+          continue;
+        }
+
         const freqLower = (med.frequency || "").toLowerCase();
         
         const isTwiceWeekly = freqLower.includes("twice weekly");
@@ -133,7 +141,15 @@ async function run() {
         
         // 2. Low-Frequency / Weekly / Monthly Medications
         else if (isLowFrequency) {
-          const lookbackDays = isQuarterly ? 90 : isMonthly ? 30 : isBiWeekly ? 14 : 7;
+          const reminder = await db.select({ intervalWeeks: schema.medicationReminders.intervalWeeks })
+            .from(schema.medicationReminders)
+            .where(eq(schema.medicationReminders.medicationId, med.id))
+            .limit(1);
+
+          let lookbackDays = isQuarterly ? 90 : isMonthly ? 30 : isBiWeekly ? 14 : 7;
+          if (reminder?.[0]?.intervalWeeks) {
+            lookbackDays = reminder[0].intervalWeeks * 7;
+          }
           
           // Only trigger if yesterday was the exact end of a clinical window
           if (diffDays >= 0 && (diffDays + 1) % lookbackDays === 0) {

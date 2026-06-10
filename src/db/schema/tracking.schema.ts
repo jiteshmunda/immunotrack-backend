@@ -221,7 +221,8 @@ export const medicationReminders = pgTable("medication_reminders", {
   id:           uuid("id").primaryKey().defaultRandom(),
   patientId:    uuid("patient_id").notNull().references(() => patients.id),
   medicationId: uuid("medication_id").notNull().references(() => patientMedications.id),
-  reminderTime: varchar("reminder_time", { length: 5 }).notNull(), // HH:mm
+  reminderTime: varchar("reminder_time", { length: 5 }).notNull(), // HH:mm (stored in UTC)
+  timezone:     varchar("timezone", { length: 50 }).default("UTC").notNull(),
   frequency:    varchar("frequency", { length: 100 }).default("DAILY").notNull(),
   isEnabled:    boolean("is_enabled").default(true).notNull(),
 

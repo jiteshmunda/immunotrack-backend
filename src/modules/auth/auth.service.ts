@@ -123,6 +123,12 @@ export class AuthService {
       };
     }
 
+    const existingSessions = await db.select().from(userSessions).where(eq(userSessions.userId, user.id)).limit(1);
+    if (existingSessions.length > 0) {
+      const { NotificationService } = await import("../notification/notification.service");
+      const notificationService = new NotificationService();
+      await notificationService.sendSilentForceLogout(user.id);
+    }
     await db.delete(userSessions).where(eq(userSessions.userId, user.id));
 
     const rawRefreshToken = crypto.randomBytes(32).toString("hex");
@@ -230,6 +236,12 @@ export class AuthService {
       .where(eq(users.id, user.id));
 
     // Issue tokens
+    const existingSessions = await db.select().from(userSessions).where(eq(userSessions.userId, user.id)).limit(1);
+    if (existingSessions.length > 0) {
+      const { NotificationService } = await import("../notification/notification.service");
+      const notificationService = new NotificationService();
+      await notificationService.sendSilentForceLogout(user.id);
+    }
     await db.delete(userSessions).where(eq(userSessions.userId, user.id));
 
     const rawRefreshToken = crypto.randomBytes(32).toString("hex");
@@ -341,6 +353,12 @@ export class AuthService {
       accessLevel = "Clinician";
     }
 
+    const existingSessions = await db.select().from(userSessions).where(eq(userSessions.userId, user.id)).limit(1);
+    if (existingSessions.length > 0) {
+      const { NotificationService } = await import("../notification/notification.service");
+      const notificationService = new NotificationService();
+      await notificationService.sendSilentForceLogout(user.id);
+    }
     await db.delete(userSessions).where(eq(userSessions.userId, user.id));
 
     const rawRefreshToken = crypto.randomBytes(32).toString("hex");

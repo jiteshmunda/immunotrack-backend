@@ -3,14 +3,15 @@ import { patients, clinicians, patientClinicianAssignments } from "../../db/sche
 import { users } from "../../db/schema/user.schema";
 import { clinics } from "../../db/schema/clinic.schema";
 import { patientConsents, onboardingSessions, notifications } from "../../db/schema/compliance.schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { UpdatePatientProfileInput, PatientConsentInput } from "./patient.schema";
 import { decrypt, encrypt } from "../../utils/encryption";
 import { RpmService } from "../rpm/rpm.service";
 import { SymptomService } from "../symptoms/symptoms.service";
 import { MedicationService } from "../medication/medication.service";
 import { aiInsights } from "../../db/schema/ai.schema";
-import { desc } from "drizzle-orm";
+import { medicationLogs } from "../../db/schema/tracking.schema";
+
 
 const rpmService = new RpmService();
 const symptomService = new SymptomService();
@@ -253,7 +254,6 @@ export class PatientService {
     // 2. Fetch Active Medications
     const medications = await medicationService.getMedicationPlan(userId);
 
-    const { medicationLogs } = await import("../../db/schema/tracking.schema");
     const { sql } = await import("drizzle-orm");
 
     const todayLogs = await db.select({ medicationId: medicationLogs.medicationId })

@@ -1,11 +1,13 @@
 export const ERROR_TRANSLATIONS: Record<string, string> = {
   // --- Authentication & Session Errors ---
-  "Missing or invalid authorization header": "Please sign in to access this resource.",
-  "Session expired or revoked": "Your session has expired. Please log in again.",
-  "Invalid or expired token": "Your session has expired. Please sign in again.",
+  "Missing or invalid authorization header": "Session revoked",
+  "Session expired or revoked": "Session revoked",
+  "Session revoked": "Session revoked",
+  "Invalid or expired token": "Session revoked",
   "Forbidden: Insufficient permissions": "Access Denied: You do not have permission to perform this action.",
   "Invalid email or password": "The email or password you entered is incorrect.",
-  "Invalid or expired refresh token": "Your session has expired. Please log in again.",
+  "Invalid or expired refresh token": "Session revoked",
+  "Refresh token missing": "Session revoked",
   "User associated with session not found": "We couldn't find a user account associated with this session.",
   "User not found": "The requested user account was not found.",
   "Password not set. Please complete enrollment.": "Your account password is not set yet. Please complete enrollment first.",

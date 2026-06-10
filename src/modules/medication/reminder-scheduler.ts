@@ -51,8 +51,16 @@ export async function checkAndDispatchReminders(targetTime?: string) {
   console.log(`[ReminderScheduler] Found ${activeReminders.length} matching reminders at local system time ${time}. Processing...`);
 
   const todayStr = now.toISOString().split("T")[0];
+  const processedSet = new Set<string>();
 
   for (const r of activeReminders) {
+    // Prevent duplicate notifications if multiple identical reminders exist in DB
+    const uniqueKey = `${r.patientId}_${r.medicationId}_${r.reminderTime}`;
+    if (processedSet.has(uniqueKey)) {
+      continue;
+    }
+    processedSet.add(uniqueKey);
+
     let patientName = "Patient";
     let medName = "Medication";
     let medDose = "prescribed dose";

@@ -534,7 +534,8 @@ export class MedicationService {
       .from(patientMedications)
       .where(and(
         eq(patientMedications.id, data.medicationId),
-        eq(patientMedications.patientId, patient.id)
+        eq(patientMedications.patientId, patient.id),
+        eq(patientMedications.active, true)
       ))
       .limit(1);
 
@@ -631,7 +632,10 @@ export class MedicationService {
     })
       .from(medicationReminders)
       .innerJoin(patientMedications, eq(medicationReminders.medicationId, patientMedications.id))
-      .where(eq(medicationReminders.patientId, patient.id))
+      .where(and(
+        eq(medicationReminders.patientId, patient.id),
+        eq(patientMedications.active, true)
+      ))
       .orderBy(desc(medicationReminders.createdAt));
 
     const todayStr = new Date().toISOString().split("T")[0];

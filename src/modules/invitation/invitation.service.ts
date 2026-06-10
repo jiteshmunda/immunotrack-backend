@@ -349,6 +349,7 @@ export class InvitationService {
       patient_name: `${decrypt(inv.patientFirstName)} ${decrypt(inv.patientLastName)}`,
       patient_email: decrypt(inv.patientEmail),
       status: inv.status === "redeemed" ? "accepted" : inv.status,
+      invite_code: inv.inviteCodeDisplay,
       expires_at: inv.expiresAt,
       created_at: inv.createdAt,
     }));

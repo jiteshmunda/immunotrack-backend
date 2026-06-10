@@ -173,6 +173,48 @@ export class NotificationService {
     }
   }
 
+  // ------------------------------------- POST /api/v1/auth/force-logout ----------------------------------------------
+  async sendSilentForceLogout(userId: string) {
+    const { patients } = await import("../../db/schema/profile.schema");
+    const { clinicians } = await import("../../db/schema/profile.schema");
+
+    const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
+    const [clinician] = await db.select().from(clinicians).where(eq(clinicians.userId, userId)).limit(1);
+
+    const fcmToken = patient?.fcmToken || clinician?.fcmToken;
+
+    if (!fcmToken) return;
+
+    if (fcmInitialized) {
+      try {
+        const payload: admin.messaging.Message = {
+          token: fcmToken,
+          data: {
+            type: "force_logout",
+            reason: "logged_in_elsewhere"
+          },
+          android: {
+            priority: "high"
+          },
+          apns: {
+            payload: {
+              aps: {
+                contentAvailable: true
+              }
+            }
+          }
+        };
+
+        await admin.messaging().send(payload);
+        console.log(`[NotificationService] Silent force_logout push sent to ${userId}`);
+      } catch (error: any) {
+        console.error(`[NotificationService] Failed to send silent force_logout:`, error.message);
+      }
+    } else {
+      console.log(`[NotificationService MOCK] Silent force_logout sent to ${userId}`);
+    }
+  }
+
 // -------------------------------------GET /api/v1/notifications --------------------------------------------------
   async getInbox(userId: string, limit: number = 20, offset: number = 0) {
     const results = await db

@@ -3,14 +3,15 @@ import { patients, clinicians, patientClinicianAssignments } from "../../db/sche
 import { users } from "../../db/schema/user.schema";
 import { clinics } from "../../db/schema/clinic.schema";
 import { patientConsents, onboardingSessions, notifications } from "../../db/schema/compliance.schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { UpdatePatientProfileInput, PatientConsentInput } from "./patient.schema";
 import { decrypt, encrypt } from "../../utils/encryption";
 import { RpmService } from "../rpm/rpm.service";
 import { SymptomService } from "../symptoms/symptoms.service";
 import { MedicationService } from "../medication/medication.service";
 import { aiInsights } from "../../db/schema/ai.schema";
-import { desc } from "drizzle-orm";
+import { medicationLogs } from "../../db/schema/tracking.schema";
+
 
 const rpmService = new RpmService();
 const symptomService = new SymptomService();
@@ -253,6 +254,38 @@ export class PatientService {
     // 2. Fetch Active Medications
     const medications = await medicationService.getMedicationPlan(userId);
 
+    const { sql } = await import("drizzle-orm");
+
+    const todayLogs = await db.select({ medicationId: medicationLogs.medicationId })
+      .from(medicationLogs)
+      .where(and(
+        eq(medicationLogs.patientId, patient.id),
+        eq(medicationLogs.status, "taken"),
+        sql`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC') = CURRENT_DATE`
+      ));
+    const takenMedicationIds = new Set(todayLogs.map(l => l.medicationId));
+
+    const reminders = await medicationService.getReminders(userId);
+    const activeReminders = reminders.filter(r => r.active && r.time);
+    
+    activeReminders.sort((a, b) => (a.time as string).localeCompare(b.time as string));
+    
+    // Find the first pending reminder that hasn't been taken today
+    const nextDueReminder = activeReminders.find(r => !takenMedicationIds.has(r.medicationId));
+    
+    let nextDueMedication = null;
+    if (nextDueReminder) {
+      const medDetails = medications.find((m: any) => m.id === nextDueReminder.medicationId);
+      nextDueMedication = {
+        medication_id: nextDueReminder.medicationId,
+        name: nextDueReminder.medicationName,
+        category: medDetails?.category || "",
+        dose: medDetails?.dose || "",
+        frequency: nextDueReminder.frequency || medDetails?.frequency || "",
+        reminder_time: nextDueReminder.time
+      };
+    }
+
     // 3. Fetch Latest AI Insight
     const [latestInsight] = await db.select()
       .from(aiInsights)
@@ -278,6 +311,7 @@ export class PatientService {
         frequency: m.frequency,
         category: m.category
       })),
+      next_due_medication: nextDueMedication,
       ai_insight: insight
     };
   }

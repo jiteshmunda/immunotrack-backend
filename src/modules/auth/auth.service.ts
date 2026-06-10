@@ -14,6 +14,8 @@ import jwt from "jsonwebtoken";
 import { ENV } from "../../config/env";
 import { RegisterPatientInput } from "../invitation/invitation.schema";
 import { EmailService } from "../../utils/email";
+import { generateSecret, generateURI, verifySync } from "otplib";
+import qrcode from "qrcode";
 
 const emailService = new EmailService();
 
@@ -102,38 +104,31 @@ export class AuthService {
       .set({ lastLoginAt: new Date(), updatedAt: new Date(), failedLoginAttempts: 0, lockedUntil: null })
       .where(eq(users.id, user.id));
 
-    const requiresMfa = user.mfaEnabled;
+    const isClinicianOrAdmin = ["clinician", "admin", "super admin", "system_admin", "System Admin"].includes(role.name);
+    const requiresMfa = role.name === "clinician";
 
     if (requiresMfa) {
-      // Generate 6-character alphanumeric OTP (uppercase + numbers)
-      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-      let otp = "";
-      for (let i = 0; i < 6; i++) {
-        otp += chars[Math.floor(Math.random() * chars.length)];
-      }
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
-
-      await db.update(users)
-        .set({ loginOtp: otp, loginOtpExpires: expiresAt, loginOtpAttempts: 0 })
-        .where(eq(users.id, user.id));
-
-      const userFullName = decrypt(user.fullName);
-      const firstName = userFullName.split(" ")[0];
-      await emailService.sendLoginMfaEmail(decrypt(user.email), otp, firstName);
-
+      const isMfaSetupRequired = !user.mfaSecret;
       const tempToken = jwt.sign(
-        { userId: user.id, role: role.name, mfaPending: true },
+        { userId: user.id, role: role.name, mfaPending: true, mfaSetupPending: isMfaSetupRequired },
         ENV.JWT_SECRET,
         { expiresIn: "15m" }
       );
 
       return {
         mfaRequired: true,
+        mfaSetupRequired: isMfaSetupRequired,
         tempToken,
         resetRequired: user.isTempPassword,
       };
     }
 
+    const existingSessions = await db.select().from(userSessions).where(eq(userSessions.userId, user.id)).limit(1);
+    if (existingSessions.length > 0) {
+      const { NotificationService } = await import("../notification/notification.service");
+      const notificationService = new NotificationService();
+      await notificationService.sendSilentForceLogout(user.id);
+    }
     await db.delete(userSessions).where(eq(userSessions.userId, user.id));
 
     const rawRefreshToken = crypto.randomBytes(32).toString("hex");
@@ -212,31 +207,41 @@ export class AuthService {
       accessLevel = "Clinician";
     }
 
-    if (!user.loginOtp || !user.loginOtpExpires) {
-      throw new Error("MFA not requested or expired");
+    if (!user.mfaSecret) {
+      throw new Error("MFA not set up");
     }
 
-    if (new Date() > user.loginOtpExpires) {
-      throw new Error("OTP has expired. Please log in again.");
-    }
-
-    if (user.loginOtpAttempts >= 5) {
+    if (user.mfaFailedAttempts >= 5) {
       throw new Error("Too many failed attempts. Please log in again.");
     }
 
-    if (user.loginOtp !== otp) {
+    let isValid = false;
+    try {
+      const decryptedSecret = decrypt(user.mfaSecret);
+      isValid = verifySync({ token: otp, secret: decryptedSecret }).valid;
+    } catch (err) {
+      console.error("MFA TOTP check error:", err);
+    }
+
+    if (!isValid) {
       await db.update(users)
-        .set({ loginOtpAttempts: user.loginOtpAttempts + 1 })
+        .set({ mfaFailedAttempts: user.mfaFailedAttempts + 1 })
         .where(eq(users.id, user.id));
       throw new Error("Invalid verification code");
     }
 
-    // Clear OTP
+    // Reset failed attempts
     await db.update(users)
-      .set({ loginOtp: null, loginOtpExpires: null, loginOtpAttempts: 0 })
+      .set({ mfaFailedAttempts: 0 })
       .where(eq(users.id, user.id));
 
     // Issue tokens
+    const existingSessions = await db.select().from(userSessions).where(eq(userSessions.userId, user.id)).limit(1);
+    if (existingSessions.length > 0) {
+      const { NotificationService } = await import("../notification/notification.service");
+      const notificationService = new NotificationService();
+      await notificationService.sendSilentForceLogout(user.id);
+    }
     await db.delete(userSessions).where(eq(userSessions.userId, user.id));
 
     const rawRefreshToken = crypto.randomBytes(32).toString("hex");
@@ -272,40 +277,123 @@ export class AuthService {
       resetRequired: user.isTempPassword,
     };
   }
-  async resendMfa(tempToken: string) {
-    try {
-      const decoded = jwt.verify(tempToken, ENV.JWT_SECRET) as any;
-      if (!decoded.mfaPending) {
-        throw new Error("Invalid request");
-      }
+  async generateMfaSetup(userId: string) {
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user) throw new Error("User not found");
 
-      const [user] = await db.select().from(users).where(eq(users.id, decoded.userId)).limit(1);
-      if (!user) throw new Error("User not found");
+    const decryptedEmail = decrypt(user.email);
+    const secret = generateSecret();
+    const otpauth = generateURI({ secret, label: decryptedEmail, issuer: "ImmunoTrack" });
+    const qrCode = await qrcode.toDataURL(otpauth);
 
-      if (user.loginOtpExpires && (user.loginOtpExpires.getTime() - Date.now() > 9 * 60 * 1000)) {
-        throw new Error("RATE_LIMITED");
-      }
+    const encryptedSecret = encrypt(secret);
+    await db.update(users)
+      .set({ tempMfaSecret: encryptedSecret, mfaFailedAttempts: 0 })
+      .where(eq(users.id, userId));
 
-      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-      let otp = "";
-      for (let i = 0; i < 6; i++) {
-        otp += chars[Math.floor(Math.random() * chars.length)];
-      }
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+    return { qrCode, secret };
+  }
 
-      await db.update(users)
-        .set({ loginOtp: otp, loginOtpExpires: expiresAt, loginOtpAttempts: 0 })
-        .where(eq(users.id, user.id));
+  async confirmMfaEnable(userId: string, otp: string, ip?: string, userAgent?: string) {
+    const [result] = await db
+      .select({
+        user: users,
+        role: roles,
+        isClinicianFlag: clinicians.isClinician,
+      })
+      .from(users)
+      .innerJoin(roles, eq(users.roleId, roles.id))
+      .leftJoin(clinicians, eq(users.id, clinicians.userId))
+      .where(eq(users.id, userId))
+      .limit(1);
 
-      const userFullName = decrypt(user.fullName);
-      const firstName = userFullName.split(" ")[0];
-      await emailService.sendLoginMfaEmail(decrypt(user.email), otp, firstName);
+    if (!result) throw new Error("User not found");
+    const { user, role, isClinicianFlag } = result;
 
-      return { success: true };
-    } catch (err: any) {
-      if (err.name === "TokenExpiredError") throw new Error("Invalid or expired token");
-      throw err;
+    if (!user.tempMfaSecret) {
+      throw new Error("MFA setup not initiated");
     }
+
+    const decryptedSecret = decrypt(user.tempMfaSecret);
+    const isValid = verifySync({ token: otp, secret: decryptedSecret }).valid;
+
+    if (!isValid) {
+      throw new Error("Invalid verification code");
+    }
+
+    // Generate 5 backup codes
+    const backupCodesPlain: string[] = [];
+    const backupCodesHashed: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      const code = crypto.randomBytes(4).toString("hex").toUpperCase();
+      backupCodesPlain.push(code);
+      backupCodesHashed.push(code);
+    }
+    const encryptedBackupCodes = encrypt(JSON.stringify(backupCodesHashed));
+
+    // Update DB
+    await db.update(users)
+      .set({
+        mfaSecret: user.tempMfaSecret,
+        tempMfaSecret: null,
+        mfaEnabled: true,
+        mfaBackupCodes: encryptedBackupCodes,
+        mfaFailedAttempts: 0,
+      })
+      .where(eq(users.id, userId));
+
+    // Issue tokens
+    const isClinician = isClinicianFlag ?? false;
+    const isAdmin = role.name.includes("admin");
+
+    let accessLevel = "Patient";
+    if (isAdmin) {
+      accessLevel = isClinician ? "Admin + Clinician" : "Admin";
+    } else if (role.name === "clinician" || isClinician) {
+      accessLevel = "Clinician";
+    }
+
+    const existingSessions = await db.select().from(userSessions).where(eq(userSessions.userId, user.id)).limit(1);
+    if (existingSessions.length > 0) {
+      const { NotificationService } = await import("../notification/notification.service");
+      const notificationService = new NotificationService();
+      await notificationService.sendSilentForceLogout(user.id);
+    }
+    await db.delete(userSessions).where(eq(userSessions.userId, user.id));
+
+    const rawRefreshToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHmac("sha256", ENV.ENCRYPTION_KEY).update(rawRefreshToken).digest("hex");
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    const [session] = await db.insert(userSessions).values([{
+      userId: user.id,
+      tokenHash,
+      ipAddress: ip,
+      userAgent: userAgent,
+      expiresAt,
+    }]).returning();
+
+    const accessToken = generateAccessToken({
+      userId: user.id,
+      role: role.name,
+      sid: session.id
+    });
+
+    return {
+      accessToken,
+      refreshToken: rawRefreshToken,
+      backupCodes: backupCodesPlain,
+      user: {
+        user_id: user.id,
+        role: role.name,
+        is_clinician: isClinician,
+        is_admin: isAdmin,
+        access_level: accessLevel,
+      },
+      resetRequired: user.isTempPassword,
+    };
   }
 
 

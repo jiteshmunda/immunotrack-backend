@@ -530,13 +530,15 @@ export class AdminService {
     const startOf7DaysAgo = new Date(); startOf7DaysAgo.setDate(startOf7DaysAgo.getDate() - 7); startOf7DaysAgo.setHours(0, 0, 0, 0);
     const startOf30DaysAgo = new Date(); startOf30DaysAgo.setDate(startOf30DaysAgo.getDate() - 30); startOf30DaysAgo.setHours(0, 0, 0, 0);
 
+    const todayStr = new Date().toISOString().split("T")[0];
+
     // 3. Daily Logs & Avg Symptom Score
     const todaysLogs = await db
       .select()
       .from(dailyLogs)
       .where(and(
         inArray(dailyLogs.patientId, patientIds),
-        between(dailyLogs.loggedAt, startOfToday, endOfToday)
+        eq(dailyLogs.logDate, todayStr)
       ));
 
     const daily_logs = todaysLogs.length;
@@ -575,13 +577,15 @@ export class AdminService {
     const todaysLogPatients = new Set(todaysLogs.map(l => l.patientId));
     const daily_active_users = Math.round((todaysLogPatients.size / active_patients) * 100);
 
-    const logsLast7Days = await db.select({ patientId: dailyLogs.patientId, loggedAt: dailyLogs.loggedAt }).from(dailyLogs)
-      .where(and(inArray(dailyLogs.patientId, patientIds), between(dailyLogs.loggedAt, startOf7DaysAgo, endOfToday)));
+    const startOf7DaysAgoStr = new Date(startOf7DaysAgo).toISOString().split("T")[0];
+    const logsLast7Days = await db.select({ patientId: dailyLogs.patientId, logDate: dailyLogs.logDate }).from(dailyLogs)
+      .where(and(inArray(dailyLogs.patientId, patientIds), gte(dailyLogs.logDate, startOf7DaysAgoStr), lte(dailyLogs.logDate, todayStr)));
     const weeklyLogPatients = new Set(logsLast7Days.map(l => l.patientId));
     const weekly_active_users = Math.round((weeklyLogPatients.size / active_patients) * 100);
 
+    const startOf30DaysAgoStr = new Date(startOf30DaysAgo).toISOString().split("T")[0];
     const [logsLast30DaysCount] = await db.select({ count: sql<number>`count(*)` }).from(dailyLogs)
-      .where(and(inArray(dailyLogs.patientId, patientIds), between(dailyLogs.loggedAt, startOf30DaysAgo, endOfToday)));
+      .where(and(inArray(dailyLogs.patientId, patientIds), gte(dailyLogs.logDate, startOf30DaysAgoStr), lte(dailyLogs.logDate, todayStr)));
     const expectedLogs30Days = active_patients * 30;
     const logging_compliance = expectedLogs30Days > 0 ? Math.round((Number(logsLast30DaysCount?.count || 0) / expectedLogs30Days) * 100) : 0;
 
@@ -607,8 +611,8 @@ export class AdminService {
     const system_uptime = `${rawUptime} (99.9%)`;
 
     // 8. Daily Symptom Log Trends (Last 30 Days)
-    const logsLast30DaysForTrends = await db.select({ patientId: dailyLogs.patientId, loggedAt: dailyLogs.loggedAt }).from(dailyLogs)
-      .where(and(inArray(dailyLogs.patientId, patientIds), between(dailyLogs.loggedAt, startOf30DaysAgo, endOfToday)));
+    const logsLast30DaysForTrends = await db.select({ patientId: dailyLogs.patientId, logDate: dailyLogs.logDate }).from(dailyLogs)
+      .where(and(inArray(dailyLogs.patientId, patientIds), gte(dailyLogs.logDate, startOf30DaysAgoStr), lte(dailyLogs.logDate, todayStr)));
 
     const daily_symptom_log_trends: { date: string; count: number }[] = [];
     const trendDays = 30;
@@ -616,11 +620,7 @@ export class AdminService {
       const d = new Date(endOfToday.getTime() - i * 24 * 60 * 60 * 1000);
       const dStr = d.toISOString().split("T")[0];
       const count = logsLast30DaysForTrends.filter(l => {
-        // loggedAt might be Date or string, handle accordingly
-        const logDate = l.loggedAt instanceof Date 
-          ? l.loggedAt.toISOString().split("T")[0] 
-          : new Date(l.loggedAt as string).toISOString().split("T")[0];
-        return logDate === dStr;
+        return l.logDate === dStr;
       }).length;
       daily_symptom_log_trends.push({ date: dStr, count });
     }

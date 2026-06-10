@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { ZodError } from "zod";
 import { db } from "../../db";
 import { clinicians } from "../../db/schema/profile.schema";
+import { users } from "../../db/schema/user.schema";
 import { eq } from "drizzle-orm";
 import { AuthService } from "./auth.service";
 import { InvitationService } from "../invitation/invitation.service";
@@ -64,8 +65,8 @@ export class AuthController {
       // HIPAA: Set refresh token in HTTP-only cookie
       res.cookie("refreshToken", result.refreshToken, {
         httpOnly: true,
-        secure: ENV.NODE_ENV === "production",
-        sameSite: "lax",
+        secure: true, // Required for SameSite="none"
+        sameSite: "none", // Required for cross-domain requests
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       });
 
@@ -117,14 +118,18 @@ export class AuthController {
       );
 
       if (result.mfaRequired) {
-        return sendSuccess(res, { mfaRequired: true, tempToken: result.tempToken });
+        return sendSuccess(res, { 
+          mfaRequired: true, 
+          mfaSetupRequired: result.mfaSetupRequired,
+          tempToken: result.tempToken 
+        });
       }
 
       // HIPAA: Set refresh token in HTTP-only cookie
       res.cookie("refreshToken", result.refreshToken, {
         httpOnly: true,
-        secure: ENV.NODE_ENV === "production",
-        sameSite: "lax",
+        secure: true,
+        sameSite: "none",
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       });
 
@@ -164,8 +169,8 @@ export class AuthController {
 
       res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
-        secure: ENV.NODE_ENV === "production",
-        sameSite: "lax",
+        secure: true,
+        sameSite: "none",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
@@ -185,14 +190,112 @@ export class AuthController {
       return sendError(res, error, 401);
     }
   }
-  async resendMfa(req: Request, res: Response) {
+  async setupMfa(req: Request, res: Response) {
     try {
+      let userId: string;
       const { tempToken } = req.body;
-      if (!tempToken) {
-        return sendError(res, new Error("Temporary token is required"), 400);
+
+      if (tempToken) {
+        const jwt = require("jsonwebtoken");
+        const { ENV } = require("../../config/env");
+        try {
+          const decoded = jwt.verify(tempToken, ENV.JWT_SECRET);
+          if (!decoded.mfaSetupPending) {
+            return sendError(res, new Error("MFA already set up or invalid token"), 400);
+          }
+          userId = decoded.userId;
+        } catch (e) {
+          return sendError(res, new Error("Invalid or expired temporary token"), 401);
+        }
+      } else {
+        userId = (req as any).user?.userId;
+        if (!userId) {
+          return sendError(res, new Error("Unauthorized"), 401);
+        }
       }
-      const result = await authService.resendMfa(tempToken);
+
+      const result = await authService.generateMfaSetup(userId);
       return sendSuccess(res, result);
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
+  async enableMfa(req: Request, res: Response) {
+    try {
+      let userId: string;
+      const { tempToken, otp } = req.body;
+
+      if (!otp) {
+        return sendError(res, new Error("Verification code is required"), 400);
+      }
+
+      if (tempToken) {
+        const jwt = require("jsonwebtoken");
+        const { ENV } = require("../../config/env");
+        try {
+          const decoded = jwt.verify(tempToken, ENV.JWT_SECRET);
+          if (!decoded.mfaSetupPending) {
+            return sendError(res, new Error("MFA already set up or invalid token"), 400);
+          }
+          userId = decoded.userId;
+        } catch (e) {
+          return sendError(res, new Error("Invalid or expired temporary token"), 401);
+        }
+      } else {
+        userId = (req as any).user?.userId;
+        if (!userId) {
+          return sendError(res, new Error("Unauthorized"), 401);
+        }
+      }
+
+      const result = await authService.confirmMfaEnable(
+        userId,
+        otp,
+        req.ip,
+        req.headers["user-agent"]
+      );
+
+      res.cookie("refreshToken", result.refreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      await writeAudit(req, {
+        action: "MFA_ENABLED",
+        status: "success",
+        userId: result.user.user_id,
+      });
+
+      return sendSuccess(res, {
+        accessToken: result.accessToken,
+        user: result.user,
+        backupCodes: result.backupCodes,
+        resetRequired: result.resetRequired
+      });
+    } catch (error: any) {
+      return sendError(res, error, 400);
+    }
+  }
+  async mfaChallenge(req: Request, res: Response) {
+    try {
+      const { mfaChallengeSchema } = require("./auth.schema");
+      const validated = mfaChallengeSchema.parse(req.body);
+      const userId = (req as any).user.userId;
+
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (!user || !user.passwordHash) {
+        return sendError(res, new Error("User not found"), 401);
+      }
+
+      const { verifyPassword } = require("../../utils/hash");
+      const isValid = await verifyPassword(validated.password, user.passwordHash);
+      if (!isValid) {
+        return sendError(res, new Error("Invalid password"), 401);
+      }
+
+      return sendSuccess(res, { success: true });
     } catch (error: any) {
       return sendError(res, error, 400);
     }
@@ -242,8 +345,8 @@ export class AuthController {
       // HIPAA: Set refresh token in HTTP-only cookie
       res.cookie("refreshToken", result.refreshToken, {
         httpOnly: true,
-        secure: ENV.NODE_ENV === "production",
-        sameSite: "lax",
+        secure: true,
+        sameSite: "none",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
@@ -279,8 +382,8 @@ export class AuthController {
 
       res.cookie("refreshToken", newRefreshToken, {
         httpOnly: true,
-        secure: ENV.NODE_ENV === "production",
-        sameSite: "lax",
+        secure: true,
+        sameSite: "none",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 

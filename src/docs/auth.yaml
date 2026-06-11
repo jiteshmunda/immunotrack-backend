@@ -58,6 +58,7 @@ paths:
                 properties:
                   success: { type: boolean, example: true }
                   mfaRequired: { type: boolean, example: true }
+                  mfaSetupRequired: { type: boolean, example: true }
                   tempToken: { type: string, example: "temp_jwt_if_mfa_required" }
                   accessToken: { type: string, example: "eyJhbGciOiJIUzI1Ni..." }
                   user:
@@ -83,7 +84,7 @@ paths:
               required: [tempToken, otp]
               properties:
                 tempToken: { type: string, example: "temp_jwt_returned_from_login" }
-                otp: { type: string, minLength: 6, maxLength: 6, example: "A1B2C3" }
+                otp: { type: string, minLength: 6, maxLength: 6, example: "123456" }
       responses:
         200:
           description: MFA successful, tokens issued
@@ -103,32 +104,101 @@ paths:
         401:
           description: Invalid OTP or expired token
 
-  /auth/resend-mfa:
+  /auth/mfa/setup:
     post:
-      summary: Resend the 6-character MFA code to the user's email
+      summary: Generate secret key and QR code for new Authenticator setup
       tags: [Auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [tempToken]
-              properties:
-                tempToken: { type: string, example: "temp_jwt_returned_from_login" }
+      security:
+        - bearerAuth: []
       responses:
         200:
-          description: MFA code resent successfully
+          description: Setup parameters generated successfully
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   success: { type: boolean, example: true }
-        429:
-          description: Rate limited (Please wait before requesting a new code)
+                  data:
+                    type: object
+                    properties:
+                      qrCode: { type: string, example: "data:image/png;base64,..." }
+                      secret: { type: string, example: "JBSWY3DPEHPK3PXP" }
+        401:
+          description: Unauthorized or invalid token
+
+  /auth/mfa/enable:
+    post:
+      summary: Validate code, activate TOTP MFA, and print backup codes
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [otp]
+              properties:
+                otp: { type: string, minLength: 6, maxLength: 6, example: "123456" }
+      responses:
+        200:
+          description: MFA activated successfully, session tokens and backup codes issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: object
+                    properties:
+                      accessToken: { type: string, example: "eyJ..." }
+                      backupCodes:
+                        type: array
+                        items: { type: string }
+                        example: ["A1B2C3D4", "E5F6G7H8", "I9J0K1L2", "M3N4O5P6", "Q7R8S9T0"]
+                      user:
+                        type: object
+                        properties:
+                          user_id: { type: string, format: uuid, example: "b8cffc86-f212-489b-bbf4-7f109570ea39" }
+                          role: { type: string, example: "clinician" }
+                          is_clinician: { type: boolean, example: true }
+                          is_admin: { type: boolean, example: false }
         400:
-          description: Invalid or expired temporary token
+          description: Invalid setup code
+
+  /auth/mfa/challenge:
+    post:
+      summary: Verify clinician password before allowing authenticator reconfiguration
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string, example: "DoctorPass123!@" }
+      responses:
+        200:
+          description: Password challenge succeeded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: object
+                    properties:
+                      success: { type: boolean, example: true }
+        401:
+          description: Invalid password
 
   /auth/refresh:
     post:

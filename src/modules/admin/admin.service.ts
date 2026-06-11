@@ -434,6 +434,7 @@ export class AdminService {
     }
     
     const active_alerts_count = adminClinicians.map(c => ({
+      clinician_id: c.id,
       clinician: c.fullName ? decrypt(c.fullName) : "Unknown",
       count: alertsByClinician[c.id] || 0
     }));
@@ -451,6 +452,7 @@ export class AdminService {
           .where(and(eq(invitations.clinicianId, c.id), gte(invitations.createdAt, startOf30DaysAgo)));
 
        return {
+          clinician_id: c.id,
           clinician: c.fullName ? decrypt(c.fullName) : "Unknown",
           patients_invited: Number(invited[0]?.count || 0),
           alerts_resolved: Number(resolved[0]?.count || 0)

@@ -341,11 +341,14 @@ export class MedicationService {
       }
 
       // --- Compute dueToday ---
+      const isPrn = (m as any).isPrn || isPRNMedication(freq);
       let dueToday = true;
       if (m.startDate && m.startDate > todayStr) {
         dueToday = false;
       } else if (courseCompleted) {
         dueToday = false;
+      } else if (isPrn) {
+        dueToday = true;
       } else if (isWeeklyGroup) {
         dueToday = reminder?.daysOfWeek?.includes(todayDayName) ?? false;
       } else if (isInterval) {
@@ -361,7 +364,7 @@ export class MedicationService {
         ? (isTakenToday || isMissedToday)
         : ((dosesTaken + dosesMissed) >= dosesCount);
 
-      if (allDosesLoggedToday && dueToday !== false) {
+      if (allDosesLoggedToday && dueToday !== false && !isPrn) {
         dueToday = false;
 
         const nextDateObj = new Date();

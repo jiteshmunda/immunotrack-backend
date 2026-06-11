@@ -74,7 +74,7 @@ export class PatientService {
             const fullName = user && user.fullName ? decrypt(user.fullName) : "Patient";
             await tx.insert(notifications).values([{
               userId: clinician.userId,
-              type: "patient_deterioration",
+              type: "patient_enrolled",
               title: encrypt("Patient Enrolled"),
               body: encrypt(`${fullName} has securely registered their account and activated remote monitoring.`),
             }]);

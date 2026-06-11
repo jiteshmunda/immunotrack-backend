@@ -242,14 +242,27 @@ export class NotificationService {
         console.error(`[NotificationService] Decryption failed for notification: ${n.id}`);
       }
 
+      let patientId: string | undefined = undefined;
+      if (decryptedBody.includes("||")) {
+        const parts = decryptedBody.split("||");
+        decryptedBody = parts[0];
+        patientId = parts[1];
+      }
+
+      let type = n.type;
+      if (decryptedTitle === "Patient Enrolled") {
+        type = "patient_enrolled";
+      }
+
       return {
         data: {
           title: decryptedTitle,
           body: decryptedBody,
           notificationId: n.id,
-          type: n.type,
+          type: type,
           createdAt: n.createdAt,
-          readAt: n.readAt
+          readAt: n.readAt,
+          patientId: patientId,
         }
       };
     });

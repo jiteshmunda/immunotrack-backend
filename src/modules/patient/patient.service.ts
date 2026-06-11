@@ -29,13 +29,13 @@ export class PatientService {
       if (input.first_name !== undefined || input.last_name !== undefined) {
         const [user] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
         if (user && user.fullName) {
-            const currentFullName = decrypt(user.fullName);
-            const parts = currentFullName.split(" ");
-            const first = input.first_name !== undefined ? input.first_name : parts[0];
-            const last = input.last_name !== undefined ? input.last_name : parts.slice(1).join(" ");
-            
-            const newFullName = `${first} ${last}`.trim();
-            await tx.update(users).set({ fullName: encrypt(newFullName), updatedAt: new Date() }).where(eq(users.id, userId));
+          const currentFullName = decrypt(user.fullName);
+          const parts = currentFullName.split(" ");
+          const first = input.first_name !== undefined ? input.first_name : parts[0];
+          const last = input.last_name !== undefined ? input.last_name : parts.slice(1).join(" ");
+
+          const newFullName = `${first} ${last}`.trim();
+          await tx.update(users).set({ fullName: encrypt(newFullName), updatedAt: new Date() }).where(eq(users.id, userId));
         }
       }
 
@@ -47,7 +47,7 @@ export class PatientService {
       }
 
       const updates: any = { updatedAt: new Date() };
-      
+
       if (input.zip_code !== undefined) updates.locationZip = input.zip_code;
       if (input.sex !== undefined) updates.sex = input.sex;
       if (input.phone !== undefined) updates.phone = encrypt(input.phone);
@@ -81,7 +81,7 @@ export class PatientService {
           }
         }
       }
-        
+
       return { success: true, updated_fields: Object.keys(input), onboarding_complete: true };
     });
   }
@@ -110,8 +110,8 @@ export class PatientService {
 
     const [assignment] = await db
       .select({
-         clinicianName: users.fullName,
-         clinicName: clinics.name
+        clinicianName: users.fullName,
+        clinicName: clinics.name
       })
       .from(patientClinicianAssignments)
       .innerJoin(clinicians, eq(patientClinicianAssignments.clinicianId, clinicians.id))
@@ -160,7 +160,7 @@ export class PatientService {
   }
 
   // -----------------------POST /patient/profile/photo----------------------------------
-  
+
   async uploadPhoto(userId: string, dataUri: string) {
     const encryptedUri = encrypt(dataUri);
     await db.update(users).set({ profilePicture: encryptedUri }).where(eq(users.id, userId));
@@ -240,7 +240,7 @@ export class PatientService {
         score: latestLog.skinScore,
         color: symptomService.getStatusColor("skin", latestLog.skinScore),
       },
-     
+
       risk_score: symptomService.calculateRiskScore(
         latestLog.respiratoryScore,
         latestLog.nasalScore,
@@ -267,12 +267,12 @@ export class PatientService {
 
     const reminders = await medicationService.getReminders(userId);
     const activeReminders = reminders.filter(r => r.active && r.time);
-    
+
     activeReminders.sort((a, b) => (a.time as string).localeCompare(b.time as string));
-    
+
     // Find the first pending reminder that hasn't been taken today
     const nextDueReminder = activeReminders.find(r => !takenMedicationIds.has(r.medicationId));
-    
+
     let nextDueMedication = null;
     if (nextDueReminder) {
       const medDetails = medications.find((m: any) => m.id === nextDueReminder.medicationId);

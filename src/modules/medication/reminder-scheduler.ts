@@ -12,8 +12,9 @@ export async function checkAndDispatchReminders(targetTime?: string) {
   let time = targetTime;
   
   if (!time) {
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
+    // Get the current UTC time
+    const hours = String(now.getUTCHours()).padStart(2, '0');
+    const minutes = String(now.getUTCMinutes()).padStart(2, '0');
     time = `${hours}:${minutes}`;
   }
 
@@ -25,6 +26,10 @@ export async function checkAndDispatchReminders(targetTime?: string) {
       isEnabled: schema.medicationReminders.isEnabled,
       patientId: schema.medicationReminders.patientId,
       medicationId: schema.medicationReminders.medicationId,
+      daysOfWeek: schema.medicationReminders.daysOfWeek,
+      intervalWeeks: schema.medicationReminders.intervalWeeks,
+      nextDoseDate: schema.medicationReminders.nextDoseDate,
+      timezone: schema.medicationReminders.timezone,
       medName: schema.patientMedications.name,
       medDose: schema.patientMedications.dose,
       medActive: schema.patientMedications.active,
@@ -48,9 +53,10 @@ export async function checkAndDispatchReminders(targetTime?: string) {
 
   if (activeReminders.length === 0) return;
 
-  console.log(`[ReminderScheduler] Found ${activeReminders.length} matching reminders at local system time ${time}. Processing...`);
+  console.log(`[ReminderScheduler] Found ${activeReminders.length} matching reminders at UTC time ${time}. Processing...`);
 
   const todayStr = now.toISOString().split("T")[0];
+  const todayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][now.getDay()];
   const processedSet = new Set<string>();
 
   for (const r of activeReminders) {
@@ -60,6 +66,21 @@ export async function checkAndDispatchReminders(targetTime?: string) {
       continue;
     }
     processedSet.add(uniqueKey);
+
+    // Weekly / Twice Weekly — only fire on scheduled day(s)
+    if (r.daysOfWeek) {
+      const scheduledDays = r.daysOfWeek.split(',').map((d: string) => d.trim());
+      if (!scheduledDays.includes(todayName)) {
+        continue; // not today — skip
+      }
+    }
+
+    // Biologic — only fire on the actual next dose date
+    if (r.intervalWeeks && r.nextDoseDate) {
+      if (todayStr !== r.nextDoseDate) {
+        continue; // skip — not due today
+      }
+    }
 
     let patientName = "Patient";
     let medName = "Medication";
@@ -80,11 +101,31 @@ export async function checkAndDispatchReminders(targetTime?: string) {
 
     console.log(`[ReminderScheduler]  Dispatching scheduled alarm for "${patientName}" (${medName})...`);
 
+    // Convert the UTC time string back to the patient's local time string
+    let localTimeStr = time;
+    try {
+      const [utcH, utcM] = time.split(':').map(Number);
+      
+      const nowForTz = new Date();
+      const utcString = nowForTz.toLocaleString("en-US", { timeZone: "UTC" });
+      const tzString = nowForTz.toLocaleString("en-US", { timeZone: r.timezone || "UTC" });
+      const utcDate = new Date(utcString);
+      const tzDate = new Date(tzString);
+      const offsetMinutes = Math.round((tzDate.getTime() - utcDate.getTime()) / 60000);
+      
+      let localMinutesTotal = (utcH * 60) + utcM + offsetMinutes;
+      while (localMinutesTotal < 0) localMinutesTotal += 24 * 60;
+      localMinutesTotal = localMinutesTotal % (24 * 60);
+      localTimeStr = `${String(Math.floor(localMinutesTotal / 60)).padStart(2, '0')}:${String(localMinutesTotal % 60).padStart(2, '0')}`;
+    } catch (e) {
+      console.error("[ReminderScheduler] Error converting UTC to local time for template:", e);
+    }
+
     const template = NotificationTemplates.medication_dose_reminder({
       patientName,
       medName,
       dose: medDose,
-      time
+      time: localTimeStr
     });
 
     try {

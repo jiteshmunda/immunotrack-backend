@@ -30,6 +30,7 @@ export const createReminderSchema = z.object({
   month: z.number().min(1).max(12).optional(),
   nextDoseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)").optional(),
   intervalWeeks: z.union([z.literal(2), z.literal(4)]).optional(),
+  timezone: z.string().optional(),
 }).refine((data) => {
   return data.time !== undefined || (data.times !== undefined && data.times.length > 0);
 }, {
@@ -45,4 +46,5 @@ export const updateReminderSchema = z.object({
   month: z.number().min(1).max(12).optional(),
   nextDoseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)").optional(),
   intervalWeeks: z.union([z.literal(2), z.literal(4)]).optional(),
+  timezone: z.string().optional(),
 });

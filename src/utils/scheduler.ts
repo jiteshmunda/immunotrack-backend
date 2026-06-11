@@ -4,8 +4,8 @@ import { exec } from "child_process";
 export function startAdherenceScheduler() {
   console.log("[Scheduler] Background adherence cron job successfully initialized.");
 
-  // Schedule to run every night at 2:00 AM (0 2 * * *)
-  cron.schedule("0 2 * * *", () => {
+  // Schedule to run every night at 12:30 AM (30 0 * * *)
+  cron.schedule("30 0 * * *", () => {
     console.log("[Scheduler] Triggering scheduled medication adherence check...");
     
     // Executes the single-run version of the check script cleanly
@@ -20,8 +20,8 @@ export function startAdherenceScheduler() {
     });
   });
 
-  // Schedule to run every night at 1:00 AM (0 1 * * *)
-  cron.schedule("0 1 * * *", () => {
+  // Schedule to run every night at 11:59:59 PM (59 59 23 * * *)
+  cron.schedule("59 59 23 * * *", () => {
     console.log("[Scheduler] Triggering nightly auto-miss medication check...");
     
     exec("npx tsx src/scripts/nightly-auto-miss.ts", (error, stdout, stderr) => {

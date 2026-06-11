@@ -740,6 +740,8 @@ export class MedicationService {
 
     const results = await db.select({
       id: medicationLogs.id,
+      medicationId: medicationLogs.medicationId,
+      loggedAt: medicationLogs.loggedAt,
       status: medicationLogs.status,
       scheduledFor: medicationLogs.scheduledFor,
       takenTime: medicationLogs.takenTime,

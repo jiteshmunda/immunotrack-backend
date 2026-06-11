@@ -216,6 +216,7 @@ export class MedicationService {
       const isQuarterly = freqLower.includes("every 3 months");
       const isInterval = isBiWeekly || isMonthly || isQuarterly;
       const isWeeklyGroup = isWeeklyCycle || isTwiceWeekly;
+      const isEveryOtherDay = freqLower.includes("every other day");
       
       const isShortCourse = freqLower.includes("max 3 days");
       
@@ -319,6 +320,7 @@ export class MedicationService {
         else if (freqLower.includes("every 8 hours")) dosesCount = 3;
         else if (freqLower.includes("every 12 hours")) dosesCount = 2;
         else if (freqLower.includes("as needed") || freqLower.includes("prn")) dosesCount = 1;
+        else if (isEveryOtherDay) dosesCount = 1;
 
         const todaysLogs = medLogs.filter(l => l.loggedAt >= startOfToday && l.loggedAt <= endOfToday);
 
@@ -339,15 +341,65 @@ export class MedicationService {
       }
 
       // --- Compute dueToday ---
+      const isPrn = (m as any).isPrn || isPRNMedication(freq);
       let dueToday = true;
       if (m.startDate && m.startDate > todayStr) {
         dueToday = false;
       } else if (courseCompleted) {
         dueToday = false;
+      } else if (isPrn) {
+        dueToday = true;
       } else if (isWeeklyGroup) {
         dueToday = reminder?.daysOfWeek?.includes(todayDayName) ?? false;
       } else if (isInterval) {
         dueToday = !!(reminder?.nextDoseDate && reminder.nextDoseDate <= todayStr);
+      } else if (isEveryOtherDay) {
+        // Technically logic is absent for every other day in the backend, but we default to true 
+        // and override below if fully logged
+        dueToday = true; 
+      }
+
+      // --- Force dueToday = false if fully logged, and calculate nextScheduledDate ---
+      const allDosesLoggedToday = (isInterval || isWeeklyGroup || isEveryOtherDay) 
+        ? (isTakenToday || isMissedToday)
+        : ((dosesTaken + dosesMissed) >= dosesCount);
+
+      if (allDosesLoggedToday && dueToday !== false && !isPrn) {
+        dueToday = false;
+
+        const nextDateObj = new Date();
+
+        if (isWeeklyCycle) {
+          nextDateObj.setDate(nextDateObj.getDate() + 7);
+          nextScheduledDate = nextDateObj.toISOString().split("T")[0];
+        } else if (isTwiceWeekly && reminder?.daysOfWeek) {
+          const daysOfWeekArray = reminder.daysOfWeek.split(',').map((d: string) => d.trim());
+          const dayMap: Record<string, number> = {
+            Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3,
+            Thursday: 4, Friday: 5, Saturday: 6
+          };
+          const todayNum = new Date().getDay();
+          const scheduledNums = daysOfWeekArray.map(d => dayMap[d]);
+          let minDiff = 8;
+          for (const d of scheduledNums) {
+            let diff = (d - todayNum + 7) % 7;
+            if (diff === 0) diff = 7; // since it's fully logged today, next occurrence is in the future
+            if (diff < minDiff) minDiff = diff;
+          }
+          nextDateObj.setDate(nextDateObj.getDate() + minDiff);
+          nextScheduledDate = nextDateObj.toISOString().split("T")[0];
+        } else if (isMonthly) {
+          nextDateObj.setMonth(nextDateObj.getMonth() + 1);
+          nextScheduledDate = nextDateObj.toISOString().split("T")[0];
+        } else if (isQuarterly) {
+          nextDateObj.setMonth(nextDateObj.getMonth() + 3);
+          nextScheduledDate = nextDateObj.toISOString().split("T")[0];
+        } else if (isEveryOtherDay) {
+          nextDateObj.setDate(nextDateObj.getDate() + 1);
+          nextScheduledDate = nextDateObj.toISOString().split("T")[0];
+        } else if (isBiWeekly && reminder?.nextDoseDate) {
+          nextScheduledDate = reminder.nextDoseDate;
+        }
       }
 
       return {
@@ -562,6 +614,39 @@ export class MedicationService {
         }
       }
 
+      const freqLowerForDb = (med.frequency || "").toLowerCase();
+      const isBiWeeklyDb = freqLowerForDb.includes("every 2 weeks") || freqLowerForDb.includes("every 2-4 weeks");
+      const isMonthlyDb = freqLowerForDb.includes("every 4 weeks") || freqLowerForDb.includes("monthly") || freqLowerForDb.includes("every month");
+      const isQuarterlyDb = freqLowerForDb.includes("every 3 months");
+      const isIntervalDb = isBiWeeklyDb || isMonthlyDb || isQuarterlyDb;
+
+      if (isIntervalDb) {
+        const [reminder] = await tx.select()
+          .from(medicationReminders)
+          .where(eq(medicationReminders.medicationId, med.id))
+          .limit(1);
+
+        if (reminder) {
+          const nextDateObj = new Date();
+          if (isMonthlyDb) {
+            nextDateObj.setMonth(nextDateObj.getMonth() + 1);
+          } else if (isQuarterlyDb) {
+            nextDateObj.setMonth(nextDateObj.getMonth() + 3);
+          } else if (isBiWeeklyDb) {
+            if (reminder.intervalWeeks) {
+              nextDateObj.setDate(nextDateObj.getDate() + reminder.intervalWeeks * 7);
+            } else {
+              nextDateObj.setDate(nextDateObj.getDate() + 14); // Fallback
+            }
+          }
+          const nextScheduledDate = nextDateObj.toISOString().split("T")[0];
+
+          await tx.update(medicationReminders)
+            .set({ nextDoseDate: nextScheduledDate, updatedAt: new Date() })
+            .where(eq(medicationReminders.id, reminder.id));
+        }
+      }
+
       return newLog;
     });
 
@@ -649,15 +734,20 @@ export class MedicationService {
     const conditions = [eq(medicationLogs.patientId, patient.id)];
 
     if (filters.startDate && filters.endDate) {
+      const end = new Date(filters.endDate);
+      end.setUTCHours(23, 59, 59, 999);
+
       conditions.push(between(
         medicationLogs.loggedAt,
         new Date(filters.startDate),
-        new Date(filters.endDate)
+        end
       ));
     }
 
     const results = await db.select({
       id: medicationLogs.id,
+      medicationId: medicationLogs.medicationId,
+      loggedAt: medicationLogs.loggedAt,
       status: medicationLogs.status,
       scheduledFor: medicationLogs.scheduledFor,
       takenTime: medicationLogs.takenTime,
@@ -764,7 +854,7 @@ export class MedicationService {
       id: r.id,
       medicationId: r.medicationId,
       medicationName: decrypt(medication.name),
-      time: utcToLocal(r.reminderTime, r.timezone || "UTC"),
+      time: r.timezone && r.timezone !== "UTC" ? utcToLocal(r.reminderTime, r.timezone) : r.reminderTime,
       active: hasEnded ? false : r.isEnabled,
       frequency: r.frequency,
       daysOfWeek: r.daysOfWeek ? r.daysOfWeek.split(",") : null,
@@ -818,7 +908,7 @@ export class MedicationService {
         id: r.id,
         medicationId: r.medicationId,
         medicationName: decrypt(r.medicationName),
-        time: r.time,
+        time: r.timezone && r.timezone !== "UTC" ? utcToLocal(r.time, r.timezone) : r.time,
         active: isCurrentlyActive,
         frequency: r.frequency,
         daysOfWeek: r.daysOfWeek ? r.daysOfWeek.split(",") : null,
@@ -840,6 +930,7 @@ export class MedicationService {
     month?: number;
     nextDoseDate?: string;
     intervalWeeks?: number;
+    timezone?: string;
   }) {
     const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
@@ -856,12 +947,15 @@ export class MedicationService {
 
     const daysOfWeekStr = data.daysOfWeek ? data.daysOfWeek.join(",") : reminder.daysOfWeek;
 
-    if (data.time && (data.time !== reminder.reminderTime || daysOfWeekStr !== reminder.daysOfWeek)) {
+    const tzToUse = data.timezone || reminder.timezone || "UTC";
+    const updatedUtcTime = data.time ? (tzToUse !== "UTC" ? localToUTC(data.time, tzToUse) : data.time) : reminder.reminderTime;
+
+    if (data.time && (updatedUtcTime !== reminder.reminderTime || daysOfWeekStr !== reminder.daysOfWeek)) {
       const [existing] = await db.select()
         .from(medicationReminders)
         .where(and(
           eq(medicationReminders.medicationId, reminder.medicationId),
-          eq(medicationReminders.reminderTime, data.time),
+          eq(medicationReminders.reminderTime, updatedUtcTime),
           daysOfWeekStr ? eq(medicationReminders.daysOfWeek, daysOfWeekStr) : sql`days_of_week IS NULL`
         ))
         .limit(1);
@@ -872,7 +966,8 @@ export class MedicationService {
     const [updated] = await db.update(medicationReminders)
       .set({
         isEnabled: data.active !== undefined ? data.active : reminder.isEnabled,
-        reminderTime: data.time || reminder.reminderTime,
+        reminderTime: updatedUtcTime,
+        timezone: data.timezone || reminder.timezone,
         daysOfWeek: daysOfWeekStr,
         dayOfMonth: data.dayOfMonth !== undefined ? data.dayOfMonth : reminder.dayOfMonth,
         month: data.month !== undefined ? data.month : reminder.month,
@@ -895,7 +990,7 @@ export class MedicationService {
       id: updated.id,
       medicationId: updated.medicationId,
       medicationName: medication ? decrypt(medication.name) : "",
-      time: updated.reminderTime,
+      time: updated.timezone && updated.timezone !== "UTC" ? utcToLocal(updated.reminderTime, updated.timezone) : updated.reminderTime,
       active: hasEnded ? false : updated.isEnabled,
       frequency: updated.frequency,
       daysOfWeek: updated.daysOfWeek ? updated.daysOfWeek.split(",") : null,

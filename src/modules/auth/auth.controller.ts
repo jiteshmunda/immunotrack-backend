@@ -65,8 +65,8 @@ export class AuthController {
       // HIPAA: Set refresh token in HTTP-only cookie
       res.cookie("refreshToken", result.refreshToken, {
         httpOnly: true,
-        secure: true, // Required for SameSite="none"
-        sameSite: "none", // Required for cross-domain requests
+        secure: ENV.NODE_ENV === "production",
+        sameSite: ENV.NODE_ENV === "production" ? "none" : "lax",
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       });
 
@@ -128,8 +128,8 @@ export class AuthController {
       // HIPAA: Set refresh token in HTTP-only cookie
       res.cookie("refreshToken", result.refreshToken, {
         httpOnly: true,
-        secure: true,
-        sameSite: "none",
+        secure: ENV.NODE_ENV === "production",
+        sameSite: ENV.NODE_ENV === "production" ? "none" : "lax",
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       });
 
@@ -169,8 +169,8 @@ export class AuthController {
 
       res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
-        secure: true,
-        sameSite: "none",
+        secure: ENV.NODE_ENV === "production",
+        sameSite: ENV.NODE_ENV === "production" ? "none" : "lax",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
@@ -257,8 +257,8 @@ export class AuthController {
 
       res.cookie("refreshToken", result.refreshToken, {
         httpOnly: true,
-        secure: true,
-        sameSite: "none",
+        secure: ENV.NODE_ENV === "production",
+        sameSite: ENV.NODE_ENV === "production" ? "none" : "lax",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
@@ -345,8 +345,8 @@ export class AuthController {
       // HIPAA: Set refresh token in HTTP-only cookie
       res.cookie("refreshToken", result.refreshToken, {
         httpOnly: true,
-        secure: true,
-        sameSite: "none",
+        secure: ENV.NODE_ENV === "production",
+        sameSite: ENV.NODE_ENV === "production" ? "none" : "lax",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
@@ -382,8 +382,8 @@ export class AuthController {
 
       res.cookie("refreshToken", newRefreshToken, {
         httpOnly: true,
-        secure: true,
-        sameSite: "none",
+        secure: ENV.NODE_ENV === "production",
+        sameSite: ENV.NODE_ENV === "production" ? "none" : "lax",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 

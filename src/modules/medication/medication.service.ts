@@ -930,6 +930,7 @@ export class MedicationService {
     month?: number;
     nextDoseDate?: string;
     intervalWeeks?: number;
+    timezone?: string;
   }) {
     const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
@@ -946,12 +947,15 @@ export class MedicationService {
 
     const daysOfWeekStr = data.daysOfWeek ? data.daysOfWeek.join(",") : reminder.daysOfWeek;
 
-    if (data.time && (data.time !== reminder.reminderTime || daysOfWeekStr !== reminder.daysOfWeek)) {
+    const tzToUse = data.timezone || reminder.timezone || "UTC";
+    const updatedUtcTime = data.time ? (tzToUse !== "UTC" ? localToUTC(data.time, tzToUse) : data.time) : reminder.reminderTime;
+
+    if (data.time && (updatedUtcTime !== reminder.reminderTime || daysOfWeekStr !== reminder.daysOfWeek)) {
       const [existing] = await db.select()
         .from(medicationReminders)
         .where(and(
           eq(medicationReminders.medicationId, reminder.medicationId),
-          eq(medicationReminders.reminderTime, data.time),
+          eq(medicationReminders.reminderTime, updatedUtcTime),
           daysOfWeekStr ? eq(medicationReminders.daysOfWeek, daysOfWeekStr) : sql`days_of_week IS NULL`
         ))
         .limit(1);
@@ -962,7 +966,8 @@ export class MedicationService {
     const [updated] = await db.update(medicationReminders)
       .set({
         isEnabled: data.active !== undefined ? data.active : reminder.isEnabled,
-        reminderTime: data.time || reminder.reminderTime,
+        reminderTime: updatedUtcTime,
+        timezone: data.timezone || reminder.timezone,
         daysOfWeek: daysOfWeekStr,
         dayOfMonth: data.dayOfMonth !== undefined ? data.dayOfMonth : reminder.dayOfMonth,
         month: data.month !== undefined ? data.month : reminder.month,
@@ -985,7 +990,7 @@ export class MedicationService {
       id: updated.id,
       medicationId: updated.medicationId,
       medicationName: medication ? decrypt(medication.name) : "",
-      time: updated.reminderTime,
+      time: updated.timezone && updated.timezone !== "UTC" ? utcToLocal(updated.reminderTime, updated.timezone) : updated.reminderTime,
       active: hasEnded ? false : updated.isEnabled,
       frequency: updated.frequency,
       daysOfWeek: updated.daysOfWeek ? updated.daysOfWeek.split(",") : null,

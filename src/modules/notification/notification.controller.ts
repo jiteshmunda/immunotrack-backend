@@ -11,7 +11,7 @@ export class NotificationController {
 //  -------------------------------------- GET /api/v1/notifications --------------------------------------------
   async getInbox(req: Request, res: Response) {
     try {
-      const userId = (req as any).user.userId;
+      const { userId, role } = (req as any).user;
       
       // Validate query parameters
       const parsedQuery = getInboxSchema.safeParse(req.query);
@@ -20,7 +20,7 @@ export class NotificationController {
       }
       
       const { limit, offset } = parsedQuery.data;
-      const result = await notificationService.getInbox(userId, limit, offset);
+      const result = await notificationService.getInbox(userId, role, limit, offset);
 
       await writeAudit(req, {
         action: "READ_PHI",
@@ -42,14 +42,14 @@ export class NotificationController {
 // -------------------------------------PATCH /api/v1/notifications/:id/read --------------------------------------------------
   async markAsRead(req: Request, res: Response) {
     try {
-      const userId = (req as any).user.userId;
+      const { userId, role } = (req as any).user;
       const { id } = req.params;
 
       if (!id) {
         throw new Error("NOTIFICATION_ID_REQUIRED");
       }
 
-      const result = await notificationService.markAsRead(id as string, userId);
+      const result = await notificationService.markAsRead(id as string, userId, role);
 
       await writeAudit(req, {
         action: "UPDATE_PHI",
@@ -69,8 +69,8 @@ export class NotificationController {
 // ----------------------------------------PATCH /api/v1/notifications/read-all ------------------------------------------------------
   async markAllAsRead(req: Request, res: Response) {
     try {
-      const userId = (req as any).user.userId;
-      const result = await notificationService.markAllAsRead(userId);
+      const { userId, role } = (req as any).user;
+      const result = await notificationService.markAllAsRead(userId, role);
 
       await writeAudit(req, {
         action: "UPDATE_PHI",
@@ -89,7 +89,7 @@ export class NotificationController {
 //  ------------------------------------------DELETE /api/v1/notifications/selective ------------------------------------------------------
   async deleteSelective(req: Request, res: Response) {
     try {
-      const userId = (req as any).user.userId;
+      const { userId, role } = (req as any).user;
       
       const parsedBody = deleteSelectiveSchema.safeParse(req.body);
       if (!parsedBody.success) {
@@ -97,7 +97,7 @@ export class NotificationController {
       }
       
       const { ids } = parsedBody.data;
-      const result = await notificationService.deleteSelective(userId, ids);
+      const result = await notificationService.deleteSelective(userId, ids, role);
 
       await writeAudit(req, {
         action: "UPDATE_PHI",
@@ -116,9 +116,9 @@ export class NotificationController {
 //  ------------------------------------------DELETE /api/v1/notifications/all -----------------------------------------------------
   async deleteAll(req: Request, res: Response) {
     try {
-      const userId = (req as any).user.userId;
+      const { userId, role } = (req as any).user;
       
-      const result = await notificationService.deleteAll(userId);
+      const result = await notificationService.deleteAll(userId, role);
 
       await writeAudit(req, {
         action: "UPDATE_PHI",

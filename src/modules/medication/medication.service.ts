@@ -22,6 +22,47 @@ export interface AddMedicationInput {
   notes?: string;
 }
 
+function getUtcOffsetMinutes(timezone: string): number {
+  const now = new Date();
+  const utcString = now.toLocaleString("en-US", { timeZone: "UTC" });
+  const tzString = now.toLocaleString("en-US", { timeZone: timezone });
+  
+  const utcDate = new Date(utcString);
+  const tzDate = new Date(tzString);
+  
+  return Math.round((tzDate.getTime() - utcDate.getTime()) / 60000);
+}
+
+function localToUTC(localTime: string, timezone: string): string {
+  try {
+    const [localH, localM] = localTime.split(':').map(Number);
+    const offsetMinutes = getUtcOffsetMinutes(timezone);
+    
+    let utcMinutesTotal = (localH * 60) + localM - offsetMinutes;
+    while (utcMinutesTotal < 0) utcMinutesTotal += 24 * 60;
+    utcMinutesTotal = utcMinutesTotal % (24 * 60);
+    
+    return `${String(Math.floor(utcMinutesTotal / 60)).padStart(2, '0')}:${String(utcMinutesTotal % 60).padStart(2, '0')}`;
+  } catch (e) {
+    return localTime;
+  }
+}
+
+function utcToLocal(utcTime: string, timezone: string): string {
+  try {
+    const [utcH, utcM] = utcTime.split(':').map(Number);
+    const offsetMinutes = getUtcOffsetMinutes(timezone);
+    
+    let localMinutesTotal = (utcH * 60) + utcM + offsetMinutes;
+    while (localMinutesTotal < 0) localMinutesTotal += 24 * 60;
+    localMinutesTotal = localMinutesTotal % (24 * 60);
+    
+    return `${String(Math.floor(localMinutesTotal / 60)).padStart(2, '0')}:${String(localMinutesTotal % 60).padStart(2, '0')}`;
+  } catch (e) {
+    return utcTime;
+  }
+}
+
 export class MedicationService {
 
   // ----------------------------------GET /medications/catalog--------------------------------------------------
@@ -137,47 +178,138 @@ export class MedicationService {
     const meds = await db.select().from(patientMedications)
       .where(
         eq(patientMedications.patientId, patient.id)
-      );
+      )
+      .orderBy(desc(patientMedications.createdAt));
 
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
     const endOfToday = new Date();
     endOfToday.setHours(23, 59, 59, 999);
+    
+    const allReminders = await db.select()
+      .from(medicationReminders)
+      .where(eq(medicationReminders.patientId, patient.id));
 
-    return Promise.all(meds.map(async (m) => {
+    const maxLookbackDate = new Date();
+    maxLookbackDate.setDate(maxLookbackDate.getDate() - 90);
+    maxLookbackDate.setHours(0, 0, 0, 0);
+
+    const allLogs = await db.select({
+      medicationId: medicationLogs.medicationId,
+      status: medicationLogs.status,
+      loggedAt: medicationLogs.loggedAt
+    })
+    .from(medicationLogs)
+    .where(and(
+      eq(medicationLogs.patientId, patient.id),
+      sql`${medicationLogs.loggedAt} >= ${maxLookbackDate}`
+    ));
+
+    return meds.map((m) => {
       const freq = m.frequency || "";
       const freqLower = freq.toLowerCase();
 
-      const isWeekly = freqLower.includes("weekly") || freqLower.includes("every week") || freqLower.includes("every 1 week");
+      const isTwiceWeekly = freqLower.includes("twice weekly");
+      const isWeeklyCycle = !isTwiceWeekly && (freqLower.includes("weekly") || freqLower.includes("every week") || freqLower.includes("every 1 week"));
       const isBiWeekly = freqLower.includes("every 2 weeks") || freqLower.includes("every 2-4 weeks");
       const isMonthly = freqLower.includes("every 4 weeks") || freqLower.includes("monthly") || freqLower.includes("every month");
-
+      const isQuarterly = freqLower.includes("every 3 months");
+      const isInterval = isBiWeekly || isMonthly || isQuarterly;
+      const isWeeklyGroup = isWeeklyCycle || isTwiceWeekly;
+      
+      const isShortCourse = freqLower.includes("max 3 days");
+      
       let dosesCount = 1;
       let dosesTaken = 0;
       let dosesMissed = 0;
+      
+      let isTakenThisCycle = false;
+      let isMissedThisCycle = false;
+      let isTakenToday = false;
+      let isMissedToday = false;
+      let takenDaysThisWeek: string[] = [];
+      let missedDaysThisWeek: string[] = [];
+      
+      let courseDay: number | null = null;
+      let courseEndDate: string | null = null;
+      let courseCompleted = false;
+      let nextScheduledDate: string | null = null;
 
-      if (isWeekly || isBiWeekly || isMonthly) {
-        // Low-frequency/Biologics: keep 1/1 until the period closes
-        const lookbackDays = isWeekly ? 7 : isBiWeekly ? 14 : 30;
+      const todayStr = new Date().toISOString().split("T")[0];
+      const todayDayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()];
+
+      const reminder = allReminders.find(r => r.medicationId === m.id);
+      const medLogs = allLogs.filter(l => l.medicationId === m.id);
+
+      // --- Biologic / Interval ---
+      if (isInterval) {
+        if (reminder && !reminder.nextDoseDate && reminder.intervalWeeks) {
+          const next = new Date(m.startDate || new Date());
+          next.setDate(next.getDate() + reminder.intervalWeeks * 7);
+          reminder.nextDoseDate = next.toISOString().split("T")[0];
+        }
+        
+        const lookbackDays = isQuarterly ? 90 : isMonthly ? 30 : 14;
         const windowStart = new Date();
         windowStart.setDate(windowStart.getDate() - lookbackDays);
         windowStart.setHours(0, 0, 0, 0);
 
-        const pastLogs = await db
-          .select({ status: medicationLogs.status })
-          .from(medicationLogs)
-          .where(and(
-            eq(medicationLogs.medicationId, m.id),
-            sql`${medicationLogs.loggedAt} >= ${windowStart}`
-          ));
+        const pastLogs = medLogs.filter(l => l.loggedAt >= windowStart);
 
-        const takenInWindow = pastLogs.filter(l => l.status === "taken").length;
-        const missedInWindow = pastLogs.filter(l => l.status === "missed").length;
+        isTakenThisCycle = pastLogs.some(l => l.status === "taken");
+        isMissedThisCycle = pastLogs.some(l => l.status === "missed");
+        isTakenToday = pastLogs.some(l => l.loggedAt.toISOString().startsWith(todayStr) && l.status === "taken");
+        isMissedToday = pastLogs.some(l => l.loggedAt.toISOString().startsWith(todayStr) && l.status === "missed");
+        
         dosesCount = 1;
-        dosesTaken = Math.min(1, takenInWindow);
-        dosesMissed = Math.min(1, missedInWindow);
-      } else {
-        // Standard Daily / Hourly: check logs for today only
+        dosesTaken = isTakenThisCycle ? 1 : 0;
+        dosesMissed = isMissedThisCycle ? 1 : 0;
+      }
+      
+      // --- Weekly / Twice Weekly ---
+      else if (isWeeklyGroup) {
+        const windowStart = new Date();
+        windowStart.setDate(windowStart.getDate() - 7);
+        windowStart.setHours(0, 0, 0, 0);
+
+        const pastLogs = medLogs.filter(l => l.loggedAt >= windowStart);
+
+        isTakenThisCycle = pastLogs.some(l => l.status === "taken");
+        isMissedThisCycle = pastLogs.some(l => l.status === "missed");
+        isTakenToday = pastLogs.some(l => l.loggedAt.toISOString().startsWith(todayStr) && l.status === "taken");
+        isMissedToday = pastLogs.some(l => l.loggedAt.toISOString().startsWith(todayStr) && l.status === "missed");
+
+        if (isTwiceWeekly) {
+          const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+          takenDaysThisWeek = pastLogs.filter(l => l.status === "taken").map(l => days[l.loggedAt.getDay()]);
+          missedDaysThisWeek = pastLogs.filter(l => l.status === "missed").map(l => days[l.loggedAt.getDay()]);
+        }
+
+        dosesCount = isTwiceWeekly ? 2 : 1;
+        dosesTaken = pastLogs.filter(l => l.status === "taken").length;
+        dosesMissed = pastLogs.filter(l => l.status === "missed").length;
+
+        if (reminder && reminder.daysOfWeek) {
+          const daysOfWeekArray = reminder.daysOfWeek.split(',').map((d: string) => d.trim());
+          const dayMap: Record<string, number> = {
+            Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3,
+            Thursday: 4, Friday: 5, Saturday: 6
+          };
+          const today = new Date().getDay();
+          const scheduledNums = daysOfWeekArray.map(d => dayMap[d]);
+          let minDiff = 8;
+          for (const d of scheduledNums) {
+            const diff = (d - today + 7) % 7 || 7; 
+            if (diff < minDiff) minDiff = diff;
+          }
+          const next = new Date();
+          next.setDate(next.getDate() + minDiff);
+          nextScheduledDate = next.toISOString().split("T")[0];
+        }
+      }
+      
+      // --- Standard Daily / Hourly / Short Course ---
+      else {
         if (freqLower.includes("twice daily") || freqLower.includes("bid")) dosesCount = 2;
         else if (freqLower.includes("three times") || freqLower.includes("tid") || freqLower.includes("3 times")) dosesCount = 3;
         else if (freqLower.includes("four times") || freqLower.includes("qid") || freqLower.includes("4 times") || freqLower.includes("4x daily")) dosesCount = 4;
@@ -188,23 +320,35 @@ export class MedicationService {
         else if (freqLower.includes("every 12 hours")) dosesCount = 2;
         else if (freqLower.includes("as needed") || freqLower.includes("prn")) dosesCount = 1;
 
-        const todaysLogs = await db
-          .select({ status: medicationLogs.status })
-          .from(medicationLogs)
-          .where(and(
-            eq(medicationLogs.medicationId, m.id),
-            between(medicationLogs.loggedAt, startOfToday, endOfToday)
-          ));
+        const todaysLogs = medLogs.filter(l => l.loggedAt >= startOfToday && l.loggedAt <= endOfToday);
 
         dosesTaken = todaysLogs.filter(l => l.status === "taken").length;
         dosesMissed = todaysLogs.filter(l => l.status === "missed").length;
+        isTakenToday = dosesTaken > 0;
+        isMissedToday = dosesMissed > 0;
       }
 
-      const [reminder] = await db.select({ nextDoseDate: medicationReminders.nextDoseDate })
-        .from(medicationReminders)
-        .where(eq(medicationReminders.medicationId, m.id))
-        .orderBy(medicationReminders.nextDoseDate)
-        .limit(1);
+      // --- Short Course logic ---
+      if (isShortCourse && m.startDate) {
+        const diffDays = Math.floor(
+          (new Date(todayStr).getTime() - new Date(m.startDate).getTime()) / 86400000
+        );
+        courseDay = Math.min(diffDays + 1, 3);
+        courseEndDate = m.endDate;
+        courseCompleted = m.endDate ? todayStr > m.endDate : false;
+      }
+
+      // --- Compute dueToday ---
+      let dueToday = true;
+      if (m.startDate && m.startDate > todayStr) {
+        dueToday = false;
+      } else if (courseCompleted) {
+        dueToday = false;
+      } else if (isWeeklyGroup) {
+        dueToday = reminder?.daysOfWeek?.includes(todayDayName) ?? false;
+      } else if (isInterval) {
+        dueToday = !!(reminder?.nextDoseDate && reminder.nextDoseDate <= todayStr);
+      }
 
       return {
         id: m.id,
@@ -221,11 +365,22 @@ export class MedicationService {
         dosesCount,
         dosesTaken,
         dosesMissed,
+        isTakenToday,
+        isMissedToday,
+        isTakenThisCycle,
+        isMissedThisCycle,
+        takenDaysThisWeek,
+        missedDaysThisWeek,
+        nextScheduledDate,
+        courseDay,
+        courseEndDate,
+        courseCompleted,
+        dueToday,
         nextDoseDate: reminder?.nextDoseDate || null,
         createdAt: m.createdAt,
         deletedAt: m.deletedAt
       };
-    }));
+    });
   }
   //
   // -------------------------------------- DELETE /medications/:id ---------------------------------------------------
@@ -249,7 +404,7 @@ export class MedicationService {
   }
 
   // ---------------------------------- POST /medications/logs ------------------------------------------
-  async logMedication(userId: string, input: LogMedicationInput) {
+  async logMedication(userId: string, input: LogMedicationInput, options = { skipDailyLimitCheck: false }) {
     const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
 
@@ -261,31 +416,38 @@ export class MedicationService {
 
     if (!med) throw new Error("MEDICATION_NOT_FOUND_OR_UNAUTHORIZED");
 
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (med.startDate && med.startDate > todayStr) {
+      throw new Error("MEDICATION_NOT_YET_STARTED");
+    }
+
     // Dynamic Daily Log Limit Check
-    const dailyFrequency = getDailyFrequency(med.frequency || "");
-    if (dailyFrequency > 0 && !isPRNMedication(med.frequency || "")) {
-      const maxLogsPerDay = Math.ceil(dailyFrequency);
+    if (!options.skipDailyLimitCheck) {
+      const dailyFrequency = getDailyFrequency(med.frequency || "");
+      if (dailyFrequency > 0 && !isPRNMedication(med.frequency || "")) {
+        const maxLogsPerDay = Math.ceil(dailyFrequency);
 
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
 
-      const endOfToday = new Date();
-      endOfToday.setHours(23, 59, 59, 999);
+        const endOfToday = new Date();
+        endOfToday.setHours(23, 59, 59, 999);
 
-      // Count existing logs for this medication today
-      const [existingLogsToday] = await db.select({
-        count: sql<number>`count(*)`
-      })
-        .from(medicationLogs)
-        .where(and(
-          eq(medicationLogs.medicationId, med.id),
-          between(medicationLogs.loggedAt, startOfToday, endOfToday)
-        ));
+        // Count existing logs for this medication today
+        const [existingLogsToday] = await db.select({
+          count: sql<number>`count(*)`
+        })
+          .from(medicationLogs)
+          .where(and(
+            eq(medicationLogs.medicationId, med.id),
+            between(medicationLogs.loggedAt, startOfToday, endOfToday)
+          ));
 
-      const logCount = Number(existingLogsToday?.count || 0);
+        const logCount = Number(existingLogsToday?.count || 0);
 
-      if (logCount >= maxLogsPerDay) {
-        throw new Error("MAX_DAILY_LOG_LIMIT_EXCEEDED");
+        if (logCount >= maxLogsPerDay) {
+          throw new Error("MAX_DAILY_LOG_LIMIT_EXCEEDED");
+        }
       }
     }
 
@@ -526,6 +688,7 @@ export class MedicationService {
     month?: number;
     nextDoseDate?: string;
     intervalWeeks?: number;
+    timezone?: string;
   }) {
     const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
     if (!patient) throw new Error("PATIENT_NOT_FOUND");
@@ -546,21 +709,24 @@ export class MedicationService {
       throw new Error("REMINDERS_NOT_ALLOWED_FOR_PRN_OR_RANGE_FREQUENCIES");
     }
 
-    const timesToInsert = data.times && data.times.length > 0 ? data.times : (data.time ? [data.time] : []);
-    if (timesToInsert.length === 0) {
+    const timeArray = data.times && data.times.length > 0 ? data.times : (data.time ? [data.time] : []);
+    if (timeArray.length === 0) {
       throw new Error("TIME_OR_TIMES_REQUIRED");
     }
 
     const insertedReminders: any[] = [];
     const daysOfWeekStr = data.daysOfWeek ? data.daysOfWeek.join(",") : null;
+    const tz = data.timezone || "UTC";
 
     await db.transaction(async (tx) => {
-      for (const t of timesToInsert) {
+      for (const t of timeArray) {
+        const utcTime = localToUTC(t, tz);
+
         const [existing] = await tx.select()
           .from(medicationReminders)
           .where(and(
             eq(medicationReminders.medicationId, data.medicationId),
-            eq(medicationReminders.reminderTime, t),
+            eq(medicationReminders.reminderTime, utcTime),
             daysOfWeekStr ? eq(medicationReminders.daysOfWeek, daysOfWeekStr) : sql`days_of_week IS NULL`
           ))
           .limit(1);
@@ -571,7 +737,8 @@ export class MedicationService {
           .values({
             patientId: patient.id,
             medicationId: data.medicationId,
-            reminderTime: t,
+            reminderTime: utcTime,
+            timezone: tz,
             frequency: data.frequency || medication.frequency || "DAILY",
             daysOfWeek: daysOfWeekStr,
             dayOfMonth: data.dayOfMonth || null,
@@ -597,7 +764,7 @@ export class MedicationService {
       id: r.id,
       medicationId: r.medicationId,
       medicationName: decrypt(medication.name),
-      time: r.reminderTime,
+      time: utcToLocal(r.reminderTime, r.timezone || "UTC"),
       active: hasEnded ? false : r.isEnabled,
       frequency: r.frequency,
       daysOfWeek: r.daysOfWeek ? r.daysOfWeek.split(",") : null,
@@ -621,6 +788,7 @@ export class MedicationService {
       medicationId: medicationReminders.medicationId,
       medicationName: patientMedications.name,
       time: medicationReminders.reminderTime,
+      timezone: medicationReminders.timezone,
       active: medicationReminders.isEnabled,
       frequency: medicationReminders.frequency,
       daysOfWeek: medicationReminders.daysOfWeek,
@@ -1001,6 +1169,6 @@ export class MedicationService {
       medicationId: missedLog.medicationId,
       status: "taken",
       takenTime: takenTime,
-    });
+    }, { skipDailyLimitCheck: true });
   }
 }

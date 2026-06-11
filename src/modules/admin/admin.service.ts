@@ -478,7 +478,7 @@ export class AdminService {
     const auditEvents = await db.select({ count: sql<number>`count(*)` })
        .from(auditLogs)
        .where(and(
-          inArray(auditLogs.userId, adminClinicians.map(c => c.userId!).filter(Boolean)),
+          inArray(auditLogs.userId, displayClinicians.map(c => c.userId!).filter(Boolean)),
           gte(auditLogs.createdAt, startOfTodayForAudit)
        ));
     const audit_log_summary = Number(auditEvents[0]?.count || 0);
@@ -1252,22 +1252,23 @@ export class AdminService {
     offset?: number;
   }) {
     const adminClinicId = await this.getAdminClinicId(adminId);
-    const orgScopes = await this.getOrgScopes(adminClinicId);
+    
+    // Only fetch users who are explicitly flagged as isClinician
+    const clinicClinicians = await db
+      .select({ userId: clinicians.userId })
+      .from(clinicians)
+      .where(and(
+        eq(clinicians.clinicId, adminClinicId),
+        eq(clinicians.isClinician, true)
+      ));
+      
+    const clinicianUserIds = clinicClinicians.map(c => c.userId).filter(Boolean) as string[];
 
-    if (orgScopes.userIds.length === 0) {
+    if (clinicianUserIds.length === 0) {
       return { total: 0, limit: filters.limit ? Number(filters.limit) : 50, offset: filters.offset ? Number(filters.offset) : 0, logs: [] };
     }
 
-    const conditions = [];
-
-    if (orgScopes.patientIds.length > 0) {
-      conditions.push(or(
-        inArray(auditLogs.userId, orgScopes.userIds),
-        inArray(auditLogs.resourceId, orgScopes.patientIds)
-      ));
-    } else {
-      conditions.push(inArray(auditLogs.userId, orgScopes.userIds));
-    }
+    const conditions = [inArray(auditLogs.userId, clinicianUserIds)];
 
     if (filters.user_id) {
       conditions.push(eq(auditLogs.userId, filters.user_id));

@@ -731,10 +731,13 @@ export class MedicationService {
     const conditions = [eq(medicationLogs.patientId, patient.id)];
 
     if (filters.startDate && filters.endDate) {
+      const end = new Date(filters.endDate);
+      end.setUTCHours(23, 59, 59, 999);
+
       conditions.push(between(
         medicationLogs.loggedAt,
         new Date(filters.startDate),
-        new Date(filters.endDate)
+        end
       ));
     }
 

@@ -266,6 +266,8 @@ export class AdminService {
     }
     if (filters?.is_clinician !== undefined) {
       queryConditions.push(eq(clinicians.isClinician, filters.is_clinician));
+    } else {
+      queryConditions.push(eq(clinicians.isClinician, true));
     }
 
     const adminClinicians = await db
@@ -336,9 +338,16 @@ export class AdminService {
   async getAnalytics(adminId: string) {
     const adminClinicId = await this.getAdminClinicId(adminId);
     const adminClinicians = await db
-      .select({ id: clinicians.id, userId: clinicians.userId, fullName: users.fullName })
+      .select({ 
+        id: clinicians.id, 
+        userId: clinicians.userId, 
+        fullName: users.fullName, 
+        roleName: roles.name,
+        isClinician: clinicians.isClinician 
+      })
       .from(clinicians)
       .innerJoin(users, eq(clinicians.userId, users.id))
+      .innerJoin(roles, eq(users.roleId, roles.id))
       .where(eq(clinicians.clinicId, adminClinicId));
 
     if (adminClinicians.length === 0) {
@@ -347,7 +356,7 @@ export class AdminService {
     const clinicianIds = adminClinicians.map(c => c.id);
 
     const assignedPatientsResult = await db
-      .select({ id: patients.id })
+      .select({ id: patients.id, clinicianId: patientClinicianAssignments.clinicianId })
       .from(patients)
       .innerJoin(users, eq(patients.userId, users.id))
       .innerJoin(patientClinicianAssignments, eq(patients.id, patientClinicianAssignments.patientId))
@@ -414,6 +423,9 @@ export class AdminService {
     }));
     const medication_adherence = patientsWithMeds > 0 ? Math.round(totalAdherenceSum / patientsWithMeds) : 0;
 
+    // Filter logic: Only show users where the isClinician flag is explicitly true
+    const displayClinicians = adminClinicians.filter(c => c.isClinician === true);
+
     // 5. Active alerts count
     const activeAlerts = await db
       .select({
@@ -433,7 +445,8 @@ export class AdminService {
       alertsByClinician[alert.clinicianId] = (alertsByClinician[alert.clinicianId] || 0) + 1;
     }
     
-    const active_alerts_count = adminClinicians.map(c => ({
+    const active_alerts_count = displayClinicians.map(c => ({
+      clinician_id: c.id,
       clinician: c.fullName ? decrypt(c.fullName) : "Unknown",
       count: alertsByClinician[c.id] || 0
     }));
@@ -441,7 +454,7 @@ export class AdminService {
 
 
     // 7. Clinician Activity
-    const clinician_activity = await Promise.all(adminClinicians.map(async c => {
+    const clinician_activity = await Promise.all(displayClinicians.map(async c => {
        const resolved = await db.select({ count: sql<number>`count(*)` })
           .from(alerts)
           .where(and(eq(alerts.resolvedBy, c.userId!), gte(alerts.resolvedAt, startOf30DaysAgo)));
@@ -451,6 +464,7 @@ export class AdminService {
           .where(and(eq(invitations.clinicianId, c.id), gte(invitations.createdAt, startOf30DaysAgo)));
 
        return {
+          clinician_id: c.id,
           clinician: c.fullName ? decrypt(c.fullName) : "Unknown",
           patients_invited: Number(invited[0]?.count || 0),
           alerts_resolved: Number(resolved[0]?.count || 0)
@@ -464,7 +478,7 @@ export class AdminService {
     const auditEvents = await db.select({ count: sql<number>`count(*)` })
        .from(auditLogs)
        .where(and(
-          inArray(auditLogs.userId, adminClinicians.map(c => c.userId!).filter(Boolean)),
+          inArray(auditLogs.userId, displayClinicians.map(c => c.userId!).filter(Boolean)),
           gte(auditLogs.createdAt, startOfTodayForAudit)
        ));
     const audit_log_summary = Number(auditEvents[0]?.count || 0);
@@ -494,7 +508,7 @@ export class AdminService {
     // 1. Identify Target Patients
     const adminClinicId = await this.getAdminClinicId(adminId);
     const adminClinicians = await db
-      .select({ id: clinicians.id, status: users.status })
+      .select({ id: clinicians.id, status: users.status, isClinician: clinicians.isClinician })
       .from(clinicians)
       .innerJoin(users, eq(clinicians.userId, users.id))
       .where(eq(clinicians.clinicId, adminClinicId));
@@ -503,7 +517,7 @@ export class AdminService {
       return this.emptyDashboard();
     }
     const clinicianIds = adminClinicians.map(c => c.id);
-    const active_clinicians = adminClinicians.filter(c => c.status === "active").length;
+    const active_clinicians = adminClinicians.filter(c => c.status === "active" && c.isClinician).length;
 
     const assignedPatientsResult = await db
       .select({ id: patients.id, userId: patients.userId })
@@ -518,8 +532,19 @@ export class AdminService {
     const uniquePatients = Array.from(new Map(assignedPatientsResult.map(p => [p.id, p])).values());
     const active_patients = uniquePatients.length;
 
+    // Calculate Today's Audit Events early so it's accurate even with 0 patients
+    const startOfTodayForAudit = new Date(); startOfTodayForAudit.setHours(0, 0, 0, 0);
+    const endOfTodayForAudit = new Date(); endOfTodayForAudit.setHours(23, 59, 59, 999);
+
+    const auditLogsResponse = await this.getAuditLogs(adminId, { 
+      limit: 1,
+      date_from: startOfTodayForAudit.toISOString(),
+      date_to: endOfTodayForAudit.toISOString()
+    });
+    const todays_audit_events_count = auditLogsResponse.total;
+
     if (active_patients === 0) {
-      return this.emptyDashboard(active_clinicians);
+      return this.emptyDashboard(active_clinicians, todays_audit_events_count);
     }
     const patientIds = uniquePatients.map(p => p.id);
 
@@ -626,12 +651,7 @@ export class AdminService {
     }
 
     // 9. Today's Audit Events
-    const auditLogsResponse = await this.getAuditLogs(adminId, { 
-      limit: 1,
-      date_from: startOfToday.toISOString(),
-      date_to: endOfToday.toISOString()
-    });
-    const todays_audit_events_count = auditLogsResponse.total;
+    // (Already calculated above to support empty dashboard)
 
     return {
       active_patients,
@@ -655,7 +675,7 @@ export class AdminService {
     };
   }
 
-  private emptyDashboard(activeClinicians: number = 0) {
+  private emptyDashboard(activeClinicians: number = 0, auditEventsCount: number = 0) {
     return {
       active_patients: 0,
       active_clinicians: activeClinicians,
@@ -663,7 +683,7 @@ export class AdminService {
       adherence_rate: 0,
       avg_symptom_score: 0,
       alerts_today: 0,
-      todays_audit_events_count: 0,
+      todays_audit_events_count: auditEventsCount,
       daily_symptom_log_trends: [],
       user_engagement: {
         daily_active_users: 0,
@@ -1232,22 +1252,23 @@ export class AdminService {
     offset?: number;
   }) {
     const adminClinicId = await this.getAdminClinicId(adminId);
-    const orgScopes = await this.getOrgScopes(adminClinicId);
+    
+    // Only fetch users who are explicitly flagged as isClinician
+    const clinicClinicians = await db
+      .select({ userId: clinicians.userId })
+      .from(clinicians)
+      .where(and(
+        eq(clinicians.clinicId, adminClinicId),
+        eq(clinicians.isClinician, true)
+      ));
+      
+    const clinicianUserIds = clinicClinicians.map(c => c.userId).filter(Boolean) as string[];
 
-    if (orgScopes.userIds.length === 0) {
+    if (clinicianUserIds.length === 0) {
       return { total: 0, limit: filters.limit ? Number(filters.limit) : 50, offset: filters.offset ? Number(filters.offset) : 0, logs: [] };
     }
 
-    const conditions = [];
-
-    if (orgScopes.patientIds.length > 0) {
-      conditions.push(or(
-        inArray(auditLogs.userId, orgScopes.userIds),
-        inArray(auditLogs.resourceId, orgScopes.patientIds)
-      ));
-    } else {
-      conditions.push(inArray(auditLogs.userId, orgScopes.userIds));
-    }
+    const conditions = [inArray(auditLogs.userId, clinicianUserIds)];
 
     if (filters.user_id) {
       conditions.push(eq(auditLogs.userId, filters.user_id));

@@ -10,7 +10,7 @@ function createPool() {
     connectionString: ENV.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
     max: 10,
-    connectionTimeoutMillis: 5000,
+    connectionTimeoutMillis: 20000,
   });
 }
 

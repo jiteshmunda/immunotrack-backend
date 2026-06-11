@@ -254,25 +254,38 @@ export class PatientService {
     // 2. Fetch Active Medications
     const medications = await medicationService.getMedicationPlan(userId);
 
-    const { sql } = await import("drizzle-orm");
-
-    const todayLogs = await db.select({ medicationId: medicationLogs.medicationId })
-      .from(medicationLogs)
-      .where(and(
-        eq(medicationLogs.patientId, patient.id),
-        eq(medicationLogs.status, "taken"),
-        sql`DATE(${medicationLogs.loggedAt} AT TIME ZONE 'UTC') = CURRENT_DATE`
-      ));
-    const takenMedicationIds = new Set(todayLogs.map(l => l.medicationId));
+    const { isPRNMedication } = await import("../../utils/adherence");
 
     const reminders = await medicationService.getReminders(userId);
     const activeReminders = reminders.filter(r => r.active && r.time);
 
     activeReminders.sort((a, b) => (a.time as string).localeCompare(b.time as string));
-
-    // Find the first pending reminder that hasn't been taken today
-    const nextDueReminder = activeReminders.find(r => !takenMedicationIds.has(r.medicationId));
-
+    
+    // Find the first pending reminder that meets all eligibility criteria
+    const nextDueReminder = activeReminders.find(r => {
+      const med = medications.find((m: any) => m.id === r.medicationId);
+      
+      // Edge Case 5: Discontinued med with active reminder
+      if (!med || med.status !== 'active') return false;
+      
+      // Edge Case 8: PRN med shown as "next due"
+      if (isPRNMedication(med.frequency || "")) return false;
+      
+      // Edge Case 1 & 6: Not-due-today med or future start date shown
+      if (!med.dueToday) return false;
+      
+      // Edge Case 4: Completed short-course shown
+      if (med.courseCompleted) return false;
+      
+      // Edge Cases 2 & 3: Multi-dose / Fully-missed meds
+      const expectedDoses = med.dosesCount || 1;
+      const takenCount = med.dosesTaken || 0;
+      const missedCount = med.dosesMissed || 0;
+      if (takenCount + missedCount >= expectedDoses) return false;
+      
+      return true;
+    });
+    
     let nextDueMedication = null;
     if (nextDueReminder) {
       const medDetails = medications.find((m: any) => m.id === nextDueReminder.medicationId);

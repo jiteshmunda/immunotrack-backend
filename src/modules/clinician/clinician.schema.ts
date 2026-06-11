@@ -30,7 +30,7 @@ export const createClinicianSchema = z.object({
   
   phone: z.string().min(10, "Phone number must be at least 10 digits long").regex(/^\+?[1-9]\d{1,14}$/, "Please enter a valid phone number including country code (e.g. +1234567890)").optional(),
   
-  stateOfLicensure: z.string().min(2, "State must be at least 2 characters").regex(/^[a-zA-Z\\s]+$/, "State must only contain letters and spaces").optional(),
+  stateOfLicensure: z.string().min(2, "State must be at least 2 characters").regex(/^[a-zA-Z\s]+$/, "State must only contain letters and spaces").optional(),
   
   role: z.enum([
     "Allergist",

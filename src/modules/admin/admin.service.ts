@@ -338,9 +338,16 @@ export class AdminService {
   async getAnalytics(adminId: string) {
     const adminClinicId = await this.getAdminClinicId(adminId);
     const adminClinicians = await db
-      .select({ id: clinicians.id, userId: clinicians.userId, fullName: users.fullName })
+      .select({ 
+        id: clinicians.id, 
+        userId: clinicians.userId, 
+        fullName: users.fullName, 
+        roleName: roles.name,
+        isClinician: clinicians.isClinician 
+      })
       .from(clinicians)
       .innerJoin(users, eq(clinicians.userId, users.id))
+      .innerJoin(roles, eq(users.roleId, roles.id))
       .where(eq(clinicians.clinicId, adminClinicId));
 
     if (adminClinicians.length === 0) {
@@ -349,7 +356,7 @@ export class AdminService {
     const clinicianIds = adminClinicians.map(c => c.id);
 
     const assignedPatientsResult = await db
-      .select({ id: patients.id })
+      .select({ id: patients.id, clinicianId: patientClinicianAssignments.clinicianId })
       .from(patients)
       .innerJoin(users, eq(patients.userId, users.id))
       .innerJoin(patientClinicianAssignments, eq(patients.id, patientClinicianAssignments.patientId))
@@ -416,6 +423,9 @@ export class AdminService {
     }));
     const medication_adherence = patientsWithMeds > 0 ? Math.round(totalAdherenceSum / patientsWithMeds) : 0;
 
+    // Filter logic: Only show users where the isClinician flag is explicitly true
+    const displayClinicians = adminClinicians.filter(c => c.isClinician === true);
+
     // 5. Active alerts count
     const activeAlerts = await db
       .select({
@@ -435,7 +445,7 @@ export class AdminService {
       alertsByClinician[alert.clinicianId] = (alertsByClinician[alert.clinicianId] || 0) + 1;
     }
     
-    const active_alerts_count = adminClinicians.map(c => ({
+    const active_alerts_count = displayClinicians.map(c => ({
       clinician_id: c.id,
       clinician: c.fullName ? decrypt(c.fullName) : "Unknown",
       count: alertsByClinician[c.id] || 0
@@ -444,7 +454,7 @@ export class AdminService {
 
 
     // 7. Clinician Activity
-    const clinician_activity = await Promise.all(adminClinicians.map(async c => {
+    const clinician_activity = await Promise.all(displayClinicians.map(async c => {
        const resolved = await db.select({ count: sql<number>`count(*)` })
           .from(alerts)
           .where(and(eq(alerts.resolvedBy, c.userId!), gte(alerts.resolvedAt, startOf30DaysAgo)));

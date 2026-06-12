@@ -216,11 +216,33 @@ export class NotificationService {
   }
 
 // -------------------------------------GET /api/v1/notifications --------------------------------------------------
-  async getInbox(userId: string, limit: number = 20, offset: number = 0) {
+  private getTypeFilter(role: string) {
+    if (role === "patient") {
+      return inArray(notifications.type, [
+        "medication_reminder",
+        "medication_dose_reminder",
+        "symptom_reminder",
+        "ai_insight",
+        "clinician_message",
+      ]);
+    } else {
+      return inArray(notifications.type, [
+        "patient_deterioration",
+        "nonadherence_alert",
+        "high_risk_alert",
+        "rpm_transmission_at_risk",
+        "patient_enrolled",
+      ]);
+    }
+  }
+
+  async getInbox(userId: string, role: string, limit: number = 20, offset: number = 0) {
+    const typeFilter = this.getTypeFilter(role);
+
     const results = await db
       .select()
       .from(notifications)
-      .where(eq(notifications.userId, userId))
+      .where(and(eq(notifications.userId, userId), typeFilter))
       .orderBy(desc(notifications.createdAt))
       .limit(limit)
       .offset(offset);
@@ -229,7 +251,7 @@ export class NotificationService {
     const [unreadCountResult] = await db
       .select({ count: sql<number>`count(*)` })
       .from(notifications)
-      .where(and(eq(notifications.userId, userId), sql`${notifications.readAt} IS NULL`));
+      .where(and(eq(notifications.userId, userId), typeFilter, sql`${notifications.readAt} IS NULL`));
 
     const mapped = results.map(n => {
       let decryptedTitle = "Error decrypting title";
@@ -274,11 +296,17 @@ export class NotificationService {
   }
 
   // --------------------------------------- PATCH /api/v1/notifications/:id/read -----------------------------------------------------
-  async markAsRead(notificationId: string, userId: string) {
+  async markAsRead(notificationId: string, userId: string, role: string) {
+    const typeFilter = this.getTypeFilter(role);
+
     const [notification] = await db
       .select()
       .from(notifications)
-      .where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId)))
+      .where(and(
+        eq(notifications.id, notificationId),
+        eq(notifications.userId, userId),
+        typeFilter
+      ))
       .limit(1);
 
     if (!notification) throw new Error("NOTIFICATION_NOT_FOUND");
@@ -293,32 +321,46 @@ export class NotificationService {
   }
 
   // ------------------------------------------ PATCH /api/v1/notifications/read-all --------------------------------------------------
-  async markAllAsRead(userId: string) {
+  async markAllAsRead(userId: string, role: string) {
+    const typeFilter = this.getTypeFilter(role);
     const now = new Date();
     await db
       .update(notifications)
       .set({ readAt: now })
-      .where(and(eq(notifications.userId, userId), sql`${notifications.readAt} IS NULL`));
+      .where(and(
+        eq(notifications.userId, userId),
+        typeFilter,
+        sql`${notifications.readAt} IS NULL`
+      ));
 
     return { success: true, read_at: now };
   }
 
 // ---------------------------------------------- DELETE /api/v1/notifications/selective --------------------------------------------------
-  async deleteSelective(userId: string, ids: string[]) {
+  async deleteSelective(userId: string, ids: string[], role: string) {
     if (!ids.length) return { success: true, deletedAt: new Date() };
 
+    const typeFilter = this.getTypeFilter(role);
     await db
       .delete(notifications)
-      .where(and(eq(notifications.userId, userId), inArray(notifications.id, ids)));
+      .where(and(
+        eq(notifications.userId, userId),
+        inArray(notifications.id, ids),
+        typeFilter
+      ));
 
     return { success: true, deletedAt: new Date() };
   }
 
 // ---------------------------------------------- DELETE /api/v1/notifications/all --------------------------------------------------------
-  async deleteAll(userId: string) {
+  async deleteAll(userId: string, role: string) {
+    const typeFilter = this.getTypeFilter(role);
     await db
       .delete(notifications)
-      .where(eq(notifications.userId, userId));
+      .where(and(
+        eq(notifications.userId, userId),
+        typeFilter
+      ));
 
     return { success: true, deletedAt: new Date() };
   }

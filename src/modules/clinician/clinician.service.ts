@@ -694,11 +694,19 @@ export class ClinicianService {
             }, 0) / logsInWeek.length;
         }
 
-        symptomTrend.push({
-            week: `Week ${4 - i}`,
-            average_score: parseFloat(totalScore.toFixed(2)),
-        });
+      symptomTrend.push({
+        week: `Week ${4 - i}`,
+        average_score: parseFloat(totalScore.toFixed(2))
+      });
     }
+
+    while (symptomTrend.length > 0 && symptomTrend[0].average_score === 0) {
+      symptomTrend.shift();
+    }
+
+    symptomTrend.forEach((item, index) => {
+      item.week = `Week ${index + 1}`;
+    });
 
     // 5. Patient Adherence Comparison
     let totalAdherenceSum = 0;

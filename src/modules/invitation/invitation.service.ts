@@ -3,7 +3,7 @@ import { clinicians, patients } from "../../db/schema/profile.schema";
 import { users } from "../../db/schema/user.schema";
 import { clinics } from "../../db/schema/clinic.schema";
 import { invitations } from "../../db/schema/invitation.schema";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, sql, inArray, or } from "drizzle-orm";
 import { encrypt, hashForLookup, decrypt } from "../../utils/encryption";
 import { EmailService } from "../../utils/email";
 import crypto from "crypto";
@@ -339,19 +339,48 @@ export class InvitationService {
     }
 
     const inviteRecords = await db
-      .select()
+      .select({
+        invitation: invitations,
+        userStatus: users.status
+      })
       .from(invitations)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .leftJoin(patients, eq(invitations.redeemedByPatientId, patients.id))
+      .leftJoin(users, eq(patients.userId, users.id))
+      .where(
+        and(
+          ...(conditions.length > 0 ? conditions : []),
+          or(
+            eq(invitations.status, "pending"),
+            and(
+              eq(invitations.status, "redeemed"),
+              eq(users.status, "onboarding")
+            )
+          )
+        )
+      )
       .orderBy(sql`${invitations.createdAt} DESC`);
 
-    return inviteRecords.map(inv => ({
-      id: inv.id,
-      patient_name: `${decrypt(inv.patientFirstName)} ${decrypt(inv.patientLastName)}`,
-      patient_email: decrypt(inv.patientEmail),
-      status: inv.status === "redeemed" ? "accepted" : inv.status,
-      invite_code: inv.inviteCodeDisplay,
-      expires_at: inv.expiresAt,
-      created_at: inv.createdAt,
-    }));
+    return inviteRecords.map(record => {
+      const inv = record.invitation;
+      let finalStatus = inv.status;
+
+      if (inv.status === "redeemed") {
+        if (record.userStatus === "onboarding") {
+          finalStatus = "onboarding_in_progress";
+        } else {
+          finalStatus = "accepted";
+        }
+      }
+
+      return {
+        id: inv.id,
+        patient_name: `${decrypt(inv.patientFirstName)} ${decrypt(inv.patientLastName)}`,
+        patient_email: decrypt(inv.patientEmail),
+        status: finalStatus,
+        invite_code: inv.inviteCodeDisplay,
+        expires_at: inv.expiresAt,
+        created_at: inv.createdAt,
+      };
+    });
   }
 }

@@ -10,7 +10,7 @@ router.use(authenticateJWT);
 router.get("/catalog", controller.getCatalog);
 
 
-router.get("/", requireRole(["patient"]), controller.getMedicationPlan);
+router.get("/", requireRole(["patient", "clinician", "admin"]), controller.getMedicationPlan);
 router.post("/", requireRole(["patient"]), controller.addMedication);
 router.delete("/:id", requireRole(["patient"]), controller.deleteMedication);
 

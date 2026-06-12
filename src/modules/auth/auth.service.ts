@@ -456,6 +456,12 @@ export class AuthService {
         status: "active",
       }]).returning();
 
+      // 4b. Add to password history
+      await tx.insert(passwordHistory).values({
+        userId: user.id,
+        passwordHash: passwordHash,
+      });
+
       // 5. Create Patient Profile
       const [patient] = await tx.insert(patients).values([{
         userId: user.id,

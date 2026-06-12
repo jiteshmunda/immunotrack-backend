@@ -6,7 +6,7 @@ import { Request, Response, NextFunction } from "express";
  */
 export const requireHttps = (req: Request, res: Response, next: NextFunction) => {
   // Allow localhost bypass during development, but enforce in production
-  if (process.env.NODE_ENV !== "production" && req.hostname === "localhost") {
+  if (process.env.NODE_ENV !== "production") {
     return next();
   }
 

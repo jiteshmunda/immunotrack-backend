@@ -58,14 +58,31 @@ export class PatientService {
       if (input.latitude !== undefined) updates.latitude = input.latitude !== null ? input.latitude.toString() : null;
       if (input.longitude !== undefined) updates.longitude = input.longitude !== null ? input.longitude.toString() : null;
 
-      updates.onboardingCompleted = true;
-      updates.monitoringActive = true;
+      let isCompletingOnboardingNow = false;
+
+      if (!patient.onboardingCompleted) {
+        const consents = await tx.select({ consentType: patientConsents.consentType })
+          .from(patientConsents)
+          .where(eq(patientConsents.patientId, patient.id));
+        
+        const consentTypes = consents.map(c => c.consentType);
+        
+        const hasPlatform = consentTypes.includes("platform");
+        const hasHipaa = consentTypes.includes("hipaa_npp");
+        const hasRpm = patient.icd10QualifyingCode ? consentTypes.includes("rpm") : true;
+
+        if (hasPlatform && hasHipaa && hasRpm) {
+          updates.onboardingCompleted = true;
+          updates.monitoringActive = true;
+          isCompletingOnboardingNow = true;
+        }
+      }
 
       await tx.update(patients)
         .set(updates)
         .where(eq(patients.id, patient.id));
 
-      if (input.first_name || input.last_name || input.zip_code) { // Notify if completing onboarding
+      if (isCompletingOnboardingNow) { // Notify if completing onboarding
         const [assignment] = await tx.select().from(patientClinicianAssignments).where(eq(patientClinicianAssignments.patientId, patient.id)).limit(1);
         if (assignment) {
           const [clinician] = await tx.select().from(clinicians).where(eq(clinicians.id, assignment.clinicianId)).limit(1);
@@ -82,7 +99,7 @@ export class PatientService {
         }
       }
 
-      return { success: true, updated_fields: Object.keys(input), onboarding_complete: true };
+      return { success: true, updated_fields: Object.keys(input), onboarding_complete: patient.onboardingCompleted || isCompletingOnboardingNow };
     });
   }
 

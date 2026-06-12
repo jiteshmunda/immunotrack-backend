@@ -4,17 +4,21 @@ import { exec } from "child_process";
 export function startAdherenceScheduler() {
   console.log("[Scheduler] Background adherence cron job successfully initialized.");
 
+  const isProd = process.env.NODE_ENV === "production";
+  const cmdPrefix = isProd ? "node dist" : "npx tsx src";
+  const ext = isProd ? "js" : "ts";
+
   // Schedule to run every night at 12:30 AM (30 0 * * *)
   cron.schedule("30 0 * * *", () => {
     console.log("[Scheduler] Triggering scheduled medication adherence check...");
     
     // Executes the single-run version of the check script cleanly
-    exec("npx tsx src/scripts/nightly-adherence-check.ts", (error, stdout, stderr) => {
+    exec(`${cmdPrefix}/scripts/nightly-adherence-check.${ext}`, (error, stdout, stderr) => {
       if (error) console.error("[Scheduler] Error executing nightly adherence check:", error);
       if (stdout) console.log("[Scheduler] Nightly check output:\n", stdout);
     });
 
-    exec("npx tsx src/scripts/nightly-declining-composite.ts", (error, stdout, stderr) => {
+    exec(`${cmdPrefix}/scripts/nightly-declining-composite.${ext}`, (error, stdout, stderr) => {
       if (error) console.error("[Scheduler] Error executing nightly declining composite script:", error);
       if (stdout) console.log("[Scheduler] Nightly declining composite output:\n", stdout);
     });
@@ -24,7 +28,7 @@ export function startAdherenceScheduler() {
   cron.schedule("59 59 23 * * *", () => {
     console.log("[Scheduler] Triggering nightly auto-miss medication check...");
     
-    exec("npx tsx src/scripts/nightly-auto-miss.ts", (error, stdout, stderr) => {
+    exec(`${cmdPrefix}/scripts/nightly-auto-miss.${ext}`, (error, stdout, stderr) => {
       if (error) console.error("[Scheduler] Error executing nightly auto-miss script:", error);
       if (stdout) console.log("[Scheduler] Nightly auto-miss output:\n", stdout);
     });

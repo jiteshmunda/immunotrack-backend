@@ -341,11 +341,10 @@ export class InvitationService {
     const inviteRecords = await db
       .select({
         invitation: invitations,
-        userStatus: users.status
+        patientOnboarding: patients.onboardingCompleted
       })
       .from(invitations)
       .leftJoin(patients, eq(invitations.redeemedByPatientId, patients.id))
-      .leftJoin(users, eq(patients.userId, users.id))
       .where(
         and(
           ...(conditions.length > 0 ? conditions : []),
@@ -353,7 +352,7 @@ export class InvitationService {
             eq(invitations.status, "pending"),
             and(
               eq(invitations.status, "redeemed"),
-              eq(users.status, "onboarding")
+              eq(patients.onboardingCompleted, false)
             )
           )
         )
@@ -365,7 +364,7 @@ export class InvitationService {
       let finalStatus = inv.status;
 
       if (inv.status === "redeemed") {
-        if (record.userStatus === "onboarding") {
+        if (record.patientOnboarding === false) {
           finalStatus = "onboarding_in_progress";
         } else {
           finalStatus = "accepted";

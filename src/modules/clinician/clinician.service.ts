@@ -1,5 +1,5 @@
 import { db } from "../../db";
-import { users } from "../../db/schema/user.schema";
+import { users, passwordHistory } from "../../db/schema/user.schema";
 import { clinicians, patients, patientClinicianAssignments, systemAdmins } from "../../db/schema/profile.schema";
 import { dailyLogs, patientMedications, medicationLogs } from "../../db/schema/tracking.schema";
 import { clinics } from "../../db/schema/clinic.schema";
@@ -77,6 +77,11 @@ export class ClinicianService {
           passwordChangedAt: new Date(),
         })
         .returning();
+
+      await tx.insert(passwordHistory).values({
+        userId: newUser.id,
+        passwordHash: hashedPassword,
+      });
 
       // 4. Inherit Clinic from the creating Admin
       let clinicId: string | null = null;
@@ -305,6 +310,7 @@ export class ClinicianService {
         email: users.email,
         primaryDiagnosis: patients.primaryDiagnosis,
         status: users.status,
+        onboardingCompleted: patients.onboardingCompleted,
       })
       .from(patientClinicianAssignments)
       .innerJoin(patients, eq(patientClinicianAssignments.patientId, patients.id))
@@ -393,7 +399,7 @@ export class ClinicianService {
         risk_score: riskScore,
         risk_level: riskLevel,
         alerts: alertsCount,
-        status: p.status,
+        status: p.onboardingCompleted ? p.status : "onboarding",
       };
     });
 

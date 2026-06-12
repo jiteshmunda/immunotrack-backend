@@ -10,7 +10,7 @@ import { auditLogs } from "../../db/schema/compliance.schema";
 import { invitations } from "../../db/schema/invitation.schema";
 import { hashForLookup, encrypt, decrypt } from "../../utils/encryption";
 import { hashPassword, generateTempPassword } from "../../utils/hash";
-import { eq, sql, and, or, between, inArray, gte, lte, desc } from "drizzle-orm";
+import { eq, sql, and, or, between, inArray, gte, lte, desc, ne } from "drizzle-orm";
 import { CreateClinicianInput } from "../clinician/clinician.schema";
 import { CreateSystemAdminInput } from "./admin.schema";
 import { MedicationService } from "../medication/medication.service";
@@ -461,7 +461,11 @@ export class AdminService {
           
        const invited = await db.select({ count: sql<number>`count(*)` })
           .from(invitations)
-          .where(and(eq(invitations.clinicianId, c.id), gte(invitations.createdAt, startOf30DaysAgo)));
+          .where(and(
+             eq(invitations.clinicianId, c.id), 
+             gte(invitations.createdAt, startOf30DaysAgo),
+             ne(invitations.status, "invalidated")
+          ));
 
        return {
           clinician_id: c.id,

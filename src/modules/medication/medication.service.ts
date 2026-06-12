@@ -171,13 +171,40 @@ export class MedicationService {
   }
 
   // --------------------------------------------------------GET /medications -------------------------------------------------------
-  async getMedicationPlan(userId: string) {
-    const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
-    if (!patient) throw new Error("PATIENT_NOT_FOUND");
+  async getMedicationPlan(userId: string, role: string = "patient", patientId?: string) {
+    let targetPatientId: string;
+
+    if (role === "clinician" || role === "admin") {
+      if (!patientId) throw new Error("PATIENT_ID_REQUIRED_FOR_CLINICIANS");
+
+      const targetClinicians = await db.select({ id: clinicians.id })
+        .from(clinicians)
+        .where(or(
+          eq(clinicians.userId, userId),
+          eq(clinicians.createdBy, userId)
+        ));
+
+      if (targetClinicians.length === 0) throw new Error("CLINICIAN_NOT_FOUND");
+      const clinicianIds = targetClinicians.map(c => c.id);
+
+      const [assignment] = await db.select()
+        .from(patientClinicianAssignments)
+        .where(and(
+          inArray(patientClinicianAssignments.clinicianId, clinicianIds),
+          eq(patientClinicianAssignments.patientId, patientId)
+        )).limit(1);
+
+      if (!assignment) throw new Error("UNAUTHORIZED_ACCESS_TO_PATIENT_DATA");
+      targetPatientId = patientId;
+    } else {
+      const [patient] = await db.select().from(patients).where(eq(patients.userId, userId)).limit(1);
+      if (!patient) throw new Error("PATIENT_NOT_FOUND");
+      targetPatientId = patient.id;
+    }
 
     const meds = await db.select().from(patientMedications)
       .where(
-        eq(patientMedications.patientId, patient.id)
+        eq(patientMedications.patientId, targetPatientId)
       )
       .orderBy(desc(patientMedications.createdAt));
 
@@ -188,7 +215,7 @@ export class MedicationService {
     
     const allReminders = await db.select()
       .from(medicationReminders)
-      .where(eq(medicationReminders.patientId, patient.id));
+      .where(eq(medicationReminders.patientId, targetPatientId));
 
     const maxLookbackDate = new Date();
     maxLookbackDate.setDate(maxLookbackDate.getDate() - 90);
@@ -201,7 +228,7 @@ export class MedicationService {
     })
     .from(medicationLogs)
     .where(and(
-      eq(medicationLogs.patientId, patient.id),
+      eq(medicationLogs.patientId, targetPatientId),
       sql`${medicationLogs.loggedAt} >= ${maxLookbackDate}`
     ));
 

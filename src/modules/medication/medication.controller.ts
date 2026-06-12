@@ -54,10 +54,14 @@ export class MedicationController {
   async getMedicationPlan(req: Request, res: Response) {
     try {
       const authReq = req as AuthenticatedRequest;
-      const result = await medicationService.getMedicationPlan(authReq.user.userId);
+      const { patientId } = req.query;
+      const { userId, role } = authReq.user;
+      const result = await medicationService.getMedicationPlan(userId, role, patientId as string);
       return sendSuccess(res, result);
     } catch (error: any) {
-      return sendError(res, error, 500);
+      const status = error.message.includes("UNAUTHORIZED") ? 403 : 
+                    error.message.includes("NOT_FOUND") ? 404 : 500;
+      return sendError(res, error, status);
     }
   }
 

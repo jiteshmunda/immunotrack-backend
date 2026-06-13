@@ -13,18 +13,17 @@ async function startServer() {
     app.listen(PORT, async () => {
       console.log(`Server running on port ${PORT}`);
       
-      // Start the background cron scheduler only if enabled AND running in AWS (or explicitly forced locally)
-      const isRunningInAWS = !!(process.env.ECS_CONTAINER_METADATA_URI || process.env.ECS_CONTAINER_METADATA_URI_V4 || process.env.AWS_EXECUTION_ENV || process.env.NODE_ENV === "production");
-      if (process.env.ENABLE_REMINDER_SCHEDULER === "true" && (isRunningInAWS || process.env.FORCE_LOCAL_SCHEDULER === "true")) {
-  try {
-    const { startAdherenceScheduler } = await import("./utils/scheduler");
-    startAdherenceScheduler();
-  } catch (err) {
-    console.error("Failed to start background scheduler:", err);
-  }
-} else {
-  console.log("[Scheduler] Background reminder scheduler is disabled locally via ENABLE_REMINDER_SCHEDULER=false.");
-}
+      // Start the background cron scheduler if enabled in AWS Secrets
+      if (process.env.ENABLE_REMINDER_SCHEDULER === "true") {
+        try {
+          const { startAdherenceScheduler } = await import("./utils/scheduler");
+          startAdherenceScheduler();
+        } catch (err) {
+          console.error("Failed to start background scheduler:", err);
+        }
+      } else {
+        console.log("[Scheduler] Background reminder scheduler is disabled locally via ENABLE_REMINDER_SCHEDULER=false.");
+      }
     });
   } catch (error) {
     console.error("Failed to start server:", error);
